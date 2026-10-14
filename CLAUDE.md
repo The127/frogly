@@ -1,8 +1,8 @@
 # frogly
 
-frogly is a task planner for software teams. You host it yourself. It
-keeps planning light, so the team spends its time on the work and not on
-the tool.
+frogly is a task planner for self-organized teams. You host it
+yourself. It keeps planning light, so the team spends its time on the work
+and not on the tool.
 
 ## Checks
 
