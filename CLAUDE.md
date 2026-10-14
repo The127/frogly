@@ -6,8 +6,8 @@ the tool.
 
 ## Checks
 
-Run `just ci` before you commit. It runs every check the repository has.
-Run `just` alone to list all recipes.
+Run `just setup` once after you clone. It installs the git hooks and runs
+every check. Run `just` alone to list all recipes.
 
 ## Commits
 
