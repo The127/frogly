@@ -13,14 +13,17 @@ frogly is at an early stage. There is nothing to run yet.
 
 ## Contributing
 
-First, install [just](https://just.systems/), [lefthook](https://lefthook.dev/)
-and [reuse](https://reuse.software/). Then run this once after you clone:
+First, install [mise](https://mise.jdx.dev/) and
+[activate it in your shell](https://mise.jdx.dev/getting-started.html#activate-mise).
+Then run this once after you clone:
 
 ```sh
+mise install
 just setup
 ```
 
-It installs the git hooks and runs every check.
+`mise install` installs the tools in the versions that `mise.toml` names.
+`just setup` installs the git hooks and runs every check.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 without a scope, like `feat: add sprints`. Sign off every commit with

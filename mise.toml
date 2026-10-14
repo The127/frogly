@@ -1,0 +1,7 @@
+[tools]
+just = "1.58.0"
+lefthook = "2.2.2"
+# reuse is a Python tool. mise installs it with uv. Without
+# charset-normalizer, reuse can't tell the encoding of a file.
+uv = "0.13.0"
+"pipx:reuse" = { version = "6.2.0", extras = "charset-normalizer" }
