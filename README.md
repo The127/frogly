@@ -1,5 +1,8 @@
 # frogly
 
+[![ci](https://github.com/The127/frogly/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The127/frogly/actions/workflows/ci.yml)
+[![coverage](https://codecov.io/gh/The127/frogly/graph/badge.svg)](https://app.codecov.io/gh/The127/frogly)
+
 frogly is a task planner for self-organized teams. You host it yourself.
 
 Many planning tools are built for the people who watch the work. They ask
