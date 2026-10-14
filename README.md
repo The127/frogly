@@ -21,6 +21,11 @@ Contributions are welcome. Before you open a pull request, read
 repository, how to title your pull request, how to sign off your commits
 and how you may use AI tools.
 
+## Security
+
+If you find a vulnerability, report it privately as described in
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 frogly is licensed under the
