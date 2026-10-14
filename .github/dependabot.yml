@@ -1,6 +1,19 @@
 version: 2
 updates:
-  # Go modules join here once there is a go.mod
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore"
+
+  - package-ecosystem: gomod
+    directory: "/hack/tools"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

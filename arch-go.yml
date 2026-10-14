@@ -1,0 +1,26 @@
+# Package dependency rules, checked by `just arch`. Patterns are regular
+# expressions after arch-go's rewriting, so a single package is anchored
+# with $ and `x.**` covers x and everything below it. Every package needs a
+# rule, and every rule says why.
+version: 1
+threshold:
+  compliance: 100
+  coverage: 100
+dependenciesRules:
+  # the version reads what the Go toolchain wrote into the binary and
+  # nothing else
+  - package: '**.internal.version$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+      standard:
+        - os
+        - os/exec
+        - net
+        - syscall
+  # a command only wires packages together, the work happens in internal
+  - package: '**.cmd.frogly$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.version$'

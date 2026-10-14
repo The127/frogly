@@ -9,6 +9,15 @@ and not on the tool.
 Run `just setup` once after you clone. It installs the git hooks and runs
 every check. Run `just` alone to list all recipes.
 
+## Go
+
+- All Go code lives in one module. Binaries go in `cmd/<name>`, everything
+  else in `internal/`.
+- Every package needs a rule in `arch-go.yml` that says what it may depend
+  on and why. A new package arrives together with its rule.
+- Tests use external test packages (`package foo_test`) and run with the
+  race detector.
+
 ## Commits
 
 - Use Conventional Commits without a scope: `type: description`. The types
