@@ -2,6 +2,18 @@
 default:
     @just --list
 
+# build the binary into bin/
+build:
+    CGO_ENABLED=0 go build -o bin/frogly ./cmd/frogly
+
+# test
+test:
+    go test -race ./...
+
+# test with a coverage profile
+cover:
+    go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
 # check that every file has license and copyright information
 reuse:
     reuse lint
@@ -18,4 +30,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: reuse prose
+ci: reuse prose build cover

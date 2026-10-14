@@ -22,7 +22,7 @@ mise install
 just setup
 ```
 
-`mise install` installs [just](https://just.systems/),
+`mise install` installs [Go](https://go.dev/), [just](https://just.systems/),
 [lefthook](https://lefthook.dev/) and [reuse](https://reuse.software/) in
 the versions that `mise.toml` names. `just setup` installs the git hooks and
 runs every check.

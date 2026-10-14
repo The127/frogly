@@ -1,4 +1,5 @@
 [tools]
+go = "1.27.2"
 just = "1.58.0"
 lefthook = "2.2.2"
 # reuse is a Python tool. mise installs it with uv. Without
