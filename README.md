@@ -13,21 +13,10 @@ frogly is at an early stage. There is nothing to run yet.
 
 ## Contributing
 
-First, install [mise](https://mise.jdx.dev/) and
-[activate it in your shell](https://mise.jdx.dev/getting-started.html#activate-mise).
-Then run this once after you clone:
-
-```sh
-mise install
-just setup
-```
-
-`mise install` installs the tools in the versions that `mise.toml` names.
-`just setup` installs the git hooks and runs every check.
-
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
-without a scope, like `feat: add sprints`. Sign off every commit with
-`git commit -s`.
+Contributions are welcome. Before you open a pull request, read
+[CONTRIBUTING.md](CONTRIBUTING.md). It explains how to set up the
+repository, how to title your pull request, how to sign off your commits
+and how you may use AI tools.
 
 ## License
 
