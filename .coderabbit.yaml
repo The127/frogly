@@ -1,6 +1,17 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: en-US
 reviews:
+  # CodeRabbit is a required check on main, so every pull request needs its
+  # status, Dependabot's too. A review that fails says so instead of staying
+  # pending, which would block the merge for good.
+  auto_review:
+    ignore_usernames: []
+  fail_commit_status: true
+  pre_merge_checks:
+    # golangci-lint already asks for doc comments on exported names, and
+    # tests and main don't need one
+    docstrings:
+      mode: "off"
   # Generated code and lock files aren't reviewed.
   path_filters:
     - "!**/go.sum"
