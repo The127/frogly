@@ -60,7 +60,8 @@ type, for example `feat!: remove the v1 API`.
 
 The git hooks reject a commit message that doesn't follow this form.
 Pull requests are squash merged, so the pull request title becomes the
-commit message on `main`. Give it the same form.
+commit message on `main`. Give it the same form. A check on every pull
+request validates the title.
 
 ## Developer Certificate of Origin
 
@@ -82,7 +83,8 @@ Signed-off-by: Jane Doe <jane@example.com>
 ```
 
 The email in this line must match the commit author. The git hooks reject a
-commit that isn't signed off.
+commit that isn't signed off, and a check on every pull request makes sure
+all its commits are signed off.
 
 If you forgot to sign off, you can add the sign-off to all commits on your
 branch and update the pull request:
@@ -120,6 +122,9 @@ Assisted-by: Claude:claude-opus-5-5
 
 Don't add a `Co-Authored-By` line for an AI, and don't link to an AI
 session.
+
+The squash merge keeps the commit messages from your branch, so this line
+ends up on `main`.
 
 ## License
 

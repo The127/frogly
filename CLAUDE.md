@@ -26,6 +26,12 @@ every check. Run `just` alone to list all recipes.
   session.
 - Keep each commit to one change.
 
+## Pull requests
+
+Work reaches `main` only through a pull request, never by pushing to
+`main`. Open it from a branch named `type/topic`, wait for the checks, then
+squash merge it.
+
 Your own notes for this machine go in `CLAUDE.local.md`, which git ignores:
 
 @CLAUDE.local.md
