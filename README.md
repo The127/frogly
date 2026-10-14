@@ -25,3 +25,8 @@ It installs the git hooks and runs every check.
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
 without a scope, like `feat: add sprints`. Sign off every commit with
 `git commit -s`.
+
+## License
+
+frogly is licensed under the
+[GNU Affero General Public License v3.0 or later](LICENSE).
