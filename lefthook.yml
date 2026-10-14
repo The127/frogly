@@ -4,6 +4,11 @@ pre-commit:
     - name: lint
       glob: "*.go"
       run: just lint
+    - name: architecture check
+      glob:
+        - "**/*.go"
+        - "arch-go.yml"
+      run: just arch
     - name: license information
       run: just reuse
     - name: prose check

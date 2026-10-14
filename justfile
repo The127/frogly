@@ -22,6 +22,18 @@ lint:
 fmt:
     golangci-lint fmt ./...
 
+# check the package dependency rules in arch-go.yml
+arch:
+    go tool -modfile=hack/tools/go.mod arch-go
+
+# describe the package dependency rules in prose
+arch-describe:
+    go tool -modfile=hack/tools/go.mod arch-go describe
+
+# check for known vulnerabilities in reachable code
+vuln:
+    go tool -modfile=hack/tools/go.mod govulncheck ./...
+
 # check that every file has license and copyright information
 reuse:
     reuse lint
@@ -38,4 +50,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: lint reuse prose build cover
+ci: lint arch reuse prose build cover vuln

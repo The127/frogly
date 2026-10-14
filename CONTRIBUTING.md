@@ -28,6 +28,13 @@ just setup
 the versions that `mise.toml` names. `just setup` installs the git hooks and
 runs every check.
 
+Go fetches the two remaining tools on its own:
+[arch-go](https://github.com/arch-go/arch-go) checks the package
+dependency rules in `arch-go.yml`, and
+[govulncheck](https://go.dev/doc/security/vuln/) checks for known
+vulnerabilities. Both are pinned in `hack/tools/go.mod`, so their
+dependencies stay out of frogly's.
+
 Run `just` to list all recipes. `just ci` runs every check.
 
 ## Making a change
