@@ -13,8 +13,8 @@ frogly is at an early stage. There is nothing to run yet.
 
 ## Contributing
 
-First, install [just](https://just.systems/) and
-[lefthook](https://lefthook.dev/). Then run this once after you clone:
+First, install [just](https://just.systems/), [lefthook](https://lefthook.dev/)
+and [reuse](https://reuse.software/). Then run this once after you clone:
 
 ```sh
 just setup

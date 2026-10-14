@@ -1,6 +1,8 @@
 pre-commit:
   parallel: true
   jobs:
+    - name: license information
+      run: just reuse
     - name: prose check
       run: just prose
 

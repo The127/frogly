@@ -2,6 +2,10 @@
 default:
     @just --list
 
+# check that every file has license and copyright information
+reuse:
+    reuse lint
+
 # check that no em dash is in the repository
 prose:
     bash hack/check-prose.sh
@@ -14,4 +18,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: prose
+ci: reuse prose
