@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-US
+reviews:
+  # Generated code and lock files aren't reviewed.
+  path_filters:
+    - "!**/go.sum"
+  path_instructions:
+    - path: "**/*.md"
+      instructions: |
+        Check the prose against these rules. Write for a reader who wasn't
+        there. Use simple technical English with plain sentence structure.
+        No em dashes and no semicolons. Say what an internal name is before
+        using it. Avoid chains of "of", bold lead-ins on bullets, and lists
+        where a paragraph would do.
