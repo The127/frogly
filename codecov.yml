@@ -1,0 +1,15 @@
+# Coverage is shown on pull requests but never blocks a merge.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# the commands only wire packages together and no test reaches them, and
+# hack holds the tools the checks use
+ignore:
+  - "cmd"
+  - "hack"
