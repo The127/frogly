@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Digest · frogly</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="demo.css">
+<script>try{var t=localStorage.getItem("frogly-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .wrap { max-width:640px; margin:0 auto; }
+  .chan { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--ink-3); margin:6px 0 14px; }
+  .chan .av { width:30px; height:30px; border-radius:8px; background:var(--pond-soft); color:var(--pond); display:grid; place-items:center; font-family:var(--serif); font-size:16px; }
+  .msg { border:1px solid var(--line); border-radius:14px; padding:30px 32px; background:var(--paper); }
+  .msg h1 { font-size:28px; margin:4px 0 6px; }
+  .msg .sub { color:var(--ink-2); font-family:var(--serif); font-size:16px; margin:0; }
+  .part { margin-top:28px; }
+  .part .label { margin-bottom:6px; }
+  .line { display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; padding:8px 0; cursor:pointer; }
+  .line span.t { font-family:var(--serif); font-size:16px; } .line:hover span.t { color:var(--pond); }
+  .line .n { font-size:13px; color:var(--ink-3); }
+  .shipped { font-family:var(--serif); font-size:16px; line-height:1.9; margin:0; }
+  .shipped span { color:var(--ink-3); font-family:var(--sans); font-size:13px; }
+  .flow { display:flex; gap:36px; flex-wrap:wrap; }
+  .flow b { font-family:var(--serif); font-weight:400; font-size:24px; display:block; }
+  .flow div { font-size:13px; color:var(--ink-2); }
+  .ask { margin-top:28px; padding:18px 20px; border-radius:10px; background:var(--pond-soft); }
+  .ask p { margin:0; } .ask .t { font-family:var(--serif); font-size:17px; margin:6px 0 12px; cursor:pointer; }
+  .ask .acts { display:flex; gap:8px; flex-wrap:wrap; }
+</style></head>
+<body>
+<header class="top"><a class="mark" href="today.html"><span>蛙</span>frogly</a><nav><a href="today.html">today</a><a href="garden.html">garden</a><a href="board.html">board</a></nav><span class="who">frogly · Karo</span></header>
+<main class="wrap">
+  <div class="chan"><span class="av">蛙</span><span>frogly in <b>#frogly</b> · Monday, 9:00 · once a week</span></div>
+  <article class="msg">
+    <p class="label">week 42</p>
+    <h1>A calm week. Four things shipped.</h1>
+    <p class="sub">Ready to done got faster. Review is where work waits.</p>
+
+    <section class="part"><p class="label">shipped</p>
+      <p class="shipped">Plant an idea from the CLI <span>Karo via Claude</span><br>Today as the home page <span>Ana</span><br>Two smaller fixes <span>Lea</span></p></section>
+
+    <section class="part"><p class="label">ripest ideas</p>
+      <div class="line" data-idea="search"><span data-rip="4" data-size="26"></span><span class="t">Searching takes forever on big projects</span><span class="n">4 people</span></div>
+      <div class="line" data-idea="enter"><span data-rip="2" data-size="26"></span><span class="t">Pressing Enter twice should keep the box open</span><span class="n">2 people</span></div>
+      <div class="line" data-idea="parking"><span data-rip="2" data-size="26"></span><span class="t">Ask the school if we can use their parking</span><span class="n">Summer fair · 2</span></div></section>
+
+    <section class="part"><p class="label">how work flowed</p>
+      <div class="flow"><div><b>2.5 days</b>ready to done, from 3</div><div><b>1.5 days</b>of that in review</div><div><b>2 times</b>review hit its WIP limit</div></div></section>
+
+    <section class="part"><p class="label">went to the compost</p>
+      <p style="margin:0">3 ideas faded this week. <a href="compost.html">See which ones</a></p></section>
+
+    <div class="ask"><p class="label">one idea for Lea this week</p>
+      <p class="t" data-idea="parking">"Ask the school if we can use their parking"</p>
+      <div class="acts"><span class="btn pond">harvest</span><span class="btn">drop</span><span class="btn">not now</span></div></div>
+  </article>
+  <p class="hint" style="margin-top:14px;text-align:center">Nothing else interrupts you, except a person handing you work.</p>
+</main>
+<script src="demo.js"></script>
+</body></html>

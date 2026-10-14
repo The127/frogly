@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Board · frogly</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="demo.css">
+<script>try{var t=localStorage.getItem("frogly-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .loop { max-width:1180px; margin:0 auto; display:grid; grid-template-columns:minmax(240px,300px) 36px minmax(0,1fr); }
+  .gard .idea { grid-template-columns:auto 1fr; align-items:center; } .gard .idea > .rip { grid-row:1/span 2; margin-right:4px; }
+  .gard .idea p { font-size:15px; } .gard .idea .meta { grid-column:2; } .gard .plant { font-size:17px; }
+  .arrow { display:grid; place-items:start center; padding-top:120px; color:var(--pond); font-size:20px; }
+  .loop .board { grid-template-columns:repeat(4,minmax(170px,1fr)); gap:14px; }
+  .loop .card { cursor:pointer; } .loop .card:hover { border-color:var(--pond); }
+  .loop .card p { font-size:14px; } .card .top-row { display:flex; justify-content:space-between; align-items:center; }
+  .harv { border:1px dashed var(--pond); color:var(--pond); border-radius:10px; padding:10px 12px; font-size:13px; cursor:pointer; }
+  .kaizen { grid-column:1/-1; margin-top:34px; padding-top:16px; border-top:1px solid var(--line); display:flex; gap:40px; flex-wrap:wrap; color:var(--ink-2); font-size:14px; }
+  .kaizen b { font-family:var(--serif); font-weight:400; font-size:22px; color:var(--ink); display:block; }
+  @media (max-width:900px){ .loop{ grid-template-columns:minmax(0,1fr) } .arrow{ padding:10px 0; transform:rotate(90deg) } }
+</style></head>
+<body>
+<header class="top"><a class="mark" href="today.html"><span>蛙</span>frogly</a><nav><a href="today.html">today</a><a href="garden.html">garden</a><a href="board.html" class="on">board</a></nav><span class="who">frogly · Karo</span></header>
+<main class="loop">
+  <div class="gard">
+    <p class="label">garden</p>
+    <input class="plant" placeholder="plant an idea…" aria-label="Plant an idea">
+    <div class="idea clickable" data-idea="search" data-rip="4" data-size="26"><p>Searching takes forever on big projects</p><span class="meta">4 people · ripe</span></div>
+    <div class="idea clickable" data-idea="enter" data-rip="2" data-size="26"><p>Pressing Enter twice should keep the box open</p><span class="meta">2 people</span></div>
+    <div class="idea clickable" data-idea="dropped" data-rip="2" data-size="26"><p>Search in dropped ideas too</p><span class="meta">2 people</span></div>
+    <div class="idea clickable fade-2" data-idea="dark" data-rip="1" data-size="26"><p>Dark mode for the board</p><span class="meta">fading</span></div>
+    <p class="hint"><a href="garden.html">all 23 ideas</a> · <a href="compost.html">compost (41)</a></p>
+  </div>
+  <div class="arrow">→</div>
+  <div><p class="label">board</p>
+  <div class="board">
+    <section class="col"><header><b>ready</b><span class="wip">2 · low</span></header>
+      <div class="harv" data-idea="search">Only 2 tickets are ready. Harvest "Searching takes forever on big projects"?</div>
+      <article class="card" data-ticket="FROG-15"><div class="top-row"><span class="key">FROG-15</span><span data-rip="3" data-size="20"></span></div><p>Plant an idea by email</p></article>
+      <article class="card" data-ticket="FROG-12"><div class="top-row"><span class="key">FROG-12</span><span data-rip="1" data-size="20"></span></div><p>Weekly digest to the team chat</p></article></section>
+    <section class="col"><header><b>doing</b><span class="wip">2 / 3</span></header>
+      <article class="card" data-ticket="FROG-14"><div class="top-row"><span class="key">FROG-14</span><span data-rip="3" data-size="20"></span></div><p>Show ripeness on ideas</p><div class="by">Karo</div></article>
+      <article class="card hold" data-ticket="FROG-13"><div class="top-row"><span class="key">FROG-13</span><span data-rip="2" data-size="20"></span></div><p>Suggest "me too" with a local model</p><div class="why">on hold</div></article></section>
+    <section class="col"><header><b>review</b><span class="wip full">2 / 2</span></header>
+      <article class="card" data-ticket="FROG-11"><div class="top-row"><span class="key">FROG-11</span><span data-rip="2" data-size="20"></span></div><p>Fade ideas by project activity</p><div class="by">for Karo</div></article>
+      <article class="card" data-ticket="FROG-10"><div class="top-row"><span class="key">FROG-10</span><span data-rip="2" data-size="20"></span></div><p>Compost keeps dropped ideas searchable</p><div class="by">for Ana</div></article></section>
+    <section class="col"><header><b>done</b><span class="wip">4 this week</span></header>
+      <article class="card" style="opacity:.6"><span class="key">FROG-9</span><p>Plant an idea from the CLI</p></article>
+      <article class="card" style="opacity:.6"><span class="key">FROG-8</span><p>Today as the home page</p></article></section>
+  </div></div>
+  <div class="kaizen"><div><b>2.5 days</b>ready to done, down from 3</div><div><b>1.5 days</b>of that waiting in review</div><div><b>3 ideas</b>went to the compost</div><div><b>"review piles up"</b>planted by Ana from this view</div></div>
+</main>
+<script src="demo.js"></script>
+</body></html>

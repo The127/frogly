@@ -11,7 +11,8 @@ their own.
 ## Status
 
 frogly is at an early stage. There is nothing to run yet. The
-[vision](docs/vision.md) describes what frogly is going to be.
+[vision](docs/vision.md) describes what frogly is going to be, and the
+[design demo](docs/design/) shows how it could look.
 
 ## Contributing
 

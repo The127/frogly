@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garden · frogly</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="demo.css">
+<script>try{var t=localStorage.getItem("frogly-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .cloud { max-width:920px; margin:34px auto 0; display:flex; flex-wrap:wrap; gap:26px 36px; align-items:center; justify-content:center; text-align:left; }
+  .cloud .w { display:flex; align-items:center; gap:12px; font-family:var(--serif); line-height:1.2; max-width:24ch; }
+  .c4 { font-size:32px; } .c2 { font-size:22px; } .c1 { font-size:17px; color:var(--ink-2); }
+  .bedmark { color:var(--pond); }
+  .cloud .fade-2, .cloud .fade-3 { color:var(--ink-3); }
+  .under { display:flex; justify-content:center; gap:24px; margin-top:46px; font-size:13px; color:var(--ink-3); }
+</style></head>
+<body>
+<header class="top"><a class="mark" href="today.html"><span>蛙</span>frogly</a><nav><a href="today.html">today</a><a href="garden.html" class="on">garden</a><a href="board.html">board</a></nav><span class="who">frogly · Karo</span></header>
+<main class="page">
+  <div class="narrow" style="text-align:center"><input class="plant" style="text-align:center" placeholder="plant an idea…" aria-label="Plant an idea">
+    <p class="hint">Bigger means more people want it. Green ones share a bed: search.</p></div>
+  <div class="cloud">
+    <span class="w c2 clickable" data-idea="enter" data-rip="2" data-size="26">Pressing Enter twice should keep the box open</span>
+    <span class="w c4 bedmark clickable" data-idea="search" data-rip="4" data-size="40">Searching takes forever on big projects</span>
+    <span class="w c1 fade-2 clickable" data-idea="dark" data-rip="1" data-size="20">Dark mode for the board</span>
+    <span class="w c2 bedmark clickable" data-idea="dropped" data-rip="2" data-size="26">Search in dropped ideas too</span>
+    <span class="w c2 bedmark clickable" data-idea="index" data-rip="2" data-size="26">Index ticket titles for search</span>
+    <span class="w c1 clickable" data-idea="shortcut" data-rip="1" data-size="20">A shortcut to plant from anywhere</span>
+    <span class="w c1 bedmark fade-1 clickable" data-idea="bytheidea" data-rip="1" data-size="20">Find tickets by the idea they came from</span>
+    <span class="w c1 fade-3 clickable" data-idea="json" data-rip="1" data-size="20">Export a project as JSON</span>
+  </div>
+  <div class="under"><span>23 ideas</span><a href="compost.html">compost (41)</a></div>
+</main>
+<script src="demo.js"></script>
+</body></html>

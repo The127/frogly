@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Today · frogly</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="demo.css">
+<script>try{var t=localStorage.getItem("frogly-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .day { max-width:1080px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr); gap:56px; }
+  .greet { font-family:var(--serif); font-size:30px; line-height:1.25; margin:10px 0 26px; text-wrap:balance; }
+  .greet span { color:var(--ink-3); }
+  .sec { margin-top:40px; }
+  .sec .label { display:flex; justify-content:space-between; }
+  .row { display:grid; grid-template-columns:auto 1fr auto; gap:4px 16px; align-items:center; padding:14px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .row:hover p { color:var(--pond); }
+  .row > [data-rip] { grid-row:1/span 2; }
+  .row p { margin:0; font-family:var(--serif); font-size:18px; }
+  .row .meta { grid-column:2; font-size:13px; color:var(--ink-3); }
+  .row .side { grid-row:1/span 2; grid-column:3; font-size:13px; color:var(--ink-2); text-align:right; }
+  .row .side.due { color:var(--wait); }
+  .hand { border:1px solid var(--line); border-radius:12px; padding:4px 16px; background:var(--paper-2); }
+  .hand .row:last-child { border-bottom:0; }
+  .hand .who { font-size:13px; color:var(--pond); }
+  main aside .label { margin-bottom:8px; }
+  main aside .ripe { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  main aside .ripe span.t { font-family:var(--serif); font-size:15px; line-height:1.3; }
+  main aside .ripe:hover span.t { color:var(--pond); }
+  .week { margin-top:40px; display:grid; gap:14px; color:var(--ink-2); font-size:14px; }
+  .week b { font-family:var(--serif); font-weight:400; font-size:22px; color:var(--ink); display:block; }
+  .quietday { margin-top:40px; font-family:var(--serif); color:var(--ink-3); font-size:15px; line-height:1.6; }
+  @media (max-width:860px){ .day{ grid-template-columns:1fr; gap:10px } }
+</style></head>
+<body>
+<header class="top"><a class="mark" href="today.html"><span>蛙</span>frogly</a><nav><a href="today.html" class="on">today</a><a href="garden.html">garden</a><a href="board.html">board</a></nav><span class="who">Karo</span></header>
+<main class="day">
+  <div>
+    <p class="greet">Good morning, Karo. <span>Two things in progress, one handed to you.</span></p>
+    <input class="plant" placeholder="plant an idea in frogly…" aria-label="Plant an idea">
+    <p class="hint">Goes to the garden of frogly. Type @ to plant somewhere else.</p>
+
+    <section class="sec">
+      <p class="label"><span>handed to you</span><span>1</span></p>
+      <div class="hand">
+        <div class="row" data-ticket="FROG-11"><span data-rip="2" data-size="26"></span><p>Review: fade ideas by project activity</p><span class="meta">FROG-11 · frogly</span><span class="side who">Ana, this morning</span></div>
+      </div>
+    </section>
+
+    <section class="sec">
+      <p class="label"><span>doing</span><span>2</span></p>
+      <div class="row" data-ticket="FROG-14"><span data-rip="3" data-size="26"></span><p>Show ripeness on ideas</p><span class="meta">FROG-14 · frogly · 2 of 3 checked</span><span class="side">since Monday</span></div>
+      <div class="row" data-ticket="SUM-3"><span data-rip="3" data-size="26"></span><p>Draft the call for volunteers</p><span class="meta">SUM-3 · Summer fair · 1 of 3 checked</span><span class="side due">due Friday</span></div>
+    </section>
+
+    <section class="sec">
+      <p class="label"><span>coming up</span><span>1</span></p>
+      <div class="row" data-ticket="SUM-1"><span data-rip="2" data-size="26"></span><p>Book the hall</p><span class="meta">SUM-1 · Summer fair · ready</span><span class="side due">in 9 days</span></div>
+    </section>
+  </div>
+
+  <aside>
+    <p class="label">few tickets ready in frogly</p>
+    <p class="quiet" style="font-size:14px;margin:0 0 6px">Two tickets left. These ideas are ripest.</p>
+    <div class="ripe" data-idea="search"><span data-rip="4" data-size="30"></span><span class="t">Searching takes forever on big projects</span></div>
+    <div class="ripe" data-idea="enter"><span data-rip="2" data-size="30"></span><span class="t">Pressing Enter twice should keep the box open</span></div>
+
+    <div class="week">
+      <p class="label" style="margin:0">your week</p>
+      <div><b>3 done</b>two in frogly, one in Summer fair</div>
+      <div><b>1.5 days</b>your reviews waited, on average</div>
+    </div>
+
+    <p class="quietday">Nothing else needs you today.</p>
+  </aside>
+</main>
+<script src="demo.js"></script>
+</body></html>

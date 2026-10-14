@@ -1,0 +1,18 @@
+/* ripples: one ring per person who wants the idea */
+.rip { position:relative; display:inline-block; width:var(--rs,30px); height:var(--rs,30px); flex:none; vertical-align:middle; }
+.rip i { position:absolute; inset:0; margin:auto; border:1px solid var(--pond); border-radius:50%; }
+.rip i:nth-child(1) { width:28%; height:28%; background:var(--pond); }
+.rip i:nth-child(2) { width:52%; height:52%; opacity:.7; }
+.rip i:nth-child(3) { width:76%; height:76%; opacity:.45; }
+.rip i:nth-child(4) { width:100%; height:100%; opacity:.25; }
+
+/* the detail panel slides in from the right */
+.panel { position:fixed; top:0; right:0; bottom:0; width:min(480px, 100vw); background:var(--paper); border-left:1px solid var(--line); padding:28px max(16px, env(safe-area-inset-right, 0px)) 110px 36px; overflow-y:auto;
+  transform:translateX(100%); visibility:hidden; transition:transform .35s ease, visibility 0s .35s; z-index:20; }
+.panel.open { transform:none; visibility:visible; transition:transform .35s ease; box-shadow:-20px 0 40px rgba(0,0,0,.06); }
+.panel h1 { font-size:26px; margin:6px 0 12px; }
+.panel .close { float:right; margin:-6px 0 8px 12px; }
+.panel .acts { display:flex; gap:10px; flex-wrap:wrap; margin-top:26px; }
+.panel .idea p { font-size:15px; }
+.clickable { cursor:pointer; }
+.clickable:hover p, .clickable:hover { color:var(--pond); }

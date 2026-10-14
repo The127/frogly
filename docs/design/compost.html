@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compost · frogly</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="demo.css">
+<script>try{var t=localStorage.getItem("frogly-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .wrap { max-width:640px; margin:0 auto; }
+  .intro { font-family:var(--serif); font-size:17px; color:var(--ink-2); line-height:1.6; margin:12px 0 22px; }
+  .search { width:100%; border:0; border-bottom:1px solid var(--line); background:transparent; color:var(--ink); font:17px var(--serif); padding:10px 2px; outline:none; }
+  .search:focus { border-bottom-color:var(--pond); }
+  .filters { display:flex; gap:8px; margin:14px 0 6px; flex-wrap:wrap; }
+  .filters .btn { font-size:13px; padding:4px 12px; } .filters .btn.on { border-color:var(--ink-2); }
+  .row { display:grid; grid-template-columns:auto 1fr; gap:4px 16px; align-items:center; padding:16px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+  .row > [data-rip] { grid-row:1/span 2; opacity:.45; }
+  .row p { margin:0; font-family:var(--serif); font-size:18px; color:var(--ink-2); }
+  .row .meta { grid-column:2; font-size:13px; color:var(--ink-3); }
+  .row .meta q { color:var(--ink-2); }
+  .row:hover p { color:var(--pond); }
+  .back { opacity:1; } .back > [data-rip] { opacity:1; } .back p { color:var(--ink); }
+  .back .meta { color:var(--pond); }
+  .month { margin:32px 0 0; }
+</style></head>
+<body>
+<header class="top"><a class="mark" href="today.html"><span>蛙</span>frogly</a><nav><a href="today.html">today</a><a href="garden.html" class="on">garden</a><a href="board.html">board</a></nav><span class="who">frogly · Karo</span></header>
+<main class="wrap">
+  <h1>The compost</h1>
+  <p class="intro">Ideas that faded or were dropped. Nothing here is gone. When someone plants something similar, the idea comes back.</p>
+  <input class="search" placeholder="search 41 ideas…" aria-label="Search the compost">
+  <div class="filters"><span class="btn on">all</span><span class="btn">faded</span><span class="btn">dropped</span><span class="btn">came back</span></div>
+
+  <p class="label month">came back</p>
+  <div class="row back" data-idea="index"><span data-rip="2" data-size="28"></span><p>Index ticket titles for search</p><span class="meta">back in the garden since last week</span></div>
+
+  <p class="label month">dropped</p>
+  <div class="row" data-idea="points"><span data-rip="2" data-size="28"></span><p>Story points on tickets</p><span class="meta">Karo: <q>a field has to earn its place</q></span></div>
+  <div class="row" data-idea="gantt"><span data-rip="1" data-size="28"></span><p>Gantt charts</p><span class="meta">Ana: <q>a board with dates is enough for us</q></span></div>
+
+  <p class="label month">faded</p>
+  <div class="row" data-idea="slack"><span data-rip="1" data-size="28"></span><p>Post every event to the team chat</p><span class="meta">faded in September · Lea via Claude</span></div>
+  <p class="hint" style="margin-top:22px">37 more, older first.</p>
+</main>
+<script src="demo.js"></script>
+</body></html>
