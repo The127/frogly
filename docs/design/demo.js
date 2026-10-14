@@ -44,42 +44,85 @@ const tickets = {
   "FROG-10": { col: "review · Tomás via Claude, waiting for Ana", title: "Compost keeps dropped ideas searchable", body: "Dropped and faded ideas stay searchable and come back when someone plants something similar.",
     check: [[1, "Search the compost"], [1, "Suggest composted ideas while planting"]], from: ["findable"], acts: ["approve and move to done", "send back to doing"] },
 };
-const ripples = (n, size) => `<span class="rip" style="--rs:${size || 30}px">${"<i></i>".repeat(Math.max(1, Math.min(4, n)))}</span>`;
+const count = (n) => `${n} ${n === 1 ? "person wants" : "people want"} this`;
+const ripples = (n, size) => `<span class="rip" role="img" aria-label="${count(n)}" style="--rs:${size || 30}px">${"<i></i>".repeat(Math.max(1, Math.min(4, n)))}</span>`;
+
+// The panel is a modal dialog. While it's open, the page behind it is inert,
+// Tab stays inside, and closing it gives focus back to what opened it.
 const panel = document.createElement("aside");
 panel.className = "panel";
+panel.setAttribute("role", "dialog");
+panel.setAttribute("aria-modal", "true");
+panel.setAttribute("aria-labelledby", "panel-title");
 document.body.appendChild(panel);
-const close = () => panel.classList.remove("open");
-const openIdea = (id) => {
+let opener = null;
+const trail = [];
+const behind = () => [...document.body.children].filter((el) => el !== panel && el.tagName !== "SCRIPT");
+const show = (html) => {
+  if (!panel.classList.contains("open")) opener = document.activeElement;
+  const back = trail.length > 1 ? `<button class="btn back">back</button>` : "";
+  panel.innerHTML = `<div class="panel-bar">${back}<button class="btn close">close</button></div>${html}`;
+  panel.querySelector(".close").onclick = close;
+  const b = panel.querySelector(".back");
+  if (b) b.onclick = () => { trail.pop(); const prev = trail.pop(); prev(); };
+  behind().forEach((el) => (el.inert = true));
+  panel.classList.add("open");
+  panel.querySelector("h1").focus();
+};
+const close = () => {
+  if (!panel.classList.contains("open")) return;
+  panel.classList.remove("open");
+  trail.length = 0;
+  behind().forEach((el) => (el.inert = false));
+  if (opener && opener.isConnected) opener.focus();
+};
+const openIdea = (id, fromPanel) => {
   const d = ideas[id];
-  panel.innerHTML = `<button class="btn close" aria-label="Close">close</button>
-    <p class="label">idea${d.bed ? " · bed: " + d.bed : ""}</p><h1>${d.text}</h1>
-    <p class="quiet" style="display:flex;gap:12px;align-items:center">${ripples(d.people)} ${d.people} ${d.people === 1 ? "person wants" : "people want"} this</p>
+  if (!fromPanel) trail.length = 0;
+  trail.push(() => openIdea(id, true));
+  show(`<p class="label">idea${d.bed ? " · bed: " + d.bed : ""}</p><h1 id="panel-title" tabindex="-1">${d.text}</h1>
+    <p class="quiet" style="display:flex;gap:12px;align-items:center">${ripples(d.people)} <span>${count(d.people)}</span></p>
     <p class="quiet">${d.by}</p>
     ${d.compost ? `<p class="quiet" style="color:var(--wait)">In the compost: ${d.compost}</p>` : ""}
-    ${d.metoo.length ? `<p class="label" style="margin-top:26px">Me too</p>` + d.metoo.map(([t, m]) => `<div class="idea"><p>"${t}"</p><span class="meta">${m}</span></div>`).join("") : ""}
-    <div class="acts">${d.compost ? `<button class="btn pond">bring it back to the garden</button>` : `<button class="btn pond">harvest into a ticket</button><button class="btn">move to a bed</button><button class="btn">drop</button>`}</div>`;
-  panel.querySelector(".close").onclick = close;
-  panel.classList.add("open");
+    ${d.metoo.length ? `<h2 class="label" style="margin-top:26px">Me too</h2><ul class="plain">` + d.metoo.map(([t, m]) => `<li class="idea"><p>"${t}"</p><span class="meta">${m}</span></li>`).join("") + `</ul>` : ""}
+    ${d.by.includes("Harvested into") ? "" : `<div class="acts">${d.compost ? `<button class="btn pond">bring it back to the garden</button>` : `<button class="btn pond">harvest into a ticket</button><button class="btn">move to a bed</button><button class="btn">drop</button>`}</div>`}`);
 };
 const openTicket = (key) => {
   const t = tickets[key];
-  panel.innerHTML = `<button class="btn close" aria-label="Close">close</button>
-    <p class="mono faint">${key} · ${t.col}</p><h1>${t.title}</h1><p class="quiet">${t.body}</p>
-    <p class="label" style="margin-top:24px">Checklist</p>
-    <p style="margin:6px 0 0">${t.check.map(([done, s]) => (done ? "☑ " : "☐ ") + s).join("<br>")}</p>
-    <p class="label" style="margin-top:24px">Harvested from</p>
-    ${t.from.map((id) => `<div class="idea clickable" data-idea="${id}" style="grid-template-columns:auto 1fr;align-items:center"><span style="grid-row:1/span 2">${ripples(ideas[id].people, 24)}</span><p>${ideas[id].text}</p><span class="meta" style="grid-column:2">${ideas[id].people} ${ideas[id].people === 1 ? "person" : "people"}</span></div>`).join("")}
-    <div class="acts">${t.acts.map((a, i) => `<button class="btn${i ? "" : " pond"}">${a}</button>`).join("")}</div>`;
-  panel.querySelector(".close").onclick = close;
-  panel.classList.add("open");
+  trail.length = 0;
+  trail.push(() => openTicket(key));
+  show(`<p class="mono faint">${key} · ${t.col}</p><h1 id="panel-title" tabindex="-1">${t.title}</h1><p class="quiet">${t.body}</p>
+    <h2 class="label" style="margin-top:24px">Checklist</h2>
+    <ul class="plain check">${t.check.map(([done, s]) => `<li><span aria-hidden="true">${done ? "☑" : "☐"}</span> <span class="vh">${done ? "done:" : "to do:"}</span> ${s}</li>`).join("")}</ul>
+    <h2 class="label" style="margin-top:24px">Harvested from</h2>
+    <ul class="plain">${t.from.map((id) => `<li><button class="idea from" data-idea="${id}">${ripples(ideas[id].people, 24)}<span><span class="t">${ideas[id].text}</span><span class="meta">${ideas[id].people} ${ideas[id].people === 1 ? "person" : "people"}</span></span></button></li>`).join("")}</ul>
+    <div class="acts">${t.acts.map((a, i) => `<button class="btn${i ? "" : " pond"}">${a}</button>`).join("")}</div>`);
 };
-document.addEventListener("click", (e) => {
-  const i = e.target.closest("[data-idea]"), t = e.target.closest("[data-ticket]");
-  if (i) openIdea(i.dataset.idea);
-  else if (t) openTicket(t.dataset.ticket);
-});
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && panel.classList.contains("open")) close(); });
+
+// Ideas and tickets on the page open with a click, Enter or Space.
 document.querySelectorAll("[data-rip]").forEach((el) => el.insertAdjacentHTML("afterbegin", ripples(+el.dataset.rip, +el.dataset.size || 30)));
+document.querySelectorAll("[data-idea], [data-ticket]").forEach((el) => {
+  if (el.tagName === "BUTTON" || el.tagName === "A") return;
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+});
+const activate = (target) => {
+  const i = target.closest("[data-idea]"), t = target.closest("[data-ticket]");
+  if (i) openIdea(i.dataset.idea, panel.contains(i));
+  else if (t) openTicket(t.dataset.ticket);
+};
+document.addEventListener("click", (e) => activate(e.target));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && panel.classList.contains("open")) { e.preventDefault(); close(); return; }
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.('[role="button"]')) { e.preventDefault(); activate(e.target); return; }
+  if (e.key === "Tab" && panel.classList.contains("open")) {
+    const f = [...panel.querySelectorAll("button, [href], [tabindex]:not([tabindex='-1'])")];
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || document.activeElement === panel.querySelector("h1"))) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
+});
+document.querySelectorAll(".top nav a.on").forEach((a) => a.setAttribute("aria-current", "page"));
 
 // light or dark, remembered across the demo pages
 const root = document.documentElement;

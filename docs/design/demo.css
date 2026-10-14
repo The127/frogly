@@ -11,8 +11,21 @@
   transform:translateX(100%); visibility:hidden; transition:transform .35s ease, visibility 0s .35s; z-index:20; }
 .panel.open { transform:none; visibility:visible; transition:transform .35s ease; box-shadow:-20px 0 40px rgba(0,0,0,.06); }
 .panel h1 { font-size:26px; margin:6px 0 12px; }
-.panel .close { float:right; margin:-6px 0 8px 12px; }
+.panel-bar { display:flex; justify-content:space-between; gap:10px; margin:-6px 0 14px; } .panel-bar .close { margin-left:auto; }
+.panel h1:focus { outline:none; }
+.panel h1:focus-visible { outline:2px solid var(--pond); outline-offset:4px; }
 .panel .acts { display:flex; gap:10px; flex-wrap:wrap; margin-top:26px; }
 .panel .idea p { font-size:15px; }
 .clickable { cursor:pointer; }
 .clickable:hover p, .clickable:hover { color:var(--pond); }
+
+/* ideas and tickets are controls: show where the keyboard is */
+[data-idea]:focus-visible, [data-ticket]:focus-visible { outline:2px solid var(--pond); outline-offset:3px; border-radius:6px; }
+.plain { list-style:none; margin:6px 0 0; padding:0; }
+.check li { padding:2px 0; }
+.panel h2.label { font-family:var(--sans); font-weight:400; margin-bottom:0; }
+button.idea.from { display:flex; gap:12px; align-items:center; width:100%; text-align:left; background:none; border:0; border-bottom:1px solid var(--line); padding:12px 0; color:inherit; font:inherit; cursor:pointer; }
+button.idea.from .t { display:block; font-family:var(--serif); font-size:15px; }
+button.idea.from .meta { display:block; font-size:13px; color:var(--ink-3); }
+button.idea.from:hover .t { color:var(--pond); }
+.vh { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
