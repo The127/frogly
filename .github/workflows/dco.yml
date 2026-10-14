@@ -1,0 +1,34 @@
+name: dco
+
+# every commit of a pull request is signed off by its author, the same rule
+# lefthook checks for each commit
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  sign-off:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: check that every commit is signed off by its author
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fail=0
+          for c in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git log -1 --format='%an <%ae>' "$c")
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$c" | grep -qxF "$author"; then
+              echo "::error::$(git log -1 --format='%h %s' "$c") is not signed off by $author"
+              fail=1
+            fi
+          done
+          if [ "$fail" = 1 ]; then
+            echo "Sign off each commit with git commit -s, or all at once with git rebase --signoff main."
+            exit 1
+          fi
+          echo "Every commit is signed off."
