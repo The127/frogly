@@ -4,6 +4,11 @@ frogly is a task planner for software teams. You host it yourself. It
 keeps planning light, so the team spends its time on the work and not on
 the tool.
 
+## Checks
+
+Run `just ci` before you commit. It runs every check the repository has.
+Run `just` alone to list all recipes.
+
 ## Commits
 
 - Use Conventional Commits without a scope: `type: description`. The types
