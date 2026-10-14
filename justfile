@@ -14,6 +14,14 @@ test:
 cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
+# lint
+lint:
+    golangci-lint run ./...
+
+# format
+fmt:
+    golangci-lint fmt ./...
+
 # check that every file has license and copyright information
 reuse:
     reuse lint
@@ -30,4 +38,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: reuse prose build cover
+ci: lint reuse prose build cover

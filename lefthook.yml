@@ -1,6 +1,9 @@
 pre-commit:
   parallel: true
   jobs:
+    - name: lint
+      glob: "*.go"
+      run: just lint
     - name: license information
       run: just reuse
     - name: prose check
