@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
 
   import { type Idea, type Project, maxIdeaLength } from "./api";
-  import { addIdea, ideaLength, loadGarden, plantedOn } from "./garden";
+  import { addIdea, loadGarden, plantedOn } from "./garden";
   import { getLogin } from "./login";
   import { p } from "./router";
 
@@ -16,8 +16,6 @@
   let text = $state("");
   let problem = $state("");
   let saving = $state(false);
-  const length = $derived(ideaLength(text));
-  const tooLong = $derived(length > maxIdeaLength);
 
   onMount(async () => {
     const loaded = await loadGarden(login.accessToken, projectId);
@@ -31,13 +29,6 @@
   async function plant(event: SubmitEvent) {
     event.preventDefault();
     if (saving || garden.kind !== "listed") {
-      return;
-    }
-
-    // the same reason frogly gives, without asking it
-    if (tooLong) {
-      problem = `an idea has at most ${maxIdeaLength} characters`;
-
       return;
     }
 
@@ -82,18 +73,21 @@
 
   <form onsubmit={plant}>
     <label class="hidden" for="idea-text">A new idea</label>
-    <!-- readonly while saving, since a disabled field would lose the focus -->
+    <!-- readonly while saving, since a disabled field would lose the focus.
+         maxlength counts an emoji twice, so it stops a little before
+         frogly's limit, but never past it. -->
     <input
       class="plant"
       id="idea-text"
       bind:value={text}
       placeholder="plant an idea…"
+      maxlength={maxIdeaLength}
       readonly={saving}
       aria-busy={saving}
-      aria-invalid={problem || tooLong ? "true" : undefined}
+      aria-invalid={problem ? "true" : undefined}
       aria-describedby="idea-count idea-problem"
     />
-    <p class="count" class:over={tooLong} id="idea-count">{length} / {maxIdeaLength}</p>
+    <p class="count" id="idea-count">{text.length} / {maxIdeaLength}</p>
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" id="idea-problem" role="alert">{problem}</p>
   </form>
