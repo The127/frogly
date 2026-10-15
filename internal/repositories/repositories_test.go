@@ -3,6 +3,7 @@ package repositories_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -224,6 +225,56 @@ func TestNewUserFromLoginFallsBackToTheSubject(t *testing.T) {
 			// assert
 			require.NoError(t, err)
 			assert.Equal(t, test.wantName, user.Name())
+		})
+	}
+}
+
+func TestNewIdeaIsPlantedNowWithATrimmedText(t *testing.T) {
+	// arrange
+	projectID, planterID := uuid.New(), uuid.New()
+
+	// act
+	idea, err := repositories.NewIdea(projectID, planterID, "  search should find ideas by any word  ")
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, projectID, idea.ProjectID())
+	assert.Equal(t, planterID, idea.PlanterID())
+	assert.Equal(t, "search should find ideas by any word", idea.Text())
+	assert.WithinDuration(t, time.Now(), idea.PlantedAt(), time.Second)
+}
+
+func TestNewIdeaKeepsTheTimeAsPreciseAsTheDatabases(t *testing.T) {
+	// act
+	idea, err := repositories.NewIdea(uuid.New(), uuid.New(), "a calmer color for done tickets")
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, idea.PlantedAt().Truncate(time.Microsecond), idea.PlantedAt())
+	assert.Equal(t, time.UTC, idea.PlantedAt().Location())
+}
+
+func TestNewIdeaRefusesWhatItCantUse(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		planterID uuid.UUID
+		text      string
+	}{
+		{name: "empty", projectID: uuid.New(), planterID: uuid.New(), text: "   "},
+		{name: "more than one line", projectID: uuid.New(), planterID: uuid.New(), text: "one\ntwo"},
+		{name: "longer than 500 characters", projectID: uuid.New(), planterID: uuid.New(), text: strings.Repeat("蛙", 501)},
+		{name: "no project", projectID: uuid.Nil, planterID: uuid.New(), text: "an idea"},
+		{name: "no planter", projectID: uuid.New(), planterID: uuid.Nil, text: "an idea"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewIdea(test.projectID, test.planterID, test.text)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
 		})
 	}
 }
