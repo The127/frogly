@@ -24,8 +24,9 @@ func NewIdentityRepository(reader Reader, tracker *change.Tracker) *IdentityRepo
 	return &IdentityRepository{reader: reader, tracker: tracker}
 }
 
-// FirstOrNil loads the identity with the issuer and subject, or nil.
-func (repository *IdentityRepository) FirstOrNil(ctx context.Context, issuer string, subject string) (*repositories.Identity, error) {
+// ByLogin loads the identity with the issuer and subject, or nil when
+// nobody has that login.
+func (repository *IdentityRepository) ByLogin(ctx context.Context, issuer string, subject string) (*repositories.Identity, error) {
 	var (
 		id      uuid.UUID
 		version int

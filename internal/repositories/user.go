@@ -98,8 +98,8 @@ func (user *User) Refresh(name string, email string) bool {
 
 // UserRepository loads and saves users.
 type UserRepository interface {
-	// First returns ErrNotFound when no user has the ID.
-	First(ctx context.Context, id uuid.UUID) (*User, error)
+	// ByID returns ErrNotFound when no user has the ID.
+	ByID(ctx context.Context, id uuid.UUID) (*User, error)
 	Insert(user *User)
 	Update(user *User)
 }

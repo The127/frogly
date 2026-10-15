@@ -55,6 +55,8 @@ func (identity *Identity) Subject() string {
 // IdentityRepository loads and saves identities. An identity never
 // changes once saved.
 type IdentityRepository interface {
-	FirstOrNil(ctx context.Context, issuer string, subject string) (*Identity, error)
+	// ByLogin returns nil, without an error, when nobody has the login yet,
+	// since that's the normal case for a person's first request.
+	ByLogin(ctx context.Context, issuer string, subject string) (*Identity, error)
 	Insert(identity *Identity)
 }

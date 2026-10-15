@@ -34,7 +34,7 @@ func TestTheFirstRequestCreatesTheUser(t *testing.T) {
 	assert.Equal(t, "Karo", user.Name())
 	assert.Equal(t, "karo@frogly.local", user.Email())
 
-	stored, err := database.NewContext().Users().First(t.Context(), user.ID())
+	stored, err := database.NewContext().Users().ByID(t.Context(), user.ID())
 	require.NoError(t, err)
 	assert.Equal(t, "Karo", stored.Name())
 }
@@ -68,7 +68,7 @@ func TestAChangedProfileIsStored(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 
-	stored, err := database.NewContext().Users().First(t.Context(), first.ID())
+	stored, err := database.NewContext().Users().ByID(t.Context(), first.ID())
 	require.NoError(t, err)
 	assert.Equal(t, "Karolin", stored.Name())
 }
@@ -95,14 +95,14 @@ type staleIdentities struct {
 	looked bool
 }
 
-func (identities *staleIdentities) FirstOrNil(ctx context.Context, issuer string, subject string) (*repositories.Identity, error) {
+func (identities *staleIdentities) ByLogin(ctx context.Context, issuer string, subject string) (*repositories.Identity, error) {
 	if !identities.looked {
 		identities.looked = true
 
 		return nil, nil
 	}
 
-	return identities.IdentityRepository.FirstOrNil(ctx, issuer, subject)
+	return identities.IdentityRepository.ByLogin(ctx, issuer, subject)
 }
 
 func TestTheSlowerOfTwoFirstRequestsGetsTheSameUser(t *testing.T) {
@@ -237,7 +237,7 @@ func TestARefreshThatLostARaceAnswersWithWhatIsStored(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 
-	stored, err := database.NewContext().Users().First(t.Context(), user.ID())
+	stored, err := database.NewContext().Users().ByID(t.Context(), user.ID())
 	require.NoError(t, err)
 	assert.Equal(t, stored.Name(), user.Name())
 }

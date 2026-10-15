@@ -68,7 +68,7 @@ func (s *Suite) TestNothingIsWrittenBeforeSaveChanges() {
 	writing.Users().Insert(user)
 
 	// act
-	_, err = s.database.NewContext().Users().First(s.T().Context(), user.ID())
+	_, err = s.database.NewContext().Users().ByID(s.T().Context(), user.ID())
 
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrNotFound)
@@ -81,7 +81,7 @@ func (s *Suite) TestAUserComesBackAsSaved() {
 	user := s.savedUser("Karo")
 
 	// act
-	loaded, err := s.database.NewContext().Users().First(s.T().Context(), user.ID())
+	loaded, err := s.database.NewContext().Users().ByID(s.T().Context(), user.ID())
 
 	// assert
 	s.Require().NoError(err)
@@ -97,7 +97,7 @@ func (s *Suite) TestAnUpdateWritesTheWholeUser() {
 	// arrange
 	user := s.savedUser("Karo")
 	unit := s.database.NewContext()
-	loaded, err := unit.Users().First(s.T().Context(), user.ID())
+	loaded, err := unit.Users().ByID(s.T().Context(), user.ID())
 	s.Require().NoError(err)
 
 	loaded.Refresh("Karolin", "karolin@frogly.local")
@@ -107,7 +107,7 @@ func (s *Suite) TestAnUpdateWritesTheWholeUser() {
 	s.save(unit)
 
 	// assert
-	reloaded, err := s.database.NewContext().Users().First(s.T().Context(), user.ID())
+	reloaded, err := s.database.NewContext().Users().ByID(s.T().Context(), user.ID())
 	s.Require().NoError(err)
 	s.Equal(2, reloaded.Version())
 	s.Equal("Karolin", reloaded.Name())
@@ -121,10 +121,10 @@ func (s *Suite) TestAStaleUpdateIsAConcurrentModification() {
 	user := s.savedUser("Karo")
 	first, second := s.database.NewContext(), s.database.NewContext()
 
-	firstCopy, err := first.Users().First(s.T().Context(), user.ID())
+	firstCopy, err := first.Users().ByID(s.T().Context(), user.ID())
 	s.Require().NoError(err)
 
-	secondCopy, err := second.Users().First(s.T().Context(), user.ID())
+	secondCopy, err := second.Users().ByID(s.T().Context(), user.ID())
 	s.Require().NoError(err)
 
 	firstCopy.Refresh("Karolin", "")
@@ -140,7 +140,7 @@ func (s *Suite) TestAStaleUpdateIsAConcurrentModification() {
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 
-	reloaded, err := s.database.NewContext().Users().First(s.T().Context(), user.ID())
+	reloaded, err := s.database.NewContext().Users().ByID(s.T().Context(), user.ID())
 	s.Require().NoError(err)
 	s.Equal("Karolin", reloaded.Name())
 }
@@ -160,8 +160,8 @@ func (s *Suite) TestAnIdentityIsFoundByIssuerAndSubject() {
 	reading := s.database.NewContext().Identities()
 
 	// act
-	found, foundErr := reading.FirstOrNil(s.T().Context(), "http://issuer.example", "karo-id")
-	otherIssuer, otherIssuerErr := reading.FirstOrNil(s.T().Context(), "http://elsewhere.example", "karo-id")
+	found, foundErr := reading.ByLogin(s.T().Context(), "http://issuer.example", "karo-id")
+	otherIssuer, otherIssuerErr := reading.ByLogin(s.T().Context(), "http://elsewhere.example", "karo-id")
 
 	// assert
 	s.Require().NoError(foundErr)
@@ -226,7 +226,7 @@ func (s *Suite) TestSaveChangesWritesAllOrNothing() {
 	// assert
 	s.Require().Error(err)
 
-	_, err = s.database.NewContext().Users().First(s.T().Context(), newcomer.ID())
+	_, err = s.database.NewContext().Users().ByID(s.T().Context(), newcomer.ID())
 	s.Require().ErrorIs(err, repositories.ErrNotFound)
 }
 

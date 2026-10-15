@@ -45,12 +45,12 @@ func Resolve(ctx context.Context, unit db.Context, person authn.Person) (*reposi
 }
 
 func existing(ctx context.Context, unit db.Context, person authn.Person) (*repositories.User, error) {
-	identity, err := unit.Identities().FirstOrNil(ctx, person.Issuer, person.Subject)
+	identity, err := unit.Identities().ByLogin(ctx, person.Issuer, person.Subject)
 	if err != nil || identity == nil {
 		return nil, err
 	}
 
-	user, err := unit.Users().First(ctx, identity.UserID())
+	user, err := unit.Users().ByID(ctx, identity.UserID())
 	if err != nil {
 		return nil, fmt.Errorf("the user of %s at %s: %w", person.Subject, person.Issuer, err)
 	}
@@ -65,7 +65,7 @@ func existing(ctx context.Context, unit db.Context, person authn.Person) (*repos
 	if errors.Is(err, repositories.ErrConcurrentModification) {
 		// another request stored a profile first. Answering with that one
 		// keeps the request in line with what's stored.
-		return unit.Users().First(ctx, identity.UserID())
+		return unit.Users().ByID(ctx, identity.UserID())
 	}
 
 	return user, err

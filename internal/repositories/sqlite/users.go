@@ -24,8 +24,8 @@ func NewUserRepository(reader Reader, tracker *change.Tracker) *UserRepository {
 	return &UserRepository{reader: reader, tracker: tracker}
 }
 
-// First loads the user with the ID, or returns repositories.ErrNotFound.
-func (repository *UserRepository) First(ctx context.Context, id uuid.UUID) (*repositories.User, error) {
+// ByID loads the user with the ID, or returns repositories.ErrNotFound.
+func (repository *UserRepository) ByID(ctx context.Context, id uuid.UUID) (*repositories.User, error) {
 	var (
 		rowID   uuid.UUID
 		version int
