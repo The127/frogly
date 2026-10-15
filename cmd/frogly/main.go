@@ -3,9 +3,11 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/the127/frogly/internal/config"
+	"github.com/the127/frogly/internal/logging"
 	"github.com/the127/frogly/internal/version"
 )
 
@@ -18,14 +20,16 @@ func main() {
 }
 
 func run() error {
-	// nothing reads the configuration yet, but a broken one should stop
-	// frogly before it does anything
-	_, err := config.Load(os.Environ())
+	cfg, err := config.Load(os.Environ())
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("frogly", version.Get())
+	logger := logging.New(cfg.Log, os.Stderr)
+	slog.SetDefault(logger)
+
+	logger.Info("starting frogly", "version", version.Get())
+	logger.Debug("configuration loaded", "log_level", cfg.Log.Level, "log_format", cfg.Log.Format)
 
 	return nil
 }

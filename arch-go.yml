@@ -28,9 +28,19 @@ dependenciesRules:
         - '**.cmd.**'
       standard:
         - os
+  # logging builds the logger from the configuration and writes where it is
+  # told, so it never opens a file or reads the environment itself
+  - package: '**.internal.logging$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.config$'
+    shouldNotDependsOn:
+      standard:
+        - os
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
       internal:
         - '**.internal.config$'
+        - '**.internal.logging$'
         - '**.internal.version$'
