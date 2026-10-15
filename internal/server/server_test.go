@@ -28,6 +28,7 @@ import (
 const (
 	validToken   = "valid-token"
 	otherToken   = "token-of-someone-else"
+	renamedToken = "token-after-a-new-name" //nolint:gosec // a made-up token the fake verifier knows
 	outageToken  = "token-during-an-outage"
 	refusedToken = "forged"
 )
@@ -38,6 +39,9 @@ func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person,
 	switch accessToken {
 	case validToken:
 		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karo"}, nil
+
+	case renamedToken:
+		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karolin"}, nil
 
 	case otherToken:
 		return authn.Person{Issuer: "http://issuer.example", Subject: "ana-id", Name: "Ana"}, nil
@@ -438,8 +442,10 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 		wantDetail string
 	}{
 		{name: "no name", body: `{"name": "   "}`, wantDetail: "a project needs a name"},
-		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't a project in JSON"},
-		{name: "an unknown field", body: `{"name": "Garden", "colour": "green"}`, wantDetail: "the body isn't a project in JSON"},
+		{name: "too long a name", body: `{"name": "` + strings.Repeat("蛙", 101) + `"}`, wantDetail: "a project's name has at most 100 characters"},
+		{name: "not JSON", body: `Garden`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
+		{name: "an unknown field", body: `{"name": "Garden", "colour": "green"}`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
+		{name: "something after the project", body: `{"name": "Garden"} {"name": "Board"}`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
 	}
 
 	for _, test := range tests {
@@ -459,7 +465,42 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 			}
 
 			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
-			assert.Contains(t, problem.Detail, test.wantDetail)
+			assert.Equal(t, test.wantDetail, problem.Detail)
 		})
 	}
+}
+
+func TestAnOversizedProjectIsTooLarge(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	body := `{"name": "` + strings.Repeat("a", 10<<10) + `"}`
+
+	// act
+	response := projects(t, handler, http.MethodPost, validToken, body)
+
+	// assert
+	assert.Equal(t, http.StatusRequestEntityTooLarge, response.Code)
+}
+
+func TestCreatingAProjectNeedsAToken(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+
+	// act
+	response := projects(t, handler, http.MethodPost, "", `{"name": "Garden"}`)
+
+	// assert
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+}
+
+func TestMeAnswersWithTheLatestName(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + validToken}})
+
+	// act
+	response := get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + renamedToken}})
+
+	// assert
+	assert.JSONEq(t, `{"name": "Karolin"}`, response.Body.String())
 }

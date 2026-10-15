@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -22,7 +21,7 @@ type Identity struct {
 // NewIdentity creates an identity that was never saved.
 func NewIdentity(userID uuid.UUID, issuer string, subject string) (*Identity, error) {
 	if userID == uuid.Nil || issuer == "" || subject == "" {
-		return nil, fmt.Errorf("%w: an identity needs a user, an issuer and a subject", ErrInvalid)
+		return nil, invalid("an identity needs a user, an issuer and a subject")
 	}
 
 	return &Identity{

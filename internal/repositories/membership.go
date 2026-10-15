@@ -1,8 +1,6 @@
 package repositories
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
 )
 
@@ -25,11 +23,11 @@ type Membership struct {
 // NewMembership creates a membership that was never saved.
 func NewMembership(projectID uuid.UUID, userID uuid.UUID, role Role) (*Membership, error) {
 	if projectID == uuid.Nil || userID == uuid.Nil {
-		return nil, fmt.Errorf("%w: a membership needs a project and a user", ErrInvalid)
+		return nil, invalid("a membership needs a project and a user")
 	}
 
 	if role != RoleOwner {
-		return nil, fmt.Errorf("%w: %q isn't a role", ErrInvalid, role)
+		return nil, invalid("%q isn't a role", role)
 	}
 
 	return &Membership{

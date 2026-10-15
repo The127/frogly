@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -24,10 +23,10 @@ func NewProject(name string) (*Project, error) {
 
 	switch {
 	case name == "":
-		return nil, fmt.Errorf("%w: a project needs a name", ErrInvalid)
+		return nil, invalid("a project needs a name")
 
 	case utf8.RuneCountInString(name) > MaxName:
-		return nil, fmt.Errorf("%w: a project's name has at most %d characters", ErrInvalid, MaxName)
+		return nil, invalid("a project's name has at most %d characters", MaxName)
 	}
 
 	return &Project{Base: newBase(), name: name}, nil

@@ -354,3 +354,6 @@ CLAUDE.local.md
 /notes/
 # build output
 /bin/
+
+# the SQLite database `go run ./cmd/frogly` creates by default
+frogly.db*

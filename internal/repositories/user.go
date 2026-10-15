@@ -2,7 +2,6 @@ package repositories
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -23,7 +22,7 @@ type User struct {
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
 	if !ValidName(name) {
-		return nil, fmt.Errorf("%w: a user needs a name of 1 to %d characters", ErrInvalid, MaxName)
+		return nil, invalid("a user needs a name of 1 to %d characters", MaxName)
 	}
 
 	return &User{

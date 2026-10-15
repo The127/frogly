@@ -6,13 +6,39 @@ package repositories
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 )
 
 // ErrInvalid is wrapped into every refusal of a model that can't be stored
-// as given.
+// as given. The refusal is an *InvalidError, which says why in words a
+// person can act on.
 var ErrInvalid = errors.New("invalid")
+
+// InvalidError is a refusal of a model that can't be stored as given.
+type InvalidError struct {
+	reason string
+}
+
+func invalid(format string, args ...any) error {
+	return &InvalidError{reason: fmt.Sprintf(format, args...)}
+}
+
+// Reason says what's wrong, like "a project needs a name", without
+// anything only frogly's code cares about.
+func (err *InvalidError) Reason() string {
+	return err.reason
+}
+
+func (err *InvalidError) Error() string {
+	return "invalid: " + err.reason
+}
+
+// Unwrap makes errors.Is(err, ErrInvalid) hold.
+func (err *InvalidError) Unwrap() error {
+	return ErrInvalid
+}
 
 // ErrNotFound is returned when nothing matches.
 var ErrNotFound = errors.New("not found")
