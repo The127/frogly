@@ -4,6 +4,7 @@ package integration_test
 
 import (
 	"net/http"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive // Ginkgo's DSL reads as plain English only without the package name
 	. "github.com/onsi/gomega"    //nolint:revive // same for Gomega's matchers
@@ -20,12 +21,10 @@ var _ = Describe("seeing your name", func() {
 			response, err := http.DefaultClient.Do(request)
 			Expect(err).NotTo(HaveOccurred())
 
-			defer func() {
-				Expect(response.Body.Close()).To(Succeed())
-			}()
+			DeferCleanup(response.Body.Close)
 
 			Expect(response).To(HaveHTTPStatus(http.StatusOK))
 			Expect(response).To(HaveHTTPBody(MatchJSON(`{"name": "frogly-tests"}`)))
-		})
+		}, SpecTimeout(10*time.Second))
 	})
 })

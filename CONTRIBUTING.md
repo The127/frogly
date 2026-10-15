@@ -34,10 +34,15 @@ Go fetches the two remaining tools on its own:
 dependency rules in `arch-go.yml`, and
 [govulncheck](https://go.dev/doc/security/vuln/) checks for known
 vulnerabilities. Both are pinned in `hack/tools/go.mod`, so their
-dependencies stay out of frogly's.
+dependencies stay out of frogly's. The one exception is
+[Ginkgo](https://onsi.github.io/ginkgo/), which runs the integration tests.
+Its command line tool is pinned in frogly's own `go.mod`, because it has to
+match the Ginkgo library the tests use.
 
-Run `just` to list all recipes. `just ci` runs every check. The
-integration tests in it need the services from `just dev` (see below).
+Run `just` to list all recipes. `just ci` runs every check. Its
+integration tests need Keyline, so it starts Keyline in the background if
+it isn't running yet. That needs Docker or Podman (see
+[Running the services](#running-the-services)).
 
 ## Running the services
 
@@ -106,9 +111,9 @@ use `require`, and the linter enforces that.
 ### Integration tests
 
 Integration tests live in `test/integration`. They build frogly, run it as
-a binary against the Keyline from `just dev`, and use it from the outside,
-the way a person or an agent does. Each story gets a test there that shows
-it works. Run them with `just integration`.
+a binary against Keyline, and use it from the outside, the way a person or
+an agent does. Each story gets a test there that shows it works. Run them
+with `just integration`, which starts Keyline first if it isn't running.
 
 They use [Ginkgo](https://onsi.github.io/ginkgo/) and
 [Gomega](https://onsi.github.io/gomega/). `Describe`, `Context` and `It`

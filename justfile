@@ -14,9 +14,20 @@ test:
 cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
-# run the integration tests against the services `just dev` starts
-integration:
+# run the integration tests, starting Keyline in the background first if
+# it isn't running
+integration: keyline
     go tool ginkgo -tags integration -race ./test/integration
+
+# start Keyline in the background unless it's running already, `just dev`
+# starts it too
+keyline:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! curl -sf http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; then
+        process-compose up keyline --detached
+        process-compose project is-ready --wait
+    fi
 
 # lint
 lint:

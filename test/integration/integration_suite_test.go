@@ -6,6 +6,7 @@
 package integration_test
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -32,8 +33,6 @@ var (
 	// accessToken is the service user's token, the way a logged in person
 	// presents themselves to frogly's API.
 	accessToken string
-
-	frogly *gexec.Session
 )
 
 func TestIntegration(t *testing.T) {
@@ -64,11 +63,21 @@ var _ = BeforeSuite(func() {
 		"FROGLY_LOG__FORMAT=text",
 	)
 
-	frogly, err = gexec.Start(command, GinkgoWriter, GinkgoWriter)
+	frogly, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
 	Expect(err).NotTo(HaveOccurred())
 
+	DeferCleanup(func() {
+		// frogly waits for running requests before it stops
+		frogly.Terminate().Wait(10 * time.Second)
+		gexec.CleanupBuildArtifacts()
+	})
+
 	Eventually(func() error {
-		connection, err := net.Dial("tcp", address)
+		if frogly.ExitCode() != -1 {
+			return StopTrying(fmt.Sprintf("frogly exited with %d", frogly.ExitCode()))
+		}
+
+		connection, err := net.DialTimeout("tcp", address, time.Second)
 		if err != nil {
 			return err
 		}
@@ -77,23 +86,14 @@ var _ = BeforeSuite(func() {
 	}).WithTimeout(10*time.Second).Should(Succeed(), "frogly doesn't listen on %s", address)
 })
 
-var _ = AfterSuite(func() {
-	if frogly != nil {
-		frogly.Terminate().Wait()
-	}
-
-	gexec.CleanupBuildArtifacts()
-})
-
 // freeAddress asks the system for a port nothing listens on, so the tests
 // don't depend on 8080 being free.
 func freeAddress() string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	Expect(err).NotTo(HaveOccurred())
 
-	defer func() {
-		Expect(listener.Close()).To(Succeed())
-	}()
+	address := listener.Addr().String()
+	Expect(listener.Close()).To(Succeed())
 
-	return listener.Addr().String()
+	return address
 }
