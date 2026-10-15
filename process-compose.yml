@@ -77,6 +77,9 @@ processes:
     environment:
       - FROGLY_LOG__FORMAT=text
       - FROGLY_LOG__LEVEL=debug
+      # frogly listens on every interface by default, which would let
+      # anyone on the same network reach this one
+      - FROGLY_SERVER__LISTEN_ADDRESS=127.0.0.1:8080
       - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
       - FROGLY_OIDC__CLIENT_ID=frogly
       - FROGLY_DATABASE__DRIVER=postgres
