@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/the127/frogly/internal/projects"
 	"github.com/the127/frogly/internal/repositories"
 )
 
@@ -25,7 +26,7 @@ func toProjectJSON(project *repositories.Project) projectJSON {
 }
 
 func listProjects(w http.ResponseWriter, r *http.Request, caller caller) {
-	projects, err := caller.unit.Projects().ListForMember(r.Context(), caller.user.ID())
+	found, err := projects.ListFor(r.Context(), caller.unit, caller.user)
 	if err != nil {
 		fail(w, r, "listing the projects failed", err)
 
@@ -33,8 +34,8 @@ func listProjects(w http.ResponseWriter, r *http.Request, caller caller) {
 	}
 
 	// a list, even an empty one, never null
-	listed := make([]projectJSON, 0, len(projects))
-	for _, project := range projects {
+	listed := make([]projectJSON, 0, len(found))
+	for _, project := range found {
 		listed = append(listed, toProjectJSON(project))
 	}
 
@@ -73,7 +74,7 @@ func createProject(w http.ResponseWriter, r *http.Request, caller caller) {
 		return
 	}
 
-	project, err := repositories.NewProject(body.Name)
+	project, err := projects.Create(r.Context(), caller.unit, caller.user, body.Name)
 	if invalid, ok := errors.AsType[*repositories.InvalidError](err); ok {
 		writeProblemDetail(w, http.StatusBadRequest, invalid.Reason())
 
@@ -82,23 +83,6 @@ func createProject(w http.ResponseWriter, r *http.Request, caller caller) {
 
 	if err != nil {
 		fail(w, r, "creating the project failed", err)
-
-		return
-	}
-
-	membership, err := repositories.NewMembership(project.ID(), caller.user.ID(), repositories.RoleOwner)
-	if err != nil {
-		fail(w, r, "making the creator the project's owner failed", err)
-
-		return
-	}
-
-	caller.unit.Projects().Insert(project)
-	caller.unit.Memberships().Insert(membership)
-
-	err = caller.unit.SaveChanges(r.Context())
-	if err != nil {
-		fail(w, r, "saving the project failed", err)
 
 		return
 	}

@@ -61,6 +61,7 @@ dependenciesRules:
         - '**.internal.db$'
         - '**.internal.logging$'
         - '**.internal.people$'
+        - '**.internal.projects$'
         - '**.internal.repositories$'
   # the frontend's Go package only hands out the built files
   - package: '**.frogly.web$'
@@ -131,6 +132,13 @@ dependenciesRules:
     shouldOnlyDependsOn:
       internal:
         - '**.internal.authn$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+  # projects works through the unit of work like people, and knows nothing
+  # about HTTP
+  - package: '**.internal.projects$'
+    shouldOnlyDependsOn:
+      internal:
         - '**.internal.db$'
         - '**.internal.repositories$'
   # tests of other packages open a SQLite database through it, and only
