@@ -40,12 +40,14 @@ keyline:
     process-compose up keyline --detached
     # pulling the image on a first run takes a while, but a Keyline that
     # never gets ready mustn't hold the tests forever
-    for _ in $(seq 60); do
-        ready && exit 0
+    deadline=$((SECONDS + 300))
+    until ready; do
+        if ((SECONDS >= deadline)); then
+            echo "Keyline didn't get ready within five minutes, see: process-compose process logs keyline" >&2
+            exit 1
+        fi
         sleep 5
     done
-    echo "Keyline didn't get ready within five minutes, see: process-compose process logs keyline" >&2
-    exit 1
 
 # lint
 lint:
