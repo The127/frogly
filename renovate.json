@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommitTypeAll(chore)",
+    "schedule:weekly"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitScope": null,
+  "gitAuthor": "renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>",
+  "commitBody": "Signed-off-by: {{{gitAuthor}}}",
+  "postUpdateOptions": ["gomodTidy"],
+  "packageRules": [
+    {
+      "description": "Minor and patch updates merge on their own once the required checks pass. Major updates wait for a person.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "automerge": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Container images in process-compose.yml",
+      "managerFilePatterns": ["/^process-compose\\.yml$/"],
+      "matchStrings": ["(?<depName>docker\\.io/[a-z0-9._/-]+):(?<currentValue>[a-z0-9._-]+)"],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
