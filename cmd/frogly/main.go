@@ -18,6 +18,7 @@ import (
 	"github.com/the127/frogly/internal/logging"
 	"github.com/the127/frogly/internal/server"
 	"github.com/the127/frogly/internal/version"
+	"github.com/the127/frogly/web"
 )
 
 // a slow client mustn't hold a connection open forever before it has even
@@ -69,7 +70,7 @@ func run() error {
 
 	httpServer := &http.Server{
 		Addr:              cfg.Server.ListenAddress,
-		Handler:           server.New(cfg.OIDC, verifier, logger),
+		Handler:           server.New(cfg.OIDC, verifier, logger, web.Files()),
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),

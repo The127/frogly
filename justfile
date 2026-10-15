@@ -2,16 +2,28 @@
 default:
     @just --list
 
-# build the binary into bin/
-build:
+# build the binary into bin/, with the frontend in it
+build: web
     CGO_ENABLED=0 go build -o bin/frogly ./cmd/frogly
 
+# build the frontend into web/dist, which the binary embeds. Go can't
+# compile frogly before this ran once.
+web:
+    pnpm --dir web install --frozen-lockfile
+    pnpm --dir web build
+
+# check the frontend's types and run its tests
+web-check:
+    pnpm --dir web install --frozen-lockfile
+    pnpm --dir web check
+    pnpm --dir web test
+
 # test
-test:
+test: web
     go test -race ./...
 
 # test with a coverage profile
-cover:
+cover: web
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
 # run the integration tests, starting Keyline in the background first if
@@ -30,7 +42,7 @@ keyline:
     fi
 
 # lint
-lint:
+lint: web
     golangci-lint run ./...
 
 # format
@@ -46,7 +58,7 @@ arch-describe:
     go tool -modfile=hack/tools/go.mod arch-go describe
 
 # check for known vulnerabilities in reachable code
-vuln:
+vuln: web
     go tool -modfile=hack/tools/go.mod govulncheck ./...
 
 # check that every file has license and copyright information
@@ -69,4 +81,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: lint arch reuse prose build cover integration vuln
+ci: web lint arch reuse prose build web-check cover integration vuln

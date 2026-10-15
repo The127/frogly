@@ -1,0 +1,97 @@
+/* the colors and type of the design demo in docs/design/style.css */
+:root {
+  --paper: #f7f8f6;
+  --ink: #1d2320;
+  --ink-2: #5b6660;
+  --line: #dde2dd;
+  --pond: #3f7a68;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141816;
+    --ink: #e4e8e5;
+    --ink-2: #a3ada7;
+    --line: #2a312d;
+    --pond: #7cbfa9;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 15px/1.6 var(--sans);
+  min-height: 100vh;
+  padding: 0 16px 96px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 22px 0;
+}
+
+.mark {
+  font-family: var(--serif);
+  font-size: 19px;
+  letter-spacing: 0.01em;
+}
+
+.mark span {
+  color: var(--pond);
+  margin-right: 6px;
+}
+
+.narrow {
+  max-width: 620px;
+  margin: 18vh auto 0;
+}
+
+h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.25;
+  text-wrap: balance;
+  margin: 0 0 24px;
+}
+
+.quiet {
+  color: var(--ink-2);
+}
+
+.btn {
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.btn.pond {
+  border-color: var(--pond);
+  color: var(--pond);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--pond);
+  outline-offset: 2px;
+}

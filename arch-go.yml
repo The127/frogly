@@ -58,6 +58,12 @@ dependenciesRules:
         - '**.internal.authn$'
         - '**.internal.config$'
         - '**.internal.logging$'
+  # the frontend's Go package only hands out the built files
+  - package: '**.frogly.web$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
@@ -67,3 +73,4 @@ dependenciesRules:
         - '**.internal.logging$'
         - '**.internal.server$'
         - '**.internal.version$'
+        - '**.web$'

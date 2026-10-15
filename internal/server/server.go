@@ -7,8 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -22,9 +24,10 @@ type Verifier interface {
 	Verify(ctx context.Context, accessToken string) (authn.Person, error)
 }
 
-// New builds the API. Clients log in at the OIDC issuer themselves and
-// send their access token, which verifier checks.
-func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger) http.Handler {
+// New builds the API and serves the built frontend for every other path.
+// Clients log in at the OIDC issuer themselves and send their access
+// token, which verifier checks.
+func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
@@ -59,7 +62,40 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger) http.Handler 
 		writeProblem(w, http.StatusNotFound)
 	})
 
+	// "GET /" would conflict with the method-less "/api/" above, so the
+	// frontend checks the method itself
+	mux.Handle("/", serveFrontend(frontend))
+
 	return logRequests(logger, mux)
+}
+
+func serveFrontend(frontend fs.FS) http.Handler {
+	files := http.FileServerFS(frontend)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			writeProblem(w, http.StatusMethodNotAllowed)
+
+			return
+		}
+
+		if strings.HasPrefix(path.Clean(r.URL.Path), "/assets/") {
+			// Vite puts a hash of the content into every asset's name, so an
+			// asset never changes. A missing one stays a 404, because an old
+			// page asks for it and index.html wouldn't help.
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			files.ServeHTTP(w, r)
+
+			return
+		}
+
+		// every other path is a page the frontend shows itself, like the
+		// login callback. no-cache makes the browser ask whether a new
+		// build came out.
+		w.Header().Set("Cache-Control", "no-cache")
+		http.ServeFileFS(w, r, frontend, "index.html")
+	})
 }
 
 func logRequests(logger *slog.Logger, next http.Handler) http.Handler {

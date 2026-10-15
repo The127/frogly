@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,14 @@ func newServer(log *bytes.Buffer) http.Handler {
 		config.OIDC{Issuer: "http://issuer.example", ClientID: "frogly"},
 		fakeVerifier{},
 		logger,
+		frontend,
 	)
+}
+
+var frontend = fstest.MapFS{
+	"index.html":          {Data: []byte("<!doctype html><title>frogly</title>")},
+	"assets/index-a1.js":  {Data: []byte("console.log('frogly')")},
+	"assets/index-a1.css": {Data: []byte("body{}")},
 }
 
 func request(t *testing.T, handler http.Handler, method string, path string, header http.Header) *httptest.ResponseRecorder {
@@ -239,4 +247,58 @@ func TestTheServerChoosesTheRequestID(t *testing.T) {
 	// assert
 	assert.NotEqual(t, "chosen-by-the-client", first.Header().Get("X-Request-Id"))
 	assert.NotEqual(t, first.Header().Get("X-Request-Id"), second.Header().Get("X-Request-Id"))
+}
+
+func TestServesTheFrontend(t *testing.T) {
+	tests := []struct {
+		name             string
+		path             string
+		wantBody         string
+		wantCacheControl string
+	}{
+		{
+			name:             "the start page",
+			path:             "/",
+			wantBody:         "<!doctype html><title>frogly</title>",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "a page only the frontend knows, like the login callback",
+			path:             "/callback",
+			wantBody:         "<!doctype html><title>frogly</title>",
+			wantCacheControl: "no-cache",
+		},
+		{
+			name:             "a built asset",
+			path:             "/assets/index-a1.js",
+			wantBody:         "console.log('frogly')",
+			wantCacheControl: "public, max-age=31536000, immutable",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(&bytes.Buffer{})
+
+			// act
+			response := get(t, handler, test.path, nil)
+
+			// assert
+			assert.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, test.wantBody, response.Body.String())
+			assert.Equal(t, test.wantCacheControl, response.Header().Get("Cache-Control"))
+		})
+	}
+}
+
+func TestAMissingAssetIsNotFound(t *testing.T) {
+	// arrange
+	handler := newServer(&bytes.Buffer{})
+
+	// act
+	response := get(t, handler, "/assets/index-gone.js", nil)
+
+	// assert
+	assert.Equal(t, http.StatusNotFound, response.Code)
 }
