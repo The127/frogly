@@ -276,6 +276,9 @@ func (s *Suite) TestAProjectIsntFoundForOthers() {
 	// arrange
 	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
 	garden := s.savedProject("Garden", karo)
+	// a member of another project, so a check of only one of the two IDs
+	// would find something
+	s.savedProject("Kitchen", ana)
 
 	tests := []struct {
 		name      string

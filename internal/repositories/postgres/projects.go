@@ -63,7 +63,8 @@ func (repository *ProjectRepository) ListForMember(ctx context.Context, userID u
 	return projects, nil
 }
 
-// ByIDForMember loads the project if the user is a member of it.
+// ByIDForMember loads the project if the user is a member of it, or
+// returns repositories.ErrNotFound.
 func (repository *ProjectRepository) ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*repositories.Project, error) {
 	selection := sqlbuilder.Select("p.id", "p.version", "p.name").From("projects p")
 	selection.Join("memberships m", "m.project_id = p.id")
