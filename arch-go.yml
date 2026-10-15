@@ -83,6 +83,29 @@ dependenciesRules:
     shouldOnlyDependsOn:
       internal:
         - '**.internal.repositories$'
+  # the contract every adapter meets speaks only in the unit of work and
+  # the models
+  - package: '**.internal.db.dbtest$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+  # a database's repositories write what the tracker recorded, in their own
+  # SQL
+  - package: '**.internal.repositories.sqlite$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.repositories$'
+  # a database wires its driver, migrations and repositories into a unit of
+  # work
+  - package: '**.internal.db.sqlite$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+        - '**.internal.repositories.sqlite$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
