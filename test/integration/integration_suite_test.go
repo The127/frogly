@@ -1,16 +1,17 @@
 //go:build integration
 
 // Package integration_test runs frogly as a binary against a real Keyline
-// and checks what a person can do with it, one story at a time. Start
-// Keyline with `just dev` first.
+// and checks what a person can do with it, one story at a time. Run it with
+// `just integration`, which starts Keyline first.
 package integration_test
 
 import (
+	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"testing"
 	"time"
 
@@ -43,19 +44,17 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	token, err := client.NewServiceUserTokenSource(keylineURL, virtualServer, string(key), serviceUser, serviceUser, application).Token()
-	Expect(err).NotTo(HaveOccurred(), "logging in at Keyline failed, is `just dev` running?")
+	Expect(err).NotTo(HaveOccurred(), "logging in at Keyline failed, run the tests with `just integration`, which starts it")
 
 	accessToken = token.AccessToken
 
 	binary, err := gexec.Build("github.com/the127/frogly/cmd/frogly")
 	Expect(err).NotTo(HaveOccurred())
 
-	address := freeAddress()
-	froglyURL = "http://" + address
-
 	command := exec.Command(binary) //nolint:gosec // the binary gexec just built from this repository
 	command.Env = append(os.Environ(),
-		"FROGLY_SERVER__LISTEN_ADDRESS="+address,
+		// port 0 lets the system pick a free port, frogly logs which
+		"FROGLY_SERVER__LISTEN_ADDRESS=127.0.0.1:0",
 		"FROGLY_OIDC__ISSUER="+issuerURL,
 		"FROGLY_OIDC__CLIENT_ID="+application,
 		"FROGLY_LOG__FORMAT=text",
@@ -70,27 +69,20 @@ var _ = BeforeSuite(func() {
 		gexec.CleanupBuildArtifacts()
 	})
 
+	listening := regexp.MustCompile(`msg=listening address=(\S+)`)
+
 	Eventually(func() error {
 		if frogly.ExitCode() != -1 {
 			return StopTrying(fmt.Sprintf("frogly exited with %d", frogly.ExitCode()))
 		}
 
-		connection, err := net.DialTimeout("tcp", address, time.Second)
-		if err != nil {
-			return err
+		match := listening.FindSubmatch(frogly.Err.Contents())
+		if match == nil {
+			return errors.New("frogly doesn't listen yet")
 		}
 
-		return connection.Close()
-	}).WithTimeout(10*time.Second).Should(Succeed(), "frogly doesn't listen on %s", address)
+		froglyURL = "http://" + string(match[1])
+
+		return nil
+	}).WithTimeout(10 * time.Second).Should(Succeed())
 })
-
-// the tests mustn't depend on 8080 being free
-func freeAddress() string {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	Expect(err).NotTo(HaveOccurred())
-
-	address := listener.Addr().String()
-	Expect(listener.Close()).To(Succeed())
-
-	return address
-}

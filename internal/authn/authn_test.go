@@ -17,7 +17,10 @@ import (
 	"github.com/the127/frogly/internal/authn"
 )
 
-const clientID = "frogly"
+const (
+	clientID = "frogly"
+	subject  = "1d0c8b4e-0000-4000-8000-000000000000"
+)
 
 type fakeIssuer struct {
 	url    string
@@ -74,16 +77,16 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 func (issuer *fakeIssuer) token(t *testing.T, claims map[string]any) string {
 	t.Helper()
 
-	return issuer.sign(t, "at+jwt", claims)
+	return issuer.sign(t, jose.SigningKey{Algorithm: jose.EdDSA, Key: issuer.key}, "at+jwt", claims)
 }
 
-func (issuer *fakeIssuer) sign(t *testing.T, typ jose.ContentType, claims map[string]any) string {
+func (issuer *fakeIssuer) sign(t *testing.T, key jose.SigningKey, typ jose.ContentType, claims map[string]any) string {
 	t.Helper()
 
 	all := map[string]any{
 		"iss": issuer.url,
 		"aud": []string{clientID},
-		"sub": "1d0c8b4e-0000-4000-8000-000000000000",
+		"sub": subject,
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Minute).Unix(),
 	}
@@ -91,10 +94,7 @@ func (issuer *fakeIssuer) sign(t *testing.T, typ jose.ContentType, claims map[st
 		all[name] = value
 	}
 
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.EdDSA, Key: issuer.key},
-		(&jose.SignerOptions{}).WithType(typ).WithHeader("kid", "test"),
-	)
+	signer, err := jose.NewSigner(key, (&jose.SignerOptions{}).WithType(typ).WithHeader("kid", "test"))
 	require.NoError(t, err)
 
 	signed, err := jwt.Signed(signer).Claims(all).Serialize()
@@ -144,7 +144,7 @@ func TestVerifyGivesThePerson(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, authn.Person{
 				Issuer:  issuer.url,
-				Subject: "1d0c8b4e-0000-4000-8000-000000000000",
+				Subject: subject,
 				Name:    test.wantName,
 			}, person)
 		})
@@ -210,7 +210,7 @@ func TestVerifyRefusesAnIDToken(t *testing.T) {
 	// arrange
 	issuer := newIssuer(t)
 	verifier := newVerifier(t, issuer)
-	token := issuer.sign(t, "JWT", map[string]any{"nonce": "n-0S6_WzA2Mj"})
+	token := issuer.sign(t, jose.SigningKey{Algorithm: jose.EdDSA, Key: issuer.key}, "JWT", map[string]any{"nonce": "n-0S6_WzA2Mj"})
 
 	// act
 	_, err := verifier.Verify(t.Context(), token)
@@ -223,23 +223,11 @@ func TestVerifyRefusesASymmetricSignature(t *testing.T) {
 	// arrange
 	issuer := newIssuer(t)
 	verifier := newVerifier(t, issuer)
-
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.HS256, Key: []byte("a shared secret anyone could know")},
-		(&jose.SignerOptions{}).WithType("at+jwt").WithHeader("kid", "test"),
-	)
-	require.NoError(t, err)
-
-	token, err := jwt.Signed(signer).Claims(map[string]any{
-		"iss": issuer.url,
-		"aud": []string{clientID},
-		"sub": "1d0c8b4e-0000-4000-8000-000000000000",
-		"exp": time.Now().Add(time.Minute).Unix(),
-	}).Serialize()
-	require.NoError(t, err)
+	sharedSecret := jose.SigningKey{Algorithm: jose.HS256, Key: []byte("a shared secret anyone could know")}
+	token := issuer.sign(t, sharedSecret, "at+jwt", nil)
 
 	// act
-	_, err = verifier.Verify(t.Context(), token)
+	_, err := verifier.Verify(t.Context(), token)
 
 	// assert
 	require.ErrorIs(t, err, authn.ErrUnauthenticated)
