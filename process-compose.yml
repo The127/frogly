@@ -70,6 +70,8 @@ processes:
       - FROGLY_LOG__LEVEL=debug
       - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
       - FROGLY_OIDC__CLIENT_ID=frogly
+      - FROGLY_DATABASE__DRIVER=postgres
+      - FROGLY_DATABASE__POSTGRES__URL=postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable
     readiness_probe:
       http_get:
         host: localhost
@@ -79,6 +81,8 @@ processes:
       period_seconds: 2
     depends_on:
       keyline:
+        condition: process_healthy
+      postgres:
         condition: process_healthy
 
   # the frontend with hot reload on http://localhost:5173, sending API
