@@ -37,6 +37,13 @@ dependenciesRules:
     shouldNotDependsOn:
       standard:
         - os
+  # the integration tests run frogly as a binary and see it only from the
+  # outside, the way a person or an agent does
+  - package: '**.test.integration$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:

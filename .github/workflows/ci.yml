@@ -22,6 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
+      # the integration tests in `just ci` log in at Keyline, started the
+      # same way as `just dev` does
+      - name: start keyline
+        run: |
+          process-compose up keyline --detached
+          process-compose project is-ready --wait
       - run: just ci
       - name: upload coverage to codecov
         uses: codecov/codecov-action@v7

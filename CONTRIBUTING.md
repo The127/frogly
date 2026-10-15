@@ -36,7 +36,8 @@ dependency rules in `arch-go.yml`, and
 vulnerabilities. Both are pinned in `hack/tools/go.mod`, so their
 dependencies stay out of frogly's.
 
-Run `just` to list all recipes. `just ci` runs every check.
+Run `just` to list all recipes. `just ci` runs every check. The
+integration tests in it need the services from `just dev` (see below).
 
 ## Running the services
 
@@ -101,6 +102,32 @@ Leave out `// arrange` when there is nothing to set up. Checks use
 [testify](https://github.com/stretchr/testify): `require` when the test
 can't go on after a failure, `assert` otherwise. Checks on an error always
 use `require`, and the linter enforces that.
+
+### Integration tests
+
+Integration tests live in `test/integration`. They build frogly, run it as
+a binary against the Keyline from `just dev`, and use it from the outside,
+the way a person or an agent does. Each story gets a test there that shows
+it works. Run them with `just integration`.
+
+They use [Ginkgo](https://onsi.github.io/ginkgo/) and
+[Gomega](https://onsi.github.io/gomega/). `Describe`, `Context` and `It`
+say what the test is about, so they need no arrange, act and assert
+comments:
+
+```go
+var _ = Describe("seeing your name", func() {
+	Context("when you are logged in", func() {
+		It("greets you by name", func(ctx SpecContext) {
+			// ...
+		})
+	})
+})
+```
+
+A test logs in as the service user `frogly-tests`, with the key in
+`dev/keyline/test-service-user.pem`. The files carry the `integration`
+build tag, so `go test ./...` leaves them out.
 
 ## Commit messages and pull request titles
 

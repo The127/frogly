@@ -14,6 +14,10 @@ test:
 cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
+# run the integration tests against the services `just dev` starts
+integration:
+    go tool ginkgo -tags integration -race ./test/integration
+
 # lint
 lint:
     golangci-lint run ./...
@@ -54,4 +58,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: lint arch reuse prose build cover vuln
+ci: lint arch reuse prose build cover integration vuln
