@@ -4,12 +4,11 @@ import { createRouter } from "sv-router";
 // makes sure they're registered before it renders.
 export { Router } from "sv-router";
 
-import GardenPage from "./GardenPage.svelte";
-import Home from "./Home.svelte";
-import Lost from "./Lost.svelte";
-
+// The pages are imported lazily, since they import p and route from here.
+// Imported up front, a page that loads first would run createRouter before
+// the pages exist.
 export const { p, route } = createRouter({
-  "/": Home,
-  "/projects/:id": GardenPage,
-  "*": Lost,
+  "/": () => import("./Home.svelte"),
+  "/projects/:id": () => import("./GardenPage.svelte"),
+  "*": () => import("./Lost.svelte"),
 });
