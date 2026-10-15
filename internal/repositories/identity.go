@@ -21,8 +21,8 @@ type Identity struct {
 
 // NewIdentity creates an identity that was never saved.
 func NewIdentity(userID uuid.UUID, issuer string, subject string) (*Identity, error) {
-	if issuer == "" || subject == "" {
-		return nil, fmt.Errorf("%w: an identity needs an issuer and a subject", ErrInvalid)
+	if userID == uuid.Nil || issuer == "" || subject == "" {
+		return nil, fmt.Errorf("%w: an identity needs a user, an issuer and a subject", ErrInvalid)
 	}
 
 	return &Identity{

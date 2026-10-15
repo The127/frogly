@@ -17,13 +17,18 @@ var ErrInvalid = errors.New("invalid")
 // ErrNotFound is returned when nothing matches.
 var ErrNotFound = errors.New("not found")
 
+// maxName keeps names short enough for a list and a page title.
+const maxName = 100
+
 // ErrConcurrentModification is returned when saving would overwrite
 // someone else's change, because a row changed since it was loaded, or a
 // unique value was taken since it was looked up.
 var ErrConcurrentModification = errors.New("concurrent modification")
 
 // Base is what every stored model has: an ID and the version it was loaded
-// at. The database counts the version up on every update.
+// at. The database counts the version up on every update. A model is stale
+// once the unit of work that loaded it has saved: load it again before
+// changing it again.
 type Base struct {
 	id      uuid.UUID
 	version int

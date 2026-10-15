@@ -71,8 +71,8 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
-  # the models and repository interfaces know no database, so the rest of
-  # frogly doesn't either
+  # the models and repository interfaces know no database. That keeps the
+  # rest of frogly free of database code too.
   - package: '**.internal.repositories$'
     shouldNotDependsOn:
       internal:

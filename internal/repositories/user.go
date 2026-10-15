@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -17,18 +18,23 @@ type User struct {
 	email string
 }
 
-// NewUser creates a user who was never saved. A user needs a name.
+// NewUser creates a user who was never saved. A user needs a name of up
+// to 100 characters.
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
-	if name == "" {
-		return nil, fmt.Errorf("%w: a user needs a name", ErrInvalid)
+	if !validName(name) {
+		return nil, fmt.Errorf("%w: a user needs a name of 1 to %d characters", ErrInvalid, maxName)
 	}
 
 	return &User{
 		Base:  newBase(),
 		name:  name,
-		email: email,
+		email: strings.TrimSpace(email),
 	}, nil
+}
+
+func validName(name string) bool {
+	return name != "" && utf8.RuneCountInString(name) <= maxName
 }
 
 // NewUserFromDB rebuilds a user as loaded.
@@ -47,12 +53,18 @@ func (user *User) Email() string {
 }
 
 // Refresh takes the name and email from the user's latest login and says
-// whether anything changed. An empty name keeps the old one, since a user
-// always needs one.
+// whether anything changed. A login that leaves one out, or has a name
+// frogly can't use, keeps the old value. A user always needs a name, and
+// an issuer may only send the email when asked for it.
 func (user *User) Refresh(name string, email string) bool {
 	name = strings.TrimSpace(name)
-	if name == "" {
+	if !validName(name) {
 		name = user.name
+	}
+
+	email = strings.TrimSpace(email)
+	if email == "" {
+		email = user.email
 	}
 
 	if name == user.name && email == user.email {
@@ -67,6 +79,7 @@ func (user *User) Refresh(name string, email string) bool {
 
 // UserRepository loads and saves users.
 type UserRepository interface {
+	// First returns ErrNotFound when no user has the ID.
 	First(ctx context.Context, id uuid.UUID) (*User, error)
 	Insert(user *User)
 	Update(user *User)

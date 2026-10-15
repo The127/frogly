@@ -9,9 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// maxProjectName keeps names short enough for a list and a page title.
-const maxProjectName = 100
-
 // Project is an area of work. What that is, a product, a team or a
 // household, is up to the people in it.
 type Project struct {
@@ -29,8 +26,8 @@ func NewProject(name string) (*Project, error) {
 	case name == "":
 		return nil, fmt.Errorf("%w: a project needs a name", ErrInvalid)
 
-	case utf8.RuneCountInString(name) > maxProjectName:
-		return nil, fmt.Errorf("%w: a project's name has at most %d characters", ErrInvalid, maxProjectName)
+	case utf8.RuneCountInString(name) > maxName:
+		return nil, fmt.Errorf("%w: a project's name has at most %d characters", ErrInvalid, maxName)
 	}
 
 	return &Project{Base: newBase(), name: name}, nil
@@ -48,7 +45,9 @@ func (project *Project) Name() string {
 
 // ProjectRepository loads and saves projects.
 type ProjectRepository interface {
-	// ListForMember lists the projects the user is a member of, by name.
+	// ListForMember lists the projects the user is a member of, sorted by
+	// name byte by byte, so upper case comes first, then by ID. Both
+	// databases sort the same way.
 	ListForMember(ctx context.Context, userID uuid.UUID) ([]*Project, error)
 	Insert(project *Project)
 }
