@@ -6,14 +6,16 @@ default:
 build: web
     CGO_ENABLED=0 go build -o bin/frogly ./cmd/frogly
 
-# build the frontend into web/dist, which the binary embeds
-web:
+# install the frontend's packages in the versions pnpm-lock.yaml names
+web-deps:
     pnpm --dir web install --frozen-lockfile
+
+# build the frontend into web/dist, which the binary embeds
+web: web-deps
     pnpm --dir web build
 
 # check the frontend's types and run its tests
-web-check:
-    pnpm --dir web install --frozen-lockfile
+web-check: web-deps
     pnpm --dir web check
     pnpm --dir web test
 
@@ -25,13 +27,11 @@ test:
 cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
-# run the integration tests, starting Keyline in the background first if
-# it isn't running
+# run the integration tests, starting Keyline first if it isn't running
 integration: keyline web
     go tool ginkgo -tags integration -race ./test/integration
 
-# start Keyline in the background unless it's running already, `just dev`
-# starts it too
+# start Keyline in the background unless it's running already
 keyline:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -68,8 +68,7 @@ reuse:
 prose:
     bash hack/check-prose.sh
 
-# start Postgres, Keyline and frogly for local development, see
-# process-compose.yml
+# start frogly and everything it needs, see process-compose.yml
 dev:
     # `just integration` may have left Keyline running in the background,
     # and two process-composes can't share a port
@@ -84,4 +83,4 @@ hooks:
 setup: hooks ci
 
 # everything that must pass before a push
-ci: web lint arch reuse prose build web-check cover integration vuln
+ci: lint arch reuse prose build web-check cover integration vuln
