@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"testing/iotest"
 
 	"github.com/The127/ioc"
 
@@ -503,4 +504,20 @@ func TestMeAnswersWithTheLatestName(t *testing.T) {
 
 	// assert
 	assert.JSONEq(t, `{"name": "Karolin"}`, response.Body.String())
+}
+
+func TestABodyThatCantBeReadIsLoggedAndHidden(t *testing.T) {
+	// arrange
+	log := &bytes.Buffer{}
+	handler := newServer(t, log)
+	header := http.Header{"Authorization": {"Bearer " + validToken}}
+	body := iotest.ErrReader(errors.New("the connection broke"))
+
+	// act
+	response := requestWithBody(t, handler, http.MethodPost, "/api/projects", header, body)
+
+	// assert
+	assert.Equal(t, http.StatusInternalServerError, response.Code)
+	assert.NotContains(t, response.Body.String(), "the connection broke")
+	assert.Contains(t, log.String(), "the connection broke")
 }

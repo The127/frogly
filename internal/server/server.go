@@ -2,10 +2,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -217,27 +219,31 @@ func authenticated(verifier Verifier, services *ioc.DependencyProvider, next end
 // text is what the client reads.
 var errBadBody = errors.New("the body isn't the JSON this request takes")
 
-// decode reads the request's body as JSON into target and refuses fields
-// target doesn't have.
+// decode refuses fields target doesn't have, since a client that sends
+// them expects frogly to do something it doesn't. A body that can't be read
+// isn't the client's mistake, so that error stays as it is.
 func decode(r *http.Request, target any) error {
-	decoder := json.NewDecoder(r.Body)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("reading the body: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 
-	err := decoder.Decode(target)
-	if err == nil {
-		// the decoder stops after the first value, and anything after it
-		// means the body was meant as something else
-		err = decoder.Decode(&struct{}{})
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
+	err = decoder.Decode(target)
+	if err != nil {
+		return errBadBody
 	}
 
-	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
-		return err
+	// the decoder stops after the first value, and anything after it means
+	// the body was meant as something else
+	err = decoder.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return errBadBody
 	}
 
-	return errBadBody
+	return nil
 }
 
 // answerError is the one place that decides what a client learns about an
