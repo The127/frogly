@@ -25,6 +25,9 @@ processes:
         command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -h 127.0.0.1 -U frogly -d frogly
       initial_delay_seconds: 2
       period_seconds: 2
+      # process-compose stops a service after three failed checks by
+      # default, and a first start pulls the image for longer than that
+      failure_threshold: 150
 
   # the login for frogly, set up by dev/keyline/config.yaml. Keyline only
   # publishes amd64 images, so on Apple silicon it needs Rosetta.
@@ -48,6 +51,8 @@ processes:
         path: /oidc/frogly/.well-known/openid-configuration
       initial_delay_seconds: 2
       period_seconds: 2
+      # like Postgres, a first start pulls the image first
+      failure_threshold: 150
 
   keyline-ui:
     command: >
@@ -83,6 +88,8 @@ processes:
         path: /api/config
       initial_delay_seconds: 2
       period_seconds: 2
+      # like Postgres, a first start builds frogly first
+      failure_threshold: 150
     depends_on:
       keyline:
         condition: process_healthy
