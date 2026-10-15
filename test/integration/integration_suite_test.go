@@ -29,10 +29,7 @@ const (
 )
 
 var (
-	froglyURL string
-
-	// accessToken belongs to frogly-tests, otherAccessToken to
-	// frogly-tests-2, so a test can check what one can't see of the other
+	froglyURL        string
 	accessToken      string
 	otherAccessToken string
 )

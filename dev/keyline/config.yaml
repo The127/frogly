@@ -1,7 +1,7 @@
 # Keyline for development and CI, started by process-compose.yml. It sets up
 # everything frogly needs to log someone in. Never use it for anything
-# reachable from outside your machine: the password and the service user's
-# key are public.
+# reachable from outside your machine: the password and the service users'
+# keys are public.
 server:
   host: "0.0.0.0"
   port: 8081
