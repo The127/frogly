@@ -74,7 +74,16 @@ type SQLite struct {
 // Postgres says how to connect, as a URL like
 // postgres://user:password@host:5432/database.
 type Postgres struct {
-	URL string `koanf:"url"`
+	URL Secret `koanf:"url"`
+}
+
+// Secret is a setting that mustn't end up in a log, like a URL with a
+// password in it.
+type Secret string
+
+// LogValue keeps the secret out of slog's output.
+func (Secret) LogValue() slog.Value {
+	return slog.StringValue("[redacted]")
 }
 
 // Server says where frogly listens.

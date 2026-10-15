@@ -202,6 +202,18 @@ func TestLoadsTheDatabaseSettings(t *testing.T) {
 				Postgres: config.Postgres{URL: "postgres://frogly@localhost:5432/frogly"},
 			},
 		},
+		{
+			name: "Postgres ignores an empty SQLite path",
+			environ: environment(
+				"FROGLY_DATABASE__DRIVER=postgres",
+				"FROGLY_DATABASE__POSTGRES__URL=postgres://frogly@localhost:5432/frogly",
+				"FROGLY_DATABASE__SQLITE__PATH=",
+			),
+			want: config.Database{
+				Driver:   config.DriverPostgres,
+				Postgres: config.Postgres{URL: "postgres://frogly@localhost:5432/frogly"},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -249,4 +261,28 @@ func TestRefusesDatabaseSettingsItCantUse(t *testing.T) {
 			require.ErrorContains(t, err, test.variable)
 		})
 	}
+}
+
+func TestAnUnknownDriverIsTheOnlyDatabaseProblem(t *testing.T) {
+	// arrange
+	environ := environment("FROGLY_DATABASE__DRIVER=mysql")
+
+	// act
+	_, err := config.Load(environ)
+
+	// assert
+	require.ErrorContains(t, err, "FROGLY_DATABASE__DRIVER")
+	assert.NotContains(t, err.Error(), "FROGLY_DATABASE__SQLITE__PATH")
+	assert.NotContains(t, err.Error(), "FROGLY_DATABASE__POSTGRES__URL")
+}
+
+func TestThePostgresURLStaysOutOfLogs(t *testing.T) {
+	// arrange
+	url := config.Secret("postgres://frogly:a-password@localhost:5432/frogly")
+
+	// act
+	logged := url.LogValue().String()
+
+	// assert
+	assert.NotContains(t, logged, "a-password")
 }
