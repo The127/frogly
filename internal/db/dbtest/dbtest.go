@@ -438,12 +438,13 @@ func (s *Suite) TestAnIdeaComesBackAsPlanted() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(ideas, 1)
-	s.Equal(idea.ID(), ideas[0].ID())
-	s.Equal(1, ideas[0].Version())
-	s.Equal(garden.ID(), ideas[0].ProjectID())
-	s.Equal(karo.ID(), ideas[0].PlanterID())
-	s.Equal("grüne Ideen 🌱\tmit Tab", ideas[0].Text())
-	s.Equal(idea.PlantedAt(), ideas[0].PlantedAt())
+	s.Equal(idea.ID(), ideas[0].Idea.ID())
+	s.Equal(1, ideas[0].Idea.Version())
+	s.Equal(garden.ID(), ideas[0].Idea.ProjectID())
+	s.Equal(karo.ID(), ideas[0].Idea.PlanterID())
+	s.Equal("grüne Ideen 🌱\tmit Tab", ideas[0].Idea.Text())
+	s.Equal(idea.PlantedAt(), ideas[0].Idea.PlantedAt())
+	s.Equal("Karo", ideas[0].PlantedBy)
 }
 
 // TestAGardenListsItsOwnIdeasNewestFirst checks that a project's garden
@@ -465,8 +466,8 @@ func (s *Suite) TestAGardenListsItsOwnIdeasNewestFirst() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(ideas, 2)
-	s.Equal(newer.ID(), ideas[0].ID())
-	s.Equal(older.ID(), ideas[1].ID())
+	s.Equal(newer.ID(), ideas[0].Idea.ID())
+	s.Equal(older.ID(), ideas[1].Idea.ID())
 }
 
 // TestIdeasPlantedAtTheSameTimeAreListedByIDNewestFirst checks that ideas
@@ -485,8 +486,8 @@ func (s *Suite) TestIdeasPlantedAtTheSameTimeAreListedByIDNewestFirst() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(ideas, 2)
-	s.Equal(second.ID(), ideas[0].ID(), "version 7 IDs grow with time")
-	s.Equal(first.ID(), ideas[1].ID())
+	s.Equal(second.ID(), ideas[0].Idea.ID(), "version 7 IDs grow with time")
+	s.Equal(first.ID(), ideas[1].Idea.ID())
 }
 
 // TestAnIdeaNeedsAnExistingProject checks that an idea can't be planted in

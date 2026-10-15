@@ -24,11 +24,13 @@ func NewIdeaRepository(reader Reader, tracker *change.Tracker) *IdeaRepository {
 	return &IdeaRepository{reader: reader, tracker: tracker}
 }
 
-// ListInProject lists the project's garden, newest first.
-func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID uuid.UUID) ([]*repositories.Idea, error) {
-	selection := sqlbuilder.Select("id", "version", "project_id", "planter_id", "text", "planted_at").From("ideas")
-	selection.Where(selection.Equal("project_id", projectID.String()))
-	selection.OrderByDesc("planted_at").OrderByDesc("id")
+// ListInProject lists the project's garden with the planters' names,
+// newest first.
+func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID uuid.UUID) ([]repositories.PlantedIdea, error) {
+	selection := sqlbuilder.Select("i.id", "i.version", "i.project_id", "i.planter_id", "i.text", "i.planted_at", "u.name").From("ideas i")
+	selection.Join("users u", "u.id = i.planter_id")
+	selection.Where(selection.Equal("i.project_id", projectID.String()))
+	selection.OrderByDesc("i.planted_at").OrderByDesc("i.id")
 
 	query, args := selection.BuildWithFlavor(sqlbuilder.SQLite)
 
@@ -41,10 +43,10 @@ func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID u
 		_ = rows.Close() // a read-only query, closing can't lose anything
 	}()
 
-	var ideas []*repositories.Idea
+	var ideas []repositories.PlantedIdea
 
 	for rows.Next() {
-		idea, err := scanIdea(rows)
+		idea, err := scanPlantedIdea(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -60,24 +62,26 @@ func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID u
 	return ideas, nil
 }
 
-func scanIdea(row scanner) (*repositories.Idea, error) {
+func scanPlantedIdea(row scanner) (repositories.PlantedIdea, error) {
 	var (
 		id        uuid.UUID
 		version   int
 		projectID uuid.UUID
 		planterID uuid.UUID
 		text      string
+		plantedBy string
 		plantedAt int64
 	)
 
-	err := row.Scan(&id, &version, &projectID, &planterID, &text, &plantedAt)
+	err := row.Scan(&id, &version, &projectID, &planterID, &text, &plantedAt, &plantedBy)
 	if err != nil {
-		return nil, fmt.Errorf("reading an idea: %w", err)
+		return repositories.PlantedIdea{}, fmt.Errorf("reading an idea: %w", err)
 	}
 
 	base := repositories.NewBaseFromDB(id, version)
+	idea := repositories.NewIdeaFromDB(base, projectID, planterID, text, time.UnixMicro(plantedAt))
 
-	return repositories.NewIdeaFromDB(base, projectID, planterID, text, time.UnixMicro(plantedAt)), nil
+	return repositories.PlantedIdea{Idea: idea, PlantedBy: plantedBy}, nil
 }
 
 // Insert records the idea to be written.

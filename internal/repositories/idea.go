@@ -94,10 +94,18 @@ func (idea *Idea) PlantedAt() time.Time {
 	return idea.plantedAt
 }
 
+// PlantedIdea is an idea with the name of whoever planted it, the way a
+// garden lists it.
+type PlantedIdea struct {
+	Idea      *Idea
+	PlantedBy string
+}
+
 // IdeaRepository loads and saves ideas.
 type IdeaRepository interface {
-	// ListInProject lists the project's garden, newest first. Ideas planted
-	// at the same time are sorted by ID, the newest first as well.
-	ListInProject(ctx context.Context, projectID uuid.UUID) ([]*Idea, error)
+	// ListInProject lists the project's garden in one query, newest first.
+	// Ideas planted at the same time are sorted by ID, the newest first as
+	// well.
+	ListInProject(ctx context.Context, projectID uuid.UUID) ([]PlantedIdea, error)
 	Insert(idea *Idea)
 }

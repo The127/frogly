@@ -18,12 +18,6 @@ import (
 // exist.
 var ErrProjectNotFound = errors.New("project not found")
 
-// PlantedIdea is an idea with the name of whoever planted it.
-type PlantedIdea struct {
-	Idea      *repositories.Idea
-	PlantedBy string
-}
-
 // Plant writes an idea down in the project's garden. A project that
 // doesn't exist or that planter isn't a member of gives
 // ErrProjectNotFound, and a text frogly can't use a
@@ -49,40 +43,16 @@ func Plant(ctx context.Context, unit db.Context, planter *repositories.User, pro
 	return idea, nil
 }
 
-// List lists the project's garden for one of its members, newest first. A
-// project that doesn't exist or that user isn't a member of gives
-// ErrProjectNotFound.
-func List(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) ([]PlantedIdea, error) {
+// List lists the project's garden for one of its members, newest first,
+// with the name of whoever planted each idea. A project that doesn't exist
+// or that user isn't a member of gives ErrProjectNotFound.
+func List(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) ([]repositories.PlantedIdea, error) {
 	err := requireMember(ctx, unit, projectID, user.ID())
 	if err != nil {
 		return nil, err
 	}
 
-	ideas, err := unit.Ideas().ListInProject(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-
-	// a garden has many ideas but few planters, so each is loaded once
-	names := map[uuid.UUID]string{}
-	planted := make([]PlantedIdea, 0, len(ideas))
-
-	for _, idea := range ideas {
-		name, known := names[idea.PlanterID()]
-		if !known {
-			planter, err := unit.Users().ByID(ctx, idea.PlanterID())
-			if err != nil {
-				return nil, fmt.Errorf("loading the planter of idea %s: %w", idea.ID(), err)
-			}
-
-			name = planter.Name()
-			names[idea.PlanterID()] = name
-		}
-
-		planted = append(planted, PlantedIdea{Idea: idea, PlantedBy: name})
-	}
-
-	return planted, nil
+	return unit.Ideas().ListInProject(ctx, projectID)
 }
 
 func requireMember(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
