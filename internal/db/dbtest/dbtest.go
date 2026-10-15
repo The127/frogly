@@ -4,7 +4,9 @@ package dbtest
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/the127/frogly/internal/db"
@@ -358,4 +360,107 @@ func (s *Suite) TestAFailedSaveForgetsItsChanges() {
 
 	// assert
 	s.Require().NoError(err)
+}
+
+func (s *Suite) savedIdea(idea *repositories.Idea) *repositories.Idea {
+	unit := s.database.NewContext()
+	unit.Ideas().Insert(idea)
+	s.save(unit)
+
+	return idea
+}
+
+func (s *Suite) planted(project *repositories.Project, planter *repositories.User, text string) *repositories.Idea {
+	idea, err := repositories.NewIdea(project.ID(), planter.ID(), text)
+	s.Require().NoError(err)
+
+	return s.savedIdea(idea)
+}
+
+// TestAnIdeaComesBackAsPlanted checks that a saved idea loads with every
+// field, as version 1.
+func (s *Suite) TestAnIdeaComesBackAsPlanted() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	idea := s.planted(garden, karo, "search should find ideas by any word")
+
+	// act
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(ideas, 1)
+	s.Equal(idea.ID(), ideas[0].ID())
+	s.Equal(1, ideas[0].Version())
+	s.Equal(garden.ID(), ideas[0].ProjectID())
+	s.Equal(karo.ID(), ideas[0].PlanterID())
+	s.Equal("search should find ideas by any word", ideas[0].Text())
+	s.Equal(idea.PlantedAt(), ideas[0].PlantedAt())
+}
+
+// TestAGardenListsItsOwnIdeasNewestFirst checks that a project's garden
+// holds only its own ideas, the newest first.
+func (s *Suite) TestAGardenListsItsOwnIdeasNewestFirst() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden, kitchen := s.savedProject("Garden", karo), s.savedProject("Kitchen", karo)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	older := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "older", now.Add(-time.Hour)))
+	newer := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "newer", now))
+	s.planted(kitchen, karo, "a bigger fridge")
+
+	// act
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(ideas, 2)
+	s.Equal(newer.ID(), ideas[0].ID())
+	s.Equal(older.ID(), ideas[1].ID())
+}
+
+// TestIdeasPlantedAtTheSameTimeAreListedByIDNewestFirst checks that ideas
+// with the same time come in the reverse order of their IDs.
+func (s *Suite) TestIdeasPlantedAtTheSameTimeAreListedByIDNewestFirst() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	first := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "first", now))
+	second := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "second", now))
+
+	// act
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(ideas, 2)
+	s.Equal(second.ID(), ideas[0].ID(), "version 7 IDs grow with time")
+	s.Equal(first.ID(), ideas[1].ID())
+}
+
+// TestAnIdeaNeedsAnExistingProject checks that an idea can't be planted in
+// a project the database doesn't have.
+func (s *Suite) TestAnIdeaNeedsAnExistingProject() {
+	// arrange
+	karo := s.savedUser("Karo")
+	idea, err := repositories.NewIdea(uuid.Must(uuid.NewV7()), karo.ID(), "nowhere to grow")
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Ideas().Insert(idea)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// newBase gives a model rebuilt with NewIdeaFromDB a fresh ID, for a test
+// that needs to choose the planting time.
+func newBase() repositories.Base {
+	return repositories.NewBaseFromDB(uuid.Must(uuid.NewV7()), 0)
 }

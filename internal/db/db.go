@@ -29,5 +29,6 @@ type Context interface {
 	Identities() repositories.IdentityRepository
 	Projects() repositories.ProjectRepository
 	Memberships() repositories.MembershipRepository
+	Ideas() repositories.IdeaRepository
 	SaveChanges(ctx context.Context) error
 }
