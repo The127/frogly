@@ -8,7 +8,7 @@ processes:
   postgres:
     command: >
       ${CONTAINER_CLI:-docker} run --rm --name frogly-postgres
-      -p 5432:5432
+      -p 127.0.0.1:5432:5432
       -e POSTGRES_USER=frogly
       -e POSTGRES_PASSWORD=frogly
       -e POSTGRES_DB=frogly

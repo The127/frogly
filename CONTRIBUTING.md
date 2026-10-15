@@ -48,7 +48,8 @@ just dev
 
 This runs [process-compose](https://f1bonacc1.github.io/process-compose/)
 with `process-compose.yml`, which starts Postgres in a container on port
-5432. The user, password and database are all `frogly`. The data stays in
+5432. Only your own machine can reach it. The user, password and database
+are all `frogly`. The data stays in
 the `frogly-postgres` volume between runs.
 
 You need Docker or Podman for this. If you use Podman, set
