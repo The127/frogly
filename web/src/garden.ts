@@ -1,4 +1,4 @@
-import { type Idea, LoggedOut, NotFound, type Planted, type Project, fetchGarden, fetchProjects, plantIdea } from "./api";
+import { type Idea, LoggedOut, NotFound, type Planted, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -8,16 +8,12 @@ export type GardenLoaded =
   | { kind: "failed" }
   | { kind: "loggedOut" };
 
-// The project's name comes from your list, since frogly has no call for a
-// single project yet. The garden comes first, so a project you can't see
-// ends there.
 export async function loadGarden(accessToken: AccessToken, projectId: string): Promise<GardenLoaded> {
   try {
     const token = await accessToken();
-    const ideas = await fetchGarden(token, projectId);
-    const project = (await fetchProjects(token)).find((candidate) => candidate.id === projectId);
+    const project = await fetchProject(token, projectId);
 
-    return project ? { kind: "listed", project, ideas } : { kind: "notFound" };
+    return { kind: "listed", project, ideas: await fetchGarden(token, projectId) };
   } catch (error) {
     return failure(error);
   }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProjects, plantIdea } from "./api";
+import { LoggedOut, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProject, fetchProjects, plantIdea } from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -99,6 +99,55 @@ describe("fetchProjects", () => {
 
     // assert
     await expect(projects).rejects.toThrow("503");
+  });
+});
+
+describe("fetchProject", () => {
+  it("gives the project", async () => {
+    // arrange
+    respondWith(200, { id: "p-1", name: "Garden" });
+
+    // act
+    const project = await fetchProject("an-access-token", "p-1");
+
+    // assert
+    expect(project).toEqual({ id: "p-1", name: "Garden" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("throws NotFound for a project you can't see", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const project = fetchProject("an-access-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const project = fetchProject("an-access-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toThrow("500");
+  });
+
+  it("puts the project's ID into the path safely", async () => {
+    // arrange
+    respondWith(200, { id: "p-1", name: "Garden" });
+
+    // act
+    await fetchProject("an-access-token", "../me");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/..%2Fme", expect.anything());
   });
 });
 

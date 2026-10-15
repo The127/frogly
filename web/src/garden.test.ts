@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type Idea, LoggedOut, NotFound, type Project, fetchGarden, fetchProjects, plantIdea } from "./api";
+import { type Idea, LoggedOut, NotFound, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
 import { addIdea, loadGarden, plantedOn } from "./garden";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   fetchGarden: vi.fn(),
-  fetchProjects: vi.fn(),
+  fetchProject: vi.fn(),
   plantIdea: vi.fn(),
 }));
 
@@ -21,44 +21,33 @@ const token = async () => "an-access-token";
 describe("loadGarden", () => {
   it("gives the project and its ideas", async () => {
     // arrange
+    vi.mocked(fetchProject).mockResolvedValue(project);
     vi.mocked(fetchGarden).mockResolvedValue([idea]);
-    vi.mocked(fetchProjects).mockResolvedValue([{ id: "p-2", name: "Kitchen" }, project]);
 
     // act
     const outcome = await loadGarden(token, "p-1");
 
     // assert
     expect(outcome).toEqual({ kind: "listed", project, ideas: [idea] });
+    expect(fetchProject).toHaveBeenCalledWith("an-access-token", "p-1");
     expect(fetchGarden).toHaveBeenCalledWith("an-access-token", "p-1");
   });
 
   it("says the project isn't there when frogly says so", async () => {
     // arrange
-    vi.mocked(fetchGarden).mockRejectedValue(new NotFound());
+    vi.mocked(fetchProject).mockRejectedValue(new NotFound());
 
     // act
     const outcome = await loadGarden(token, "p-1");
 
     // assert
     expect(outcome).toEqual({ kind: "notFound" });
-    expect(fetchProjects).not.toHaveBeenCalled();
+    expect(fetchGarden).not.toHaveBeenCalled();
   });
 
-  it("says the project isn't there when it's missing from your list", async () => {
+  it("says loading failed when the project fails", async () => {
     // arrange
-    vi.mocked(fetchGarden).mockResolvedValue([]);
-    vi.mocked(fetchProjects).mockResolvedValue([]);
-
-    // act
-    const outcome = await loadGarden(token, "p-1");
-
-    // assert
-    expect(outcome).toEqual({ kind: "notFound" });
-  });
-
-  it("says loading failed when the garden fails", async () => {
-    // arrange
-    vi.mocked(fetchGarden).mockRejectedValue(new Error("frogly answered 503"));
+    vi.mocked(fetchProject).mockRejectedValue(new Error("frogly answered 503"));
 
     // act
     const outcome = await loadGarden(token, "p-1");
@@ -67,10 +56,10 @@ describe("loadGarden", () => {
     expect(outcome).toEqual({ kind: "failed" });
   });
 
-  it("says loading failed when the list fails", async () => {
+  it("says loading failed when the garden fails", async () => {
     // arrange
-    vi.mocked(fetchGarden).mockResolvedValue([idea]);
-    vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
+    vi.mocked(fetchProject).mockResolvedValue(project);
+    vi.mocked(fetchGarden).mockRejectedValue(new Error("frogly answered 503"));
 
     // act
     const outcome = await loadGarden(token, "p-1");
@@ -81,7 +70,7 @@ describe("loadGarden", () => {
 
   it("says the login ended", async () => {
     // arrange
-    vi.mocked(fetchGarden).mockRejectedValue(new LoggedOut());
+    vi.mocked(fetchProject).mockRejectedValue(new LoggedOut());
 
     // act
     const outcome = await loadGarden(token, "p-1");

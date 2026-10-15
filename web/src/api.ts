@@ -94,6 +94,19 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   return (await response.json()) as Project[];
 }
 
+export async function fetchProject(accessToken: string, projectId: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}`, accessToken);
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for a project`);
+  }
+
+  return (await response.json()) as Project;
+}
+
 // Either the new project, or frogly's reason for refusing the name, which
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
