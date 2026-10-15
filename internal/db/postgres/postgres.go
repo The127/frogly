@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	_ "github.com/jackc/pgx/v5/stdlib" // registers the pgx driver for database/sql
+	"github.com/jackc/pgx/v5/stdlib"
 	migrate "github.com/rubenv/sql-migrate"
 
 	"github.com/the127/frogly/internal/db"
@@ -35,15 +35,12 @@ type Database struct {
 func Open(url string) (*Database, error) {
 	// pgx hides the password when it can't parse a URL, but a password with
 	// a stray @ shows partly anyway, so the error says nothing about the URL
-	_, err := pgx.ParseConfig(url)
+	settings, err := pgx.ParseConfig(url)
 	if err != nil {
 		return nil, errInvalidURL
 	}
 
-	connection, err := sql.Open("pgx", url)
-	if err != nil {
-		return nil, fmt.Errorf("opening the Postgres database: %w", err)
-	}
+	connection := stdlib.OpenDB(*settings)
 
 	// without limits, a burst of requests opens a connection each and could
 	// pass Postgres's max_connections, 100 by default. Idle ones stay
