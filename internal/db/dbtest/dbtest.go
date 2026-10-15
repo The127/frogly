@@ -346,7 +346,7 @@ func (s *Suite) TestAFailedSaveForgetsItsChanges() {
 
 	unit := s.database.NewContext()
 	unit.Identities().Insert(duplicate)
-	s.Require().Error(unit.SaveChanges(s.T().Context()))
+	s.Require().ErrorIs(unit.SaveChanges(s.T().Context()), repositories.ErrConcurrentModification)
 
 	ana, err := repositories.NewUser("Ana", "ana@frogly.local")
 	s.Require().NoError(err)

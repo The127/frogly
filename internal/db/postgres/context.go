@@ -62,9 +62,9 @@ func (unit *Context) SaveChanges(ctx context.Context) error {
 		return nil
 	}
 
-	// written or rolled back, the changes are done with. The models are
-	// stale either way, and keeping them would try failed writes again on
-	// the next save.
+	// written or rolled back, the changes are done with. Keeping them would
+	// try failed writes again on the next save, which a lost race fails
+	// again.
 	defer unit.tracker.Clear()
 
 	tx, err := unit.connection.BeginTx(ctx, nil)

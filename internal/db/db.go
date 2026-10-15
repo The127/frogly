@@ -19,7 +19,8 @@ type Database interface {
 // Context is one unit of work. Reads through its repositories go to the
 // database right away and don't see writes recorded in the same context.
 // SaveChanges writes every recorded change in one transaction, all or
-// nothing, and forgets the changes either way. It returns
+// nothing, and forgets the changes either way. A caller who wants to try
+// again records them again. It returns
 // repositories.ErrConcurrentModification when a change would overwrite
 // someone else's, like an update to a row that changed since it was
 // loaded, or a second identity with the same issuer and subject.
