@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the pgx driver for database/sql
 	migrate "github.com/rubenv/sql-migrate"
 
@@ -21,6 +23,8 @@ var migrations embed.FS
 // a person with psql
 const maxConnections = 20
 
+var errInvalidURL = errors.New("the Postgres URL isn't valid, it looks like postgres://user:password@host:5432/database")
+
 // Database is a Postgres database.
 type Database struct {
 	connection *sql.DB
@@ -29,6 +33,13 @@ type Database struct {
 // Open connects to the database at url, like
 // postgres://user:password@host:5432/database.
 func Open(url string) (*Database, error) {
+	// pgx hides the password when it can't parse a URL, but a password with
+	// a stray @ shows partly anyway, so the error says nothing about the URL
+	_, err := pgx.ParseConfig(url)
+	if err != nil {
+		return nil, errInvalidURL
+	}
+
 	connection, err := sql.Open("pgx", url)
 	if err != nil {
 		return nil, fmt.Errorf("opening the Postgres database: %w", err)
@@ -45,7 +56,6 @@ func Open(url string) (*Database, error) {
 	if err != nil {
 		_ = connection.Close() // the connection failed already, that error says more
 
-		// the URL may hold a password, so the error doesn't repeat it
 		return nil, fmt.Errorf("connecting to the Postgres database: %w", err)
 	}
 
