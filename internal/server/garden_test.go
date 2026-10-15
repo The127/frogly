@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func createdProject(t *testing.T, handler http.Handler) string {
 	return project.ID
 }
 
-func ideas(t *testing.T, handler http.Handler, method string, token string, projectID string, body string) *http.Response {
+func ideas(t *testing.T, handler http.Handler, method string, token string, projectID string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
 	header := http.Header{
@@ -35,17 +36,7 @@ func ideas(t *testing.T, handler http.Handler, method string, token string, proj
 		"Authorization": {"Bearer " + token},
 	}
 
-	return requestWithBody(t, handler, method, "/api/projects/"+projectID+"/ideas", header, strings.NewReader(body)).Result()
-}
-
-func body(t *testing.T, response *http.Response) string {
-	t.Helper()
-
-	var content bytes.Buffer
-	_, err := content.ReadFrom(response.Body)
-	require.NoError(t, err)
-
-	return content.String()
+	return requestWithBody(t, handler, method, "/api/projects/"+projectID+"/ideas", header, strings.NewReader(body))
 }
 
 func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
@@ -57,8 +48,8 @@ func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
 	planted := ideas(t, handler, http.MethodPost, validToken, projectID, `{"text": "  search by any word "}`)
 
 	// assert
-	require.Equal(t, http.StatusCreated, planted.StatusCode)
-	assert.Equal(t, "no-store", planted.Header.Get("Cache-Control"))
+	require.Equal(t, http.StatusCreated, planted.Code)
+	assert.Equal(t, "no-store", planted.Header().Get("Cache-Control"))
 
 	var idea struct {
 		ID        string    `json:"id"`
@@ -67,7 +58,7 @@ func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
 		PlantedAt time.Time `json:"plantedAt"`
 	}
 
-	answer := body(t, planted)
+	answer := planted.Body.String()
 	require.NoError(t, json.Unmarshal([]byte(answer), &idea))
 	assert.NotEmpty(t, idea.ID)
 	assert.Equal(t, "search by any word", idea.Text)
@@ -75,8 +66,8 @@ func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), idea.PlantedAt, time.Minute)
 
 	listed := ideas(t, handler, http.MethodGet, validToken, projectID, "")
-	assert.Equal(t, http.StatusOK, listed.StatusCode)
-	assert.JSONEq(t, "["+answer+"]", body(t, listed))
+	assert.Equal(t, http.StatusOK, listed.Code)
+	assert.JSONEq(t, "["+answer+"]", listed.Body.String())
 }
 
 func TestAGardenStartsEmpty(t *testing.T) {
@@ -88,8 +79,8 @@ func TestAGardenStartsEmpty(t *testing.T) {
 	response := ideas(t, handler, http.MethodGet, validToken, projectID, "")
 
 	// assert
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.JSONEq(t, `[]`, body(t, response))
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[]`, response.Body.String())
 }
 
 func TestAGardenYouCantSeeIsNotFound(t *testing.T) {
@@ -114,8 +105,10 @@ func TestAGardenYouCantSeeIsNotFound(t *testing.T) {
 				response := ideas(t, handler, method, test.token, test.projectID, `{"text": "let me in"}`)
 
 				// assert
-				assert.Equal(t, http.StatusNotFound, response.StatusCode, method)
-				assert.Equal(t, "application/problem+json", response.Header.Get("Content-Type"), method)
+				assert.Equal(t, http.StatusNotFound, response.Code, method)
+				assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"), method)
+				// nothing that tells the cases apart
+				assert.JSONEq(t, `{"type": "about:blank", "title": "Not Found", "status": 404}`, response.Body.String(), method)
 			}
 		})
 	}
@@ -130,8 +123,23 @@ func TestAnIdeaFroglyCantUseIsABadRequest(t *testing.T) {
 	response := ideas(t, handler, http.MethodPost, validToken, projectID, `{"text": "  "}`)
 
 	// assert
-	assert.Equal(t, http.StatusBadRequest, response.StatusCode)
-	assert.JSONEq(t, `{"type": "about:blank", "title": "Bad Request", "status": 400, "detail": "an idea needs a text"}`, body(t, response))
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.JSONEq(t, `{"type": "about:blank", "title": "Bad Request", "status": 400, "detail": "an idea needs a text"}`, response.Body.String())
+}
+
+func TestABodyThatIsntAnIdeaIsTheSameBadRequestForEveryone(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	for _, token := range []string{validToken, otherToken} {
+		// act
+		response := ideas(t, handler, http.MethodPost, token, projectID, `{"name": "not an idea"}`)
+
+		// assert
+		assert.Equal(t, http.StatusBadRequest, response.Code, token)
+		assert.JSONEq(t, `{"type": "about:blank", "title": "Bad Request", "status": 400, "detail": "the body isn't the JSON this request takes"}`, response.Body.String(), token)
+	}
 }
 
 func TestPlantingNeedsAToken(t *testing.T) {
@@ -143,5 +151,5 @@ func TestPlantingNeedsAToken(t *testing.T) {
 	response := ideas(t, handler, http.MethodPost, "", projectID, `{"text": "an idea"}`)
 
 	// assert
-	assert.Equal(t, http.StatusUnauthorized, response.StatusCode)
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
 }
