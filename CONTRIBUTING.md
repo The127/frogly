@@ -40,20 +40,30 @@ Run `just` to list all recipes. `just ci` runs every check.
 
 ## Running the services
 
-frogly needs Postgres during development. Start it with:
+frogly needs Postgres and [Keyline](https://github.com/The127/Keyline), the
+service that logs people in, during development. Start both with:
 
 ```sh
 just dev
 ```
 
 This runs [process-compose](https://f1bonacc1.github.io/process-compose/)
-with `process-compose.yml`, which starts Postgres in a container on port
-5432. Only your own machine can reach it. The user, password and database
-are all `frogly`. The data stays in
-the `frogly-postgres` volume between runs.
+with `process-compose.yml`, which starts everything in containers. Only your
+own machine can reach them:
+
+| Service | Address | Notes |
+|---|---|---|
+| Postgres | `localhost:5432` | User, password and database are all `frogly`. |
+| Keyline | `http://localhost:8082` | Set up by `dev/keyline/config.yaml`. |
+| Keyline's login pages | `http://localhost:5177` | Log in as `karo` with the password `frogly`. |
+
+The data stays in the `frogly-postgres`, `frogly-keyline-data` and
+`frogly-keyline-keys` volumes between runs.
 
 You need Docker or Podman for this. If you use Podman, set
-`CONTAINER_CLI=podman`.
+`CONTAINER_CLI=podman`. Keyline only publishes amd64 images. On a Mac with
+Apple silicon, install Rosetta once with
+`softwareupdate --install-rosetta --agree-to-license`.
 
 ## Making a change
 
