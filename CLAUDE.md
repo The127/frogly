@@ -56,13 +56,16 @@ before, like "log in and see your name". One story is one pull request.
    red test.
 4. Open the pull request as a draft early, so CI runs on every push.
    CodeRabbit reviews it once it's marked ready.
-5. A Sonnet subagent reviews the diff of each commit before the next one
-   starts. Fixes from a review go into their own commit.
+5. A reviewer reviews the diff of each commit before the next one starts.
+   The reviewer is a subagent, a second Claude session started with the
+   Agent tool, running the Sonnet model. Fixes from a review go into their
+   own commit.
 6. Anything that doesn't belong to the story goes into a new issue, not
    into the code.
-7. When the story test passes, run the simplify skill and an Opus code
-   review over the whole pull request, fix what they find, then mark it
-   ready.
+7. When the story test passes, review the whole pull request twice. First
+   run the `simplify` skill, which looks for code to reuse, simplify or
+   speed up. Then have a subagent on the Opus model review it for bugs. Fix
+   what they find, then mark the pull request ready.
 
 Your own notes for this machine go in `CLAUDE.local.md`, which git ignores:
 
