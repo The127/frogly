@@ -3,10 +3,10 @@
   import { onMount } from "svelte";
 
   import { fetchConfig, fetchMe } from "./api";
-  import { loginSettings } from "./auth";
+  import { callbackPath, loginSettings } from "./auth";
   import { type Session, resume } from "./session";
 
-  let session = $state<Session | "loading" | "failed">("loading");
+  let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
   let login: UserManager | undefined;
 
   onMount(async () => {
@@ -20,11 +20,11 @@
       });
     } catch (error) {
       console.error(error);
-      session = "failed";
+      session = { kind: "failed" };
     } finally {
       // the callback URL holds a one-time code, a reload mustn't use it
       // again, whether the login worked or not
-      if (window.location.pathname === "/callback") {
+      if (window.location.pathname === callbackPath) {
         window.history.replaceState(null, "", "/");
       }
     }
@@ -33,15 +33,15 @@
 
 <header class="top">
   <span class="mark"><span>蛙</span>frogly</span>
-  {#if typeof session === "object" && session.kind === "loggedIn"}
+  {#if session.kind === "loggedIn"}
     <button class="btn" onclick={() => login?.signoutRedirect()}>log out</button>
   {/if}
 </header>
 
 <main class="narrow">
-  {#if session === "loading"}
+  {#if session.kind === "loading"}
     <p class="quiet">…</p>
-  {:else if session === "failed"}
+  {:else if session.kind === "failed"}
     <h1>frogly can't be reached right now.</h1>
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}

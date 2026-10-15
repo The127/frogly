@@ -2,11 +2,13 @@ import type { UserManagerSettings } from "oidc-client-ts";
 
 import type { Config } from "./api";
 
+export const callbackPath = "/callback";
+
 export function loginSettings(config: Config, origin: string): UserManagerSettings {
   return {
     authority: config.issuer,
     client_id: config.clientId,
-    redirect_uri: `${origin}/callback`,
+    redirect_uri: `${origin}${callbackPath}`,
     post_logout_redirect_uri: `${origin}/`,
     response_type: "code",
     scope: "openid profile email",

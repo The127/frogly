@@ -1,4 +1,5 @@
 import type { Me } from "./api";
+import { callbackPath } from "./auth";
 
 export type Session =
   | { kind: "loggedOut"; loginFailed?: boolean }
@@ -24,7 +25,7 @@ export async function resume(
   path: string,
   fetchMe: (accessToken: string) => Promise<Me | null>,
 ): Promise<Session> {
-  if (path === "/callback") {
+  if (path === callbackPath) {
     try {
       await login.signinRedirectCallback();
     } catch (error) {
