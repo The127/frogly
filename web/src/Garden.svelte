@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Idea, Project } from "./api";
-  import { addIdea, loadGarden, plantedOn } from "./garden";
+  import { type Idea, type Project, maxIdeaLength } from "./api";
+  import { addIdea, ideaLength, loadGarden, plantedOn } from "./garden";
   import { getLogin } from "./login";
   import { p } from "./router";
 
@@ -16,6 +16,8 @@
   let text = $state("");
   let problem = $state("");
   let saving = $state(false);
+  const length = $derived(ideaLength(text));
+  const tooLong = $derived(length > maxIdeaLength);
 
   onMount(async () => {
     const loaded = await loadGarden(login.accessToken, projectId);
@@ -29,6 +31,13 @@
   async function plant(event: SubmitEvent) {
     event.preventDefault();
     if (saving || garden.kind !== "listed") {
+      return;
+    }
+
+    // the same reason frogly gives, without asking it
+    if (tooLong) {
+      problem = `an idea has at most ${maxIdeaLength} characters`;
+
       return;
     }
 
@@ -81,9 +90,10 @@
       placeholder="plant an idea…"
       readonly={saving}
       aria-busy={saving}
-      aria-invalid={problem ? "true" : undefined}
-      aria-describedby="idea-problem"
+      aria-invalid={problem || tooLong ? "true" : undefined}
+      aria-describedby="idea-count idea-problem"
     />
+    <p class="count" class:over={tooLong} id="idea-count">{length} / {maxIdeaLength}</p>
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" id="idea-problem" role="alert">{problem}</p>
   </form>

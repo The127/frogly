@@ -63,3 +63,9 @@ function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | { 
 export function plantedOn(plantedAt: string, locale?: string, timeZone?: string): string {
   return new Date(plantedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric", timeZone });
 }
+
+// The length frogly checks: characters, not UTF-16 code units, so an emoji
+// counts once, and the spaces around the text don't count.
+export function ideaLength(text: string): number {
+  return [...text.trim()].length;
+}

@@ -12,6 +12,9 @@ export interface Project {
   name: string;
 }
 
+// frogly's limit for an idea, in characters
+export const maxIdeaLength = 500;
+
 export interface Idea {
   id: string;
   text: string;
@@ -156,7 +159,7 @@ export async function plantIdea(accessToken: string, projectId: string, text: st
 
   // frogly stops reading a body far longer than an idea may be
   if (response.status === 413) {
-    return { problem: "an idea has at most 500 characters" };
+    return { problem: `an idea has at most ${maxIdeaLength} characters` };
   }
 
   if (!response.ok) {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Idea, LoggedOut, NotFound, type Project, fetchGarden, fetchProjects, plantIdea } from "./api";
-import { addIdea, loadGarden, plantedOn } from "./garden";
+import { addIdea, ideaLength, loadGarden, plantedOn } from "./garden";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -138,5 +138,15 @@ describe("plantedOn", () => {
 
     // assert
     expect(day).toBe("16 Oct 2026");
+  });
+});
+
+describe("ideaLength", () => {
+  it("counts characters like frogly, after trimming", async () => {
+    // act
+    const length = ideaLength("  grüne Ideen 🌱  ");
+
+    // assert
+    expect(length).toBe(13);
   });
 });

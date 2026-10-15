@@ -163,6 +163,17 @@ a {
   outline-offset: 2px;
 }
 
+.count {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: right;
+  margin: 4px 0 0;
+}
+
+.count.over {
+  color: var(--wait);
+}
+
 .problem {
   color: var(--wait);
   margin: 8px 0 0;
