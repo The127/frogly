@@ -12,7 +12,9 @@ every check. Run `just` alone to list all recipes.
 ## Go
 
 - All Go code lives in one module. Binaries go in `cmd/<name>`, everything
-  else in `internal/`.
+  else in `internal/`. The one exception is `web`, which embeds the built
+  frontend and has to sit next to it, since `go:embed` can't reach a parent
+  directory.
 - Every package needs a rule in `arch-go.yml` that says what it may depend
   on and why. A new package arrives together with its rule.
 - Tests follow "Writing tests" in CONTRIBUTING.md.

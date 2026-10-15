@@ -8,7 +8,8 @@ import (
 )
 
 // dist holds only .gitkeep until `just web` ran, so Go compiles frogly on
-// a fresh clone. The binary then serves no frontend, only the API.
+// a fresh clone. The binary then serves no frontend, only the API. Vite
+// empties dist on every build and copies .gitkeep back from public.
 //
 //go:embed all:dist
 var dist embed.FS
