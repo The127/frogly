@@ -114,14 +114,16 @@ func newVerifier(t *testing.T, issuer *fakeIssuer) *authn.Verifier {
 
 func TestVerifyGivesThePerson(t *testing.T) {
 	tests := []struct {
-		name     string
-		claims   map[string]any
-		wantName string
+		name      string
+		claims    map[string]any
+		wantName  string
+		wantEmail string
 	}{
 		{
-			name:     "name claim",
-			claims:   map[string]any{"name": "Karo", "preferred_username": "karo"},
-			wantName: "Karo",
+			name:      "name claim",
+			claims:    map[string]any{"name": "Karo", "preferred_username": "karo", "email": "karo@frogly.local"},
+			wantName:  "Karo",
+			wantEmail: "karo@frogly.local",
 		},
 		{
 			name:     "preferred username when there is no name",
@@ -146,6 +148,7 @@ func TestVerifyGivesThePerson(t *testing.T) {
 				Issuer:  issuer.url,
 				Subject: subject,
 				Name:    test.wantName,
+				Email:   test.wantEmail,
 			}, person)
 		})
 	}

@@ -1,12 +1,14 @@
 # Services for local development. Start them with `just dev`.
 #
 # Everything runs in containers. Docker is the default. If you use Podman,
-# set CONTAINER_CLI=podman.
+# set CONTAINER_CLI=podman. Each service first removes a stopped container
+# of its name that an earlier run left behind, for example after a crash.
 version: "0.5"
 
 processes:
   postgres:
     command: >
+      dev/remove-stopped-container.sh frogly-postgres;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-postgres
       -p 127.0.0.1:5432:5432
       -e POSTGRES_USER=frogly
@@ -18,14 +20,20 @@ processes:
       command: ${CONTAINER_CLI:-docker} stop frogly-postgres
     readiness_probe:
       exec:
-        command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -U frogly -d frogly
+        # over TCP, since the image's first start runs a temporary server
+        # that only listens on a socket
+        command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -h 127.0.0.1 -U frogly -d frogly
       initial_delay_seconds: 2
       period_seconds: 2
+      # process-compose stops a service after three failed checks by
+      # default, and a first start pulls the image for longer than that
+      failure_threshold: 150
 
   # the login for frogly, set up by dev/keyline/config.yaml. Keyline only
   # publishes amd64 images, so on Apple silicon it needs Rosetta.
   keyline:
     command: >
+      dev/remove-stopped-container.sh frogly-keyline;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline
       --platform linux/amd64
       -p 127.0.0.1:8082:8081
@@ -43,9 +51,12 @@ processes:
         path: /oidc/frogly/.well-known/openid-configuration
       initial_delay_seconds: 2
       period_seconds: 2
+      # like Postgres, a first start pulls the image first
+      failure_threshold: 150
 
   keyline-ui:
     command: >
+      dev/remove-stopped-container.sh frogly-keyline-ui;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline-ui
       --platform linux/amd64
       -p 127.0.0.1:5177:80
@@ -68,6 +79,8 @@ processes:
       - FROGLY_LOG__LEVEL=debug
       - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
       - FROGLY_OIDC__CLIENT_ID=frogly
+      - FROGLY_DATABASE__DRIVER=postgres
+      - FROGLY_DATABASE__POSTGRES__URL=postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable
     readiness_probe:
       http_get:
         host: localhost
@@ -75,8 +88,12 @@ processes:
         path: /api/config
       initial_delay_seconds: 2
       period_seconds: 2
+      # like Postgres, a first start builds frogly first
+      failure_threshold: 150
     depends_on:
       keyline:
+        condition: process_healthy
+      postgres:
         condition: process_healthy
 
   # the frontend with hot reload on http://localhost:5173, sending API

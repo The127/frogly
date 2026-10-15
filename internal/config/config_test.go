@@ -178,3 +178,111 @@ func TestErrorsNameEveryProblemAtOnce(t *testing.T) {
 	require.ErrorContains(t, err, "FROGLY_OIDC__ISUER")
 	require.ErrorContains(t, err, "FROGLY_LOG__LEVEL")
 }
+
+func TestLoadsTheDatabaseSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		environ []string
+		want    config.Database
+	}{
+		{
+			name:    "SQLite next to frogly by default",
+			environ: environment(),
+			want:    config.Database{Driver: config.DriverSQLite, SQLite: config.SQLite{Path: "frogly.db"}},
+		},
+		{
+			name: "Postgres",
+			environ: environment(
+				"FROGLY_DATABASE__DRIVER=postgres",
+				"FROGLY_DATABASE__POSTGRES__URL=postgres://frogly@localhost:5432/frogly",
+			),
+			want: config.Database{
+				Driver:   config.DriverPostgres,
+				SQLite:   config.SQLite{Path: "frogly.db"},
+				Postgres: config.Postgres{URL: "postgres://frogly@localhost:5432/frogly"},
+			},
+		},
+		{
+			name: "Postgres ignores an empty SQLite path",
+			environ: environment(
+				"FROGLY_DATABASE__DRIVER=postgres",
+				"FROGLY_DATABASE__POSTGRES__URL=postgres://frogly@localhost:5432/frogly",
+				"FROGLY_DATABASE__SQLITE__PATH=",
+			),
+			want: config.Database{
+				Driver:   config.DriverPostgres,
+				Postgres: config.Postgres{URL: "postgres://frogly@localhost:5432/frogly"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			loaded, err := config.Load(test.environ)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.want, loaded.Database)
+		})
+	}
+}
+
+func TestRefusesDatabaseSettingsItCantUse(t *testing.T) {
+	tests := []struct {
+		name     string
+		environ  []string
+		variable string
+	}{
+		{
+			name:     "unknown driver",
+			environ:  environment("FROGLY_DATABASE__DRIVER=mysql"),
+			variable: "FROGLY_DATABASE__DRIVER",
+		},
+		{
+			name:     "Postgres without a URL",
+			environ:  environment("FROGLY_DATABASE__DRIVER=postgres"),
+			variable: "FROGLY_DATABASE__POSTGRES__URL",
+		},
+		{
+			name:     "SQLite without a path",
+			environ:  environment("FROGLY_DATABASE__SQLITE__PATH="),
+			variable: "FROGLY_DATABASE__SQLITE__PATH",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := config.Load(test.environ)
+
+			// assert
+			require.ErrorIs(t, err, config.ErrInvalid)
+			require.ErrorContains(t, err, test.variable)
+		})
+	}
+}
+
+func TestAnUnknownDriverIsTheOnlyDatabaseProblem(t *testing.T) {
+	// arrange
+	environ := environment("FROGLY_DATABASE__DRIVER=mysql")
+
+	// act
+	_, err := config.Load(environ)
+
+	// assert
+	require.ErrorContains(t, err, "FROGLY_DATABASE__DRIVER")
+	assert.NotContains(t, err.Error(), "FROGLY_DATABASE__SQLITE__PATH")
+	assert.NotContains(t, err.Error(), "FROGLY_DATABASE__POSTGRES__URL")
+}
+
+func TestThePostgresURLStaysOutOfLogs(t *testing.T) {
+	// arrange
+	url := config.Secret("postgres://frogly:a-password@localhost:5432/frogly")
+
+	// act
+	logged := url.LogValue().String()
+
+	// assert
+	assert.NotContains(t, logged, "a-password")
+}

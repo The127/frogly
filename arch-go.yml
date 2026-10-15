@@ -51,25 +51,112 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
-  # the API speaks HTTP and leaves the checking of tokens to authn
+  # the API speaks HTTP. It leaves checking tokens to authn and storing to
+  # the unit of work, and never knows which database it talks to.
   - package: '**.internal.server$'
     shouldOnlyDependsOn:
       internal:
         - '**.internal.authn$'
         - '**.internal.config$'
+        - '**.internal.db$'
         - '**.internal.logging$'
+        - '**.internal.people$'
+        - '**.internal.projects$'
+        - '**.internal.repositories$'
   # the frontend's Go package only hands out the built files
   - package: '**.frogly.web$'
     shouldNotDependsOn:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
+  # the change tracker is plain data, the repositories of every database
+  # use it
+  - package: '**.internal.change$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+  # the models and repository interfaces know no database. That keeps the
+  # rest of frogly free of database code too.
+  - package: '**.internal.repositories$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+  # the unit of work's interfaces only speak in models and repositories
+  - package: '**.internal.db$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.repositories$'
+  # the contract every adapter meets speaks only in the unit of work and
+  # the models
+  - package: '**.internal.db.dbtest$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+  # a database's repositories write what the tracker recorded, in their own
+  # SQL
+  - package: '**.internal.repositories.sqlite$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.repositories$'
+  # a database wires its driver, migrations and repositories into a unit of
+  # work
+  - package: '**.internal.db.sqlite$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+        - '**.internal.repositories.sqlite$'
+  # like SQLite's, Postgres's repositories write in their own SQL
+  - package: '**.internal.repositories.postgres$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.repositories$'
+  # like SQLite's, Postgres's database wires its driver, migrations and
+  # repositories
+  - package: '**.internal.db.postgres$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+        - '**.internal.repositories.postgres$'
+  # people works with users through the unit of work, never with a
+  # database directly
+  - package: '**.internal.people$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.authn$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+  # projects works through the unit of work like people, and knows nothing
+  # about HTTP
+  - package: '**.internal.projects$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+  # tests of other packages open a SQLite database through it, and only
+  # tests use it
+  - package: '**.internal.db.sqlite.sqlitetest$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.db$'
+        - '**.internal.db.sqlite$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
       internal:
         - '**.internal.authn$'
         - '**.internal.config$'
+        - '**.internal.db$'
+        - '**.internal.db.postgres$'
+        - '**.internal.db.sqlite$'
         - '**.internal.logging$'
         - '**.internal.server$'
         - '**.internal.version$'

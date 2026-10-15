@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchConfig, fetchMe } from "./api";
+import { LoggedOut, createProject, fetchConfig, fetchMe, fetchProjects } from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -72,5 +72,109 @@ describe("fetchMe", () => {
 
     // assert
     await expect(me).rejects.toThrow("503");
+  });
+});
+
+describe("fetchProjects", () => {
+  it("gives your projects", async () => {
+    // arrange
+    respondWith(200, [{ id: "p-1", name: "Garden" }]);
+
+    // act
+    const projects = await fetchProjects("an-access-token");
+
+    // assert
+    expect(projects).toEqual([{ id: "p-1", name: "Garden" }]);
+    expect(fetch).toHaveBeenCalledWith("/api/projects", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const projects = fetchProjects("an-access-token");
+
+    // assert
+    await expect(projects).rejects.toThrow("503");
+  });
+});
+
+describe("createProject", () => {
+  it("sends the name and gives the new project", async () => {
+    // arrange
+    respondWith(201, { id: "p-1", name: "Garden" });
+
+    // act
+    const created = await createProject("an-access-token", "Garden");
+
+    // assert
+    expect(created).toEqual({ project: { id: "p-1", name: "Garden" } });
+    expect(fetch).toHaveBeenCalledWith("/api/projects", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Garden" }),
+    });
+  });
+
+  it("gives frogly's reason when the name can't be used", async () => {
+    // arrange
+    respondWith(400, { status: 400, detail: "a project needs a name" });
+
+    // act
+    const created = await createProject("an-access-token", "  ");
+
+    // assert
+    expect(created).toEqual({ problem: "a project needs a name" });
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const created = createProject("an-access-token", "Garden");
+
+    // assert
+    await expect(created).rejects.toThrow("500");
+  });
+});
+
+describe("an ended login", () => {
+  it("makes fetchProjects throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const projects = fetchProjects("an-expired-token");
+
+    // assert
+    await expect(projects).rejects.toBeInstanceOf(LoggedOut);
+  });
+
+  it("makes createProject throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const created = createProject("an-expired-token", "Garden");
+
+    // assert
+    await expect(created).rejects.toBeInstanceOf(LoggedOut);
+  });
+});
+
+describe("a refusal without a reason", () => {
+  it("still gives a reason", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
+
+    // act
+    const created = await createProject("an-access-token", "Garden");
+
+    // assert
+    expect(created).toEqual({ problem: "frogly can't use that name" });
   });
 });

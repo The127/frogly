@@ -29,9 +29,61 @@ var ErrInvalid = errors.New("invalid configuration")
 
 // Config is frogly's configuration.
 type Config struct {
-	Log    Log    `koanf:"log"`
-	Server Server `koanf:"server"`
-	OIDC   OIDC   `koanf:"oidc"`
+	Log      Log      `koanf:"log"`
+	Server   Server   `koanf:"server"`
+	OIDC     OIDC     `koanf:"oidc"`
+	Database Database `koanf:"database"`
+}
+
+// Database says where frogly keeps its data. Only the settings of the
+// chosen driver matter.
+type Database struct {
+	Driver   Driver   `koanf:"driver"`
+	SQLite   SQLite   `koanf:"sqlite"`
+	Postgres Postgres `koanf:"postgres"`
+}
+
+// Driver is the database frogly uses.
+type Driver string
+
+const (
+	// DriverSQLite keeps the data in one file, with nothing else to run.
+	DriverSQLite Driver = "sqlite"
+	// DriverPostgres keeps the data in a Postgres database.
+	DriverPostgres Driver = "postgres"
+)
+
+// UnmarshalText accepts sqlite and postgres.
+func (driver *Driver) UnmarshalText(text []byte) error {
+	switch Driver(text) {
+	case DriverSQLite, DriverPostgres:
+		*driver = Driver(text)
+
+		return nil
+
+	default:
+		return fmt.Errorf("%q is neither sqlite nor postgres", text)
+	}
+}
+
+// SQLite says where the database file is.
+type SQLite struct {
+	Path string `koanf:"path"`
+}
+
+// Postgres says how to connect, as a URL like
+// postgres://user:password@host:5432/database.
+type Postgres struct {
+	URL Secret `koanf:"url"`
+}
+
+// Secret is a setting that mustn't end up in a log, like a URL with a
+// password in it.
+type Secret string
+
+// LogValue keeps the secret out of slog's output.
+func (Secret) LogValue() slog.Value {
+	return slog.StringValue("[redacted]")
 }
 
 // Server says where frogly listens.
@@ -75,8 +127,6 @@ func (format *LogFormat) UnmarshalText(text []byte) error {
 	}
 }
 
-var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
-
 // Load reads the configuration from environ, the environment as
 // os.Environ returns it. A FROGLY_ variable frogly doesn't know is an
 // error, so a typo can't go unnoticed. A required variable that is missing
@@ -92,6 +142,10 @@ func Load(environ []string) (*Config, error) {
 		},
 		Server: Server{
 			ListenAddress: ":8080",
+		},
+		Database: Database{
+			Driver: DriverSQLite,
+			SQLite: SQLite{Path: "frogly.db"},
 		},
 	}
 
@@ -116,18 +170,6 @@ func Load(environ []string) (*Config, error) {
 
 	var problems []error
 
-	var missing []string
-
-	for _, key := range requiredKeys {
-		if loader.String(key) == "" {
-			missing = append(missing, variableOf(key))
-		}
-	}
-
-	if len(missing) > 0 {
-		problems = append(problems, fmt.Errorf("missing or empty variables %s", strings.Join(missing, ", ")))
-	}
-
 	var metadata mapstructure.Metadata
 
 	err = loader.UnmarshalWithConf("", &config, koanf.UnmarshalConf{
@@ -141,6 +183,17 @@ func Load(environ []string) (*Config, error) {
 	})
 	if err != nil {
 		problems = append(problems, nameVariables(err, variables))
+	}
+
+	// checked on the decoded settings, so a default counts as set and only an
+	// empty variable takes it away
+	if missing := missingKeys(&config); len(missing) > 0 {
+		variables := make([]string, 0, len(missing))
+		for _, key := range missing {
+			variables = append(variables, variableOf(key))
+		}
+
+		problems = append(problems, fmt.Errorf("missing or empty variables %s", strings.Join(variables, ", ")))
 	}
 
 	if len(metadata.Unused) > 0 {
@@ -159,6 +212,32 @@ func Load(environ []string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func missingKeys(config *Config) []string {
+	var missing []string
+
+	if config.OIDC.Issuer == "" {
+		missing = append(missing, "oidc.issuer")
+	}
+
+	if config.OIDC.ClientID == "" {
+		missing = append(missing, "oidc.client_id")
+	}
+
+	switch config.Database.Driver {
+	case DriverSQLite:
+		if config.Database.SQLite.Path == "" {
+			missing = append(missing, "database.sqlite.path")
+		}
+
+	case DriverPostgres:
+		if config.Database.Postgres.URL == "" {
+			missing = append(missing, "database.postgres.url")
+		}
+	}
+
+	return missing
 }
 
 func keyOf(variable string) string {

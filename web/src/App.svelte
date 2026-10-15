@@ -2,12 +2,27 @@
   import { UserManager } from "oidc-client-ts";
   import { onMount } from "svelte";
 
-  import { fetchConfig, fetchMe } from "./api";
+  import { LoggedOut, fetchConfig, fetchMe } from "./api";
   import { callbackPath, loginSettings } from "./auth";
+  import Projects from "./Projects.svelte";
   import { type Session, resume } from "./session";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
   let login: UserManager | undefined;
+
+  async function accessToken(): Promise<string> {
+    const user = await login?.getUser();
+    if (!user || user.expired) {
+      throw new LoggedOut();
+    }
+
+    return user.access_token;
+  }
+
+  async function loggedOut() {
+    await login?.removeUser();
+    session = { kind: "loggedOut" };
+  }
 
   onMount(async () => {
     try {
@@ -46,6 +61,7 @@
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}
     <h1>Hello, {session.name}</h1>
+    <Projects {accessToken} onLoggedOut={loggedOut} />
   {:else}
     <h1>A quiet place for your team's work.</h1>
     {#if session.loginFailed}

@@ -45,8 +45,8 @@ Its command line tool is pinned in frogly's own `go.mod`, because it has to
 match the Ginkgo library the tests use.
 
 Run `just` to list all recipes. `just ci` runs every check. Its
-integration tests need Keyline, so it starts Keyline in the background if
-it isn't running yet. That needs Docker or Podman (see
+integration tests need Keyline and Postgres, so it starts them in the
+background if they aren't running yet. That needs Docker or Podman (see
 [Running frogly](#running-frogly)).
 
 ## Running frogly
@@ -78,12 +78,23 @@ frogly and the frontend run from the source. Restart frogly in
 process-compose after you change Go code.
 
 The data stays in the `frogly-postgres`, `frogly-keyline-data` and
-`frogly-keyline-keys` volumes between runs.
+`frogly-keyline-keys` volumes between runs. Keyline only reads
+`dev/keyline/config.yaml` on its first start. After a change there, stop
+`just dev`, remove its volumes with
+`docker volume rm frogly-keyline-data frogly-keyline-keys`, and start
+`just dev` again. A volume Keyline still uses can't be removed.
 
 You need Docker or Podman for this. If you use Podman, set
 `CONTAINER_CLI=podman`. Keyline only publishes amd64 images. On a Mac with
 Apple silicon, install Rosetta once with
 `softwareupdate --install-rosetta --agree-to-license`.
+
+## Storing data
+
+frogly keeps its data in SQLite or Postgres, through a unit of work and
+one adapter per database.
+[The data layer](docs/development/data-layer.md) explains how it fits
+together and how to add a model.
 
 ## Making a change
 
@@ -127,7 +138,8 @@ use `require`, and the linter enforces that.
 Integration tests live in `test/integration`. They build frogly, run it as
 a binary against Keyline, and use it from the outside, the way a person or
 an agent does. Each story gets a test there that shows it works. Run them
-with `just integration`, which starts Keyline first if it isn't running.
+with `just integration`, which starts Keyline and Postgres first if they
+aren't running.
 
 They use [Ginkgo](https://onsi.github.io/ginkgo/) and
 [Gomega](https://onsi.github.io/gomega/). `Describe`, `Context` and `It`
@@ -144,9 +156,17 @@ var _ = Describe("seeing your name", func() {
 })
 ```
 
-A test logs in as the service user `frogly-tests`, with the key in
-`dev/keyline/test-service-user.pem`. The files carry the `integration`
+A test logs in as one of two service users, `frogly-tests` and
+`frogly-tests-2`, with the keys in `dev/keyline/test-service-user.pem` and
+`dev/keyline/test-service-user-2.pem`. There are two, so a test can check
+what one person can't see of another's. The files carry the `integration`
 build tag, so `go test ./...` leaves them out.
+
+Tests in `internal/` that need a running service, like the Postgres
+adapter's, carry the same tag, and `just integration` runs them too. They
+use the Postgres from `just dev` unless `TEST_POSTGRES_URL` names another
+one. It doesn't start with `FROGLY_`, since frogly refuses variables of its
+own prefix that it doesn't know.
 
 ### HTTP tests
 

@@ -2,10 +2,13 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -13,9 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/The127/ioc"
+
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
+	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/logging"
+	"github.com/the127/frogly/internal/people"
+	"github.com/the127/frogly/internal/repositories"
 )
 
 // Verifier says who an access token belongs to.
@@ -25,8 +33,9 @@ type Verifier interface {
 
 // New builds the API and serves the built frontend for every other path.
 // Clients log in at the OIDC issuer themselves and send their access
-// token, which verifier checks.
-func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS) http.Handler {
+// token, which verifier checks. services hands every authenticated request
+// a db.Context of its own, from a scope that lives as long as the request.
+func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS, services *ioc.DependencyProvider) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
@@ -35,11 +44,11 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, func(w http.ResponseWriter, _ *http.Request, person authn.Person) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"name": person.Name,
-		})
+	mux.Handle("GET /api/me", authenticated(verifier, services, func(_ *http.Request, caller caller) (int, any, error) {
+		return http.StatusOK, map[string]string{"name": caller.user.Name()}, nil
 	}))
+	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
+	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -128,7 +137,23 @@ func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
 	return recorder.ResponseWriter
 }
 
-func authenticated(verifier Verifier, next func(http.ResponseWriter, *http.Request, authn.Person)) http.Handler {
+// caller is who an authenticated request comes from, with the unit of work
+// the request does its work in.
+type caller struct {
+	user *repositories.User
+	unit db.Context
+}
+
+// endpoint does what a request asks for. It answers with a status and a
+// body, or with the error that stopped it, and answerError turns that error
+// into the answer.
+type endpoint func(r *http.Request, caller caller) (int, any, error)
+
+// no request frogly takes holds more than a few short fields, so anything
+// bigger than this is a mistake
+const maxBody = 4 << 10
+
+func authenticated(verifier Verifier, services *ioc.DependencyProvider, next endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -160,8 +185,95 @@ func authenticated(verifier Verifier, next func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		next(w, r, person)
+		scope := services.NewScope()
+		defer func() {
+			err := scope.Close()
+			if err != nil {
+				logging.FromContext(r.Context()).ErrorContext(r.Context(), "closing the request's scope failed", "error", err)
+			}
+		}()
+
+		// finding the user saves on its own, so it gets its own unit of work,
+		// and the handler's stays empty for what the handler records
+		user, err := people.Resolve(r.Context(), ioc.GetDependency[db.Database](scope).NewContext(), person)
+		if err != nil {
+			fail(w, r, "finding the user failed", err)
+
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+
+		status, body, err := next(r, caller{user: user, unit: ioc.GetDependency[db.Context](scope)})
+		if err != nil {
+			answerError(w, r, err)
+
+			return
+		}
+
+		writeJSON(w, status, body)
 	})
+}
+
+// errBadBody says the request's body isn't what the endpoint takes. Its
+// text is what the client reads.
+var errBadBody = errors.New("the body isn't the JSON this request takes")
+
+// decode refuses fields target doesn't have, since a client that sends
+// them expects frogly to do something it doesn't. A body that can't be read
+// isn't the client's mistake, so that error stays as it is.
+func decode(r *http.Request, target any) error {
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("reading the body: %w", err)
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+
+	err = decoder.Decode(target)
+	if err != nil {
+		return errBadBody
+	}
+
+	// the decoder stops after the first value, and anything after it means
+	// the body was meant as something else
+	err = decoder.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return errBadBody
+	}
+
+	return nil
+}
+
+// answerError is the one place that decides what a client learns about an
+// error. Anything frogly doesn't expect is logged and stays a plain 500,
+// since its text may say more than the client should know.
+func answerError(w http.ResponseWriter, r *http.Request, err error) {
+	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+		writeProblem(w, http.StatusRequestEntityTooLarge)
+
+		return
+	}
+
+	if errors.Is(err, errBadBody) {
+		writeProblemDetail(w, http.StatusBadRequest, errBadBody.Error())
+
+		return
+	}
+
+	if invalid, ok := errors.AsType[*repositories.InvalidError](err); ok {
+		writeProblemDetail(w, http.StatusBadRequest, invalid.Reason())
+
+		return
+	}
+
+	fail(w, r, "the request failed", err)
+}
+
+func fail(w http.ResponseWriter, r *http.Request, what string, err error) {
+	logging.FromContext(r.Context()).ErrorContext(r.Context(), what, "error", err)
+	writeProblem(w, http.StatusInternalServerError)
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -171,11 +283,22 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 // The problem says no more than the status, so a refused token reveals
 // nothing about why it was refused.
 func writeProblem(w http.ResponseWriter, status int) {
-	write(w, "application/problem+json", status, map[string]any{
+	writeProblemDetail(w, status, "")
+}
+
+// writeProblemDetail says what is wrong with a request, for a problem the
+// client can fix.
+func writeProblemDetail(w http.ResponseWriter, status int, detail string) {
+	problem := map[string]any{
 		"type":   "about:blank",
 		"title":  http.StatusText(status),
 		"status": status,
-	})
+	}
+	if detail != "" {
+		problem["detail"] = detail
+	}
+
+	write(w, "application/problem+json", status, problem)
 }
 
 func write(w http.ResponseWriter, contentType string, status int, body any) {
