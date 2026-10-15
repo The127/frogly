@@ -7,6 +7,9 @@ import (
 	"io/fs"
 )
 
+// dist holds only .gitkeep until `just web` ran, so Go compiles frogly on
+// a fresh clone. The binary then serves no frontend, only the API.
+//
 //go:embed all:dist
 var dist embed.FS
 

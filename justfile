@@ -6,8 +6,7 @@ default:
 build: web
     CGO_ENABLED=0 go build -o bin/frogly ./cmd/frogly
 
-# build the frontend into web/dist, which the binary embeds. Go can't
-# compile frogly before this ran once.
+# build the frontend into web/dist, which the binary embeds
 web:
     pnpm --dir web install --frozen-lockfile
     pnpm --dir web build
@@ -19,16 +18,16 @@ web-check:
     pnpm --dir web test
 
 # test
-test: web
+test:
     go test -race ./...
 
 # test with a coverage profile
-cover: web
+cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
 # run the integration tests, starting Keyline in the background first if
 # it isn't running
-integration: keyline
+integration: keyline web
     go tool ginkgo -tags integration -race ./test/integration
 
 # start Keyline in the background unless it's running already, `just dev`
@@ -42,7 +41,7 @@ keyline:
     fi
 
 # lint
-lint: web
+lint:
     golangci-lint run ./...
 
 # format
@@ -58,7 +57,7 @@ arch-describe:
     go tool -modfile=hack/tools/go.mod arch-go describe
 
 # check for known vulnerabilities in reachable code
-vuln: web
+vuln:
     go tool -modfile=hack/tools/go.mod govulncheck ./...
 
 # check that every file has license and copyright information
