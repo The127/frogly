@@ -19,8 +19,18 @@ dependenciesRules:
         - os/exec
         - net
         - syscall
+  # the configuration only reads the environment it is given, so every other
+  # package can depend on it
+  - package: '**.internal.config$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+      standard:
+        - os
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
       internal:
+        - '**.internal.config$'
         - '**.internal.version$'
