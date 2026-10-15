@@ -106,6 +106,21 @@ dependenciesRules:
         - '**.internal.db$'
         - '**.internal.repositories$'
         - '**.internal.repositories.sqlite$'
+  # like SQLite's, Postgres's repositories write in their own SQL
+  - package: '**.internal.repositories.postgres$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.repositories$'
+  # like SQLite's, Postgres's database wires its driver, migrations and
+  # repositories
+  - package: '**.internal.db.postgres$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.change$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
+        - '**.internal.repositories.postgres$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:

@@ -27,23 +27,26 @@ test:
 cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
-# run the integration tests, starting Keyline first if it isn't running
-integration: containers keyline web
+# run the integration tests, starting Keyline and Postgres first if needed
+integration: containers services web
+    go test -race -tags integration ./internal/...
     go tool ginkgo -tags integration -race ./test/integration
 
-# start Keyline in the background unless it's running already
-keyline:
+# start Keyline and Postgres in the background unless they run already
+services:
     #!/usr/bin/env bash
     set -euo pipefail
-    ready() { curl -sf --max-time 5 http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; }
-    ready && exit 0
-    process-compose up keyline --detached
-    # pulling the image on a first run takes a while, but a Keyline that
+    cli="${CONTAINER_CLI:-docker}"
+    keyline() { curl -sf --max-time 5 http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; }
+    postgres() { "$cli" exec frogly-postgres pg_isready -U frogly -d frogly > /dev/null 2>&1; }
+    keyline && postgres && exit 0
+    process-compose up keyline postgres --detached
+    # pulling the images on a first run takes a while, but a service that
     # never gets ready mustn't hold the tests forever
     deadline=$((SECONDS + 300))
-    until ready; do
+    until keyline && postgres; do
         if ((SECONDS >= deadline)); then
-            echo "Keyline didn't get ready within five minutes, see: process-compose process logs keyline" >&2
+            echo "Keyline or Postgres didn't get ready within five minutes, see: process-compose process logs keyline (or postgres)" >&2
             exit 1
         fi
         sleep 5
