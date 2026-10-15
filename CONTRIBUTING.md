@@ -79,8 +79,10 @@ process-compose after you change Go code.
 
 The data stays in the `frogly-postgres`, `frogly-keyline-data` and
 `frogly-keyline-keys` volumes between runs. Keyline only reads
-`dev/keyline/config.yaml` on its first start. After a change there, remove
-its volumes with `docker volume rm frogly-keyline-data frogly-keyline-keys`.
+`dev/keyline/config.yaml` on its first start. After a change there, stop
+`just dev`, remove its volumes with
+`docker volume rm frogly-keyline-data frogly-keyline-keys`, and start
+`just dev` again. A volume Keyline still uses can't be removed.
 
 You need Docker or Podman for this. If you use Podman, set
 `CONTAINER_CLI=podman`. Keyline only publishes amd64 images. On a Mac with

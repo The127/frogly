@@ -50,7 +50,9 @@ services:
     # a running service again would clash with its container.
     if process-compose process list > /dev/null 2>&1; then
         for service in "${missing[@]}"; do
-            process-compose process start "$service"
+            # a service that runs but isn't ready yet can't be started again,
+            # and the wait below covers it anyway
+            process-compose process start "$service" || true
         done
     else
         process-compose up "${missing[@]}" --detached
