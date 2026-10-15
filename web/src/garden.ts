@@ -11,15 +11,27 @@ export type GardenLoaded =
 // The project's name comes from your list, since frogly has no call for a
 // single project yet.
 export async function loadGarden(accessToken: AccessToken, projectId: string): Promise<GardenLoaded> {
+  let token: string;
   try {
-    const token = await accessToken();
-    const [projects, ideas] = await Promise.all([fetchProjects(token), fetchGarden(token, projectId)]);
-    const project = projects.find((candidate) => candidate.id === projectId);
-
-    return project ? { kind: "listed", project, ideas } : { kind: "notFound" };
+    token = await accessToken();
   } catch (error) {
     return failure(error);
   }
+
+  // both calls run at once. When both fail, the outcome mustn't depend on
+  // which failed first, so an ended login wins, then a missing project.
+  const [projects, ideas] = await Promise.allSettled([fetchProjects(token), fetchGarden(token, projectId)]);
+  if (projects.status === "rejected" || ideas.status === "rejected") {
+    const kinds = [projects, ideas]
+      .filter((settled) => settled.status === "rejected")
+      .map((settled) => failure(settled.reason).kind);
+
+    return kinds.includes("loggedOut") ? { kind: "loggedOut" } : kinds.includes("notFound") ? { kind: "notFound" } : { kind: "failed" };
+  }
+
+  const project = projects.value.find((candidate) => candidate.id === projectId);
+
+  return project ? { kind: "listed", project, ideas: ideas.value } : { kind: "notFound" };
 }
 
 // savedButNotListed is its own outcome, since saying the planting failed
