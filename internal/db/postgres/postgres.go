@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the pgx driver for database/sql
 	migrate "github.com/rubenv/sql-migrate"
@@ -15,6 +16,10 @@ import (
 
 //go:embed migrations/*.sql
 var migrations embed.FS
+
+// leaves room for other clients of the same Postgres, like a migration or
+// a person with psql
+const maxConnections = 20
 
 // Database is a Postgres database.
 type Database struct {
@@ -28,6 +33,13 @@ func Open(url string) (*Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("opening the Postgres database: %w", err)
 	}
+
+	// without limits, a burst of requests opens a connection each and could
+	// pass Postgres's max_connections, 100 by default. Idle ones stay
+	// around, so a busy frogly doesn't connect anew on every request.
+	connection.SetMaxOpenConns(maxConnections)
+	connection.SetMaxIdleConns(maxConnections)
+	connection.SetConnMaxIdleTime(5 * time.Minute)
 
 	err = connection.Ping()
 	if err != nil {
