@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/the127/frogly/internal/change"
 	"github.com/the127/frogly/internal/repositories"
@@ -31,9 +32,12 @@ func (repository *IdentityRepository) FirstOrNil(ctx context.Context, issuer str
 		userID  uuid.UUID
 	)
 
-	err := repository.reader.QueryRowContext(ctx,
-		"select id, version, user_id from identities where issuer = $1 and subject = $2", issuer, subject,
-	).Scan(&id, &version, &userID)
+	selection := sqlbuilder.Select("id", "version", "user_id").From("identities")
+	selection.Where(selection.Equal("issuer", issuer), selection.Equal("subject", subject))
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	err := repository.reader.QueryRowContext(ctx, query, args...).Scan(&id, &version, &userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -52,10 +56,13 @@ func (repository *IdentityRepository) Insert(identity *repositories.Identity) {
 
 // ExecuteInsert writes the identity as version 1.
 func (repository *IdentityRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, identity *repositories.Identity) error {
-	_, err := tx.ExecContext(ctx,
-		"insert into identities (id, version, user_id, issuer, subject) values ($1, 1, $2, $3, $4)",
-		identity.ID(), identity.UserID(), identity.Issuer(), identity.Subject(),
-	)
+	insert := sqlbuilder.InsertInto("identities").
+		Cols("id", "version", "user_id", "issuer", "subject").
+		Values(identity.ID(), 1, identity.UserID(), identity.Issuer(), identity.Subject())
+
+	query, args := insert.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	_, err := tx.ExecContext(ctx, query, args...)
 
 	return written(err, "inserting identity "+identity.ID().String())
 }

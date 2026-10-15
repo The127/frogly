@@ -16,7 +16,11 @@ talks to.
   whole row.
 - Each database has its own adapter, in `internal/db/sqlite` and
   `internal/repositories/sqlite`, and the same for Postgres. Each adapter
-  has its own SQL, even where the two look alike.
+  has its own queries, even where the two look alike.
+- Queries are built with
+  [go-sqlbuilder](https://github.com/huandu/go-sqlbuilder), in the
+  adapter's flavor, never written as SQL strings. Every value goes into
+  the query as a parameter, so no input can change what a query does.
 - Migrations live in `internal/db/<database>/migrations`, numbered, one
   folder per database. frogly runs them when it starts.
 - A row has a version. A trigger in the schema refuses an update that

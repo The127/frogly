@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/the127/frogly/internal/change"
 	"github.com/the127/frogly/internal/repositories"
@@ -25,14 +26,14 @@ func NewProjectRepository(reader Reader, tracker *change.Tracker) *ProjectReposi
 // ListForMember lists the user's projects. SQLite compares text byte by
 // byte unless told otherwise, which is the order the interface promises.
 func (repository *ProjectRepository) ListForMember(ctx context.Context, userID uuid.UUID) ([]*repositories.Project, error) {
-	rows, err := repository.reader.QueryContext(ctx,
-		`select p.id, p.version, p.name
-		from projects p
-		join memberships m on m.project_id = p.id
-		where m.user_id = ?
-		order by p.name, p.id`,
-		userID.String(),
-	)
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name").From("projects p")
+	selection.Join("memberships m", "m.project_id = p.id")
+	selection.Where(selection.Equal("m.user_id", userID.String()))
+	selection.OrderBy("p.name", "p.id")
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.SQLite)
+
+	rows, err := repository.reader.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("listing the projects of user %s: %w", userID, err)
 	}
@@ -82,10 +83,13 @@ func (repository *ProjectRepository) Insert(project *repositories.Project) {
 
 // ExecuteInsert writes the project as version 1.
 func (repository *ProjectRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, project *repositories.Project) error {
-	_, err := tx.ExecContext(ctx,
-		"insert into projects (id, version, name) values (?, 1, ?)",
-		project.ID().String(), project.Name(),
-	)
+	insert := sqlbuilder.InsertInto("projects").
+		Cols("id", "version", "name").
+		Values(project.ID().String(), 1, project.Name())
+
+	query, args := insert.BuildWithFlavor(sqlbuilder.SQLite)
+
+	_, err := tx.ExecContext(ctx, query, args...)
 
 	return written(err, "inserting project "+project.ID().String())
 }

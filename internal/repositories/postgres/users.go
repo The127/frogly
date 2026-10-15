@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/the127/frogly/internal/change"
 	"github.com/the127/frogly/internal/repositories"
@@ -32,9 +33,12 @@ func (repository *UserRepository) First(ctx context.Context, id uuid.UUID) (*rep
 		email   string
 	)
 
-	err := repository.reader.QueryRowContext(ctx,
-		"select id, version, name, email from users where id = $1", id,
-	).Scan(&rowID, &version, &name, &email)
+	selection := sqlbuilder.Select("id", "version", "name", "email").From("users")
+	selection.Where(selection.Equal("id", id))
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	err := repository.reader.QueryRowContext(ctx, query, args...).Scan(&rowID, &version, &name, &email)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("user %s: %w", id, repositories.ErrNotFound)
 	}
@@ -58,10 +62,13 @@ func (repository *UserRepository) Update(user *repositories.User) {
 
 // ExecuteInsert writes the user as version 1.
 func (repository *UserRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, user *repositories.User) error {
-	_, err := tx.ExecContext(ctx,
-		"insert into users (id, version, name, email) values ($1, 1, $2, $3)",
-		user.ID(), user.Name(), user.Email(),
-	)
+	insert := sqlbuilder.InsertInto("users").
+		Cols("id", "version", "name", "email").
+		Values(user.ID(), 1, user.Name(), user.Email())
+
+	query, args := insert.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	_, err := tx.ExecContext(ctx, query, args...)
 
 	return written(err, "inserting user "+user.ID().String())
 }
@@ -69,10 +76,17 @@ func (repository *UserRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx,
 // ExecuteUpdate writes the whole user as the version after the one it was
 // loaded at. The schema refuses it when the row changed since.
 func (repository *UserRepository) ExecuteUpdate(ctx context.Context, tx *sql.Tx, user *repositories.User) error {
-	result, err := tx.ExecContext(ctx,
-		"update users set version = $1, name = $2, email = $3 where id = $4",
-		user.Version()+1, user.Name(), user.Email(), user.ID(),
+	update := sqlbuilder.Update("users")
+	update.Set(
+		update.Assign("version", user.Version()+1),
+		update.Assign("name", user.Name()),
+		update.Assign("email", user.Email()),
 	)
+	update.Where(update.Equal("id", user.ID()))
+
+	query, args := update.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	result, err := tx.ExecContext(ctx, query, args...)
 
 	err = written(err, "updating user "+user.ID().String())
 	if err != nil {
