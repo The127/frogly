@@ -127,9 +127,48 @@ func TestLoadsTheServerAndOIDCSettings(t *testing.T) {
 	}
 }
 
-func TestErrorsNameEveryMissingRequiredVariable(t *testing.T) {
+func TestErrorsNameMissingOrEmptyRequiredVariables(t *testing.T) {
+	tests := []struct {
+		name     string
+		environ  []string
+		variable string
+	}{
+		{
+			name:     "missing issuer",
+			environ:  []string{"FROGLY_OIDC__CLIENT_ID=frogly"},
+			variable: "FROGLY_OIDC__ISSUER",
+		},
+		{
+			name:     "empty issuer",
+			environ:  []string{"FROGLY_OIDC__ISSUER=", "FROGLY_OIDC__CLIENT_ID=frogly"},
+			variable: "FROGLY_OIDC__ISSUER",
+		},
+		{
+			name:     "missing client ID",
+			environ:  []string{"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly"},
+			variable: "FROGLY_OIDC__CLIENT_ID",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := config.Load(test.environ)
+
+			// assert
+			require.ErrorIs(t, err, config.ErrInvalid)
+			require.ErrorContains(t, err, test.variable)
+		})
+	}
+}
+
+func TestErrorsNameEveryProblemAtOnce(t *testing.T) {
 	// arrange
-	environ := []string{"HOME=/home/frog"}
+	environ := []string{
+		"FROGLY_OIDC__CLIENT_ID=frogly",
+		"FROGLY_OIDC__ISUER=http://localhost:8082/oidc/frogly",
+		"FROGLY_LOG__LEVEL=loud",
+	}
 
 	// act
 	_, err := config.Load(environ)
@@ -137,5 +176,6 @@ func TestErrorsNameEveryMissingRequiredVariable(t *testing.T) {
 	// assert
 	require.ErrorIs(t, err, config.ErrInvalid)
 	require.ErrorContains(t, err, "FROGLY_OIDC__ISSUER")
-	require.ErrorContains(t, err, "FROGLY_OIDC__CLIENT_ID")
+	require.ErrorContains(t, err, "FROGLY_OIDC__ISUER")
+	require.ErrorContains(t, err, "FROGLY_LOG__LEVEL")
 }

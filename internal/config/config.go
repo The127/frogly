@@ -46,9 +46,6 @@ type OIDC struct {
 	ClientID string `koanf:"client_id"`
 }
 
-// requiredKeys are the settings without a default.
-var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
-
 // Log says how frogly writes its log.
 type Log struct {
 	Level  slog.Level `koanf:"level"`
@@ -78,9 +75,14 @@ func (format *LogFormat) UnmarshalText(text []byte) error {
 	}
 }
 
+// requiredKeys are the settings without a default.
+var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
+
 // Load reads the configuration from environ, the environment as
 // os.Environ returns it. A FROGLY_ variable frogly doesn't know is an
-// error, so a typo can't go unnoticed. Every error names the variable.
+// error, so a typo can't go unnoticed. A required variable that is missing
+// or empty is an error too. The error names every variable at fault at
+// once.
 func Load(environ []string) (*Config, error) {
 	// a variable that isn't set leaves its default in place
 	config := Config{
@@ -102,7 +104,7 @@ func Load(environ []string) (*Config, error) {
 			return environ
 		},
 		TransformFunc: func(name string, value string) (string, any) {
-			key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, envPrefix), envLevel, "."))
+			key := keyOf(name)
 			variables[key] = name
 
 			return key, value
@@ -112,16 +114,18 @@ func Load(environ []string) (*Config, error) {
 		return nil, fmt.Errorf("loading the environment: %w", err)
 	}
 
+	var problems []error
+
 	var missing []string
 
 	for _, key := range requiredKeys {
-		if !loader.Exists(key) {
+		if loader.String(key) == "" {
 			missing = append(missing, variableOf(key))
 		}
 	}
 
 	if len(missing) > 0 {
-		return nil, fmt.Errorf("%w: missing variables %s", ErrInvalid, strings.Join(missing, ", "))
+		problems = append(problems, fmt.Errorf("missing or empty variables %s", strings.Join(missing, ", ")))
 	}
 
 	var metadata mapstructure.Metadata
@@ -136,7 +140,7 @@ func Load(environ []string) (*Config, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalid, nameVariables(err, variables))
+		problems = append(problems, nameVariables(err, variables))
 	}
 
 	if len(metadata.Unused) > 0 {
@@ -147,10 +151,20 @@ func Load(environ []string) (*Config, error) {
 
 		slices.Sort(unknown)
 
-		return nil, fmt.Errorf("%w: unknown variables %s", ErrInvalid, strings.Join(unknown, ", "))
+		problems = append(problems, fmt.Errorf("unknown variables %s", strings.Join(unknown, ", ")))
+	}
+
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, errors.Join(problems...))
 	}
 
 	return &config, nil
+}
+
+// keyOf and variableOf turn a variable's name into its setting's key and
+// back: FROGLY_OIDC__CLIENT_ID is oidc.client_id.
+func keyOf(variable string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(variable, envPrefix), envLevel, "."))
 }
 
 func variableOf(key string) string {
