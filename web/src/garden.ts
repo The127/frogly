@@ -12,8 +12,9 @@ export async function loadGarden(accessToken: AccessToken, projectId: string): P
   try {
     const token = await accessToken();
     const project = await fetchProject(token, projectId);
+    const ideas = await fetchGarden(token, projectId);
 
-    return { kind: "listed", project, ideas: await fetchGarden(token, projectId) };
+    return { kind: "listed", project, ideas };
   } catch (error) {
     return failure(error);
   }

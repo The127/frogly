@@ -203,6 +203,17 @@ describe("an ended login", () => {
     await expect(projects).rejects.toBeInstanceOf(LoggedOut);
   });
 
+  it("makes fetchProject throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const project = fetchProject("an-expired-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toBeInstanceOf(LoggedOut);
+  });
+
   it("makes createProject throw LoggedOut", async () => {
     // arrange
     respondWith(401, { status: 401 });

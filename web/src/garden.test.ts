@@ -45,6 +45,18 @@ describe("loadGarden", () => {
     expect(fetchGarden).not.toHaveBeenCalled();
   });
 
+  it("says the project isn't there when it goes between the two calls", async () => {
+    // arrange
+    vi.mocked(fetchProject).mockResolvedValue(project);
+    vi.mocked(fetchGarden).mockRejectedValue(new NotFound());
+
+    // act
+    const outcome = await loadGarden(token, "p-1");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notFound" });
+  });
+
   it("says loading failed when the project fails", async () => {
     // arrange
     vi.mocked(fetchProject).mockRejectedValue(new Error("frogly answered 503"));
