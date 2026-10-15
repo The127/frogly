@@ -223,6 +223,17 @@ describe("fetchGarden", () => {
     await expect(ideas).rejects.toThrow("500");
   });
 
+  it("throws LoggedOut when the login ended", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const ideas = fetchGarden("an-expired-token", "p-1");
+
+    // assert
+    await expect(ideas).rejects.toBeInstanceOf(LoggedOut);
+  });
+
   it("puts the project's ID into the path safely", async () => {
     // arrange
     respondWith(200, []);
@@ -283,5 +294,27 @@ describe("plantIdea", () => {
 
     // assert
     await expect(planted).rejects.toBeInstanceOf(LoggedOut);
+  });
+
+  it("still gives a reason when frogly's refusal has none", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "an idea");
+
+    // assert
+    expect(planted).toEqual({ problem: "frogly can't use that idea" });
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const planted = plantIdea("an-access-token", "p-1", "an idea");
+
+    // assert
+    await expect(planted).rejects.toThrow("500");
   });
 });

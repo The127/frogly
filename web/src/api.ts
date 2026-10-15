@@ -29,15 +29,6 @@ export class LoggedOut extends Error {
   }
 }
 
-export async function fetchConfig(): Promise<Config> {
-  const response = await fetch("/api/config");
-  if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked where to log in`);
-  }
-
-  return (await response.json()) as Config;
-}
-
 // NotFound means the project doesn't exist or the person isn't a member of
 // it. frogly doesn't say which.
 export class NotFound extends Error {
@@ -45,6 +36,15 @@ export class NotFound extends Error {
     super("the project isn't there");
     this.name = "NotFound";
   }
+}
+
+export async function fetchConfig(): Promise<Config> {
+  const response = await fetch("/api/config");
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked where to log in`);
+  }
+
+  return (await response.json()) as Config;
 }
 
 // Every call that needs the login goes through here, so a refused token
