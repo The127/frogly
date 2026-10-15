@@ -62,6 +62,11 @@ func (unit *Context) SaveChanges(ctx context.Context) error {
 		return nil
 	}
 
+	// written or rolled back, the changes are done with. The models are
+	// stale either way, and keeping them would try failed writes again on
+	// the next save.
+	defer unit.tracker.Clear()
+
 	tx, err := unit.connection.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("beginning a transaction: %w", err)
@@ -83,8 +88,6 @@ func (unit *Context) SaveChanges(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("committing: %w", err)
 	}
-
-	unit.tracker.Clear()
 
 	return nil
 }

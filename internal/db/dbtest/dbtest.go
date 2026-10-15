@@ -327,3 +327,35 @@ func (s *Suite) TestUpdatingAUserThatIsntStoredIsNotFound() {
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrNotFound)
 }
+
+// TestAFailedSaveForgetsItsChanges checks that a unit of work can go on
+// after a failed save, for example to look up what won a race, without
+// trying the failed writes again.
+func (s *Suite) TestAFailedSaveForgetsItsChanges() {
+	// arrange
+	karo := s.savedUser("Karo")
+	identity, err := repositories.NewIdentity(karo.ID(), "http://issuer.example", "karo-id")
+	s.Require().NoError(err)
+
+	first := s.database.NewContext()
+	first.Identities().Insert(identity)
+	s.save(first)
+
+	duplicate, err := repositories.NewIdentity(karo.ID(), "http://issuer.example", "karo-id")
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Identities().Insert(duplicate)
+	s.Require().Error(unit.SaveChanges(s.T().Context()))
+
+	ana, err := repositories.NewUser("Ana", "ana@frogly.local")
+	s.Require().NoError(err)
+
+	unit.Users().Insert(ana)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+}
