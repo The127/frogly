@@ -45,8 +45,16 @@ services:
     keyline || missing+=(keyline)
     postgres || missing+=(postgres)
     ((${#missing[@]} == 0)) && exit 0
-    # starting a running service again would clash with its container
-    process-compose up "${missing[@]}" --detached
+    # a second process-compose can't take the port of one that already
+    # runs, so the missing services start inside the running one. Starting
+    # a running service again would clash with its container.
+    if process-compose process list > /dev/null 2>&1; then
+        for service in "${missing[@]}"; do
+            process-compose process start "$service"
+        done
+    else
+        process-compose up "${missing[@]}" --detached
+    fi
     # pulling the images on a first run takes a while, but a service that
     # never gets ready mustn't hold the tests forever
     deadline=$((SECONDS + 300))
