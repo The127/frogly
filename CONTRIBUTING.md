@@ -87,6 +87,13 @@ You need Docker or Podman for this. If you use Podman, set
 Apple silicon, install Rosetta once with
 `softwareupdate --install-rosetta --agree-to-license`.
 
+## Storing data
+
+frogly keeps its data in SQLite or Postgres, through a unit of work and
+one adapter per database.
+[The data layer](docs/development/data-layer.md) explains how it fits
+together and how to add a model.
+
 ## Making a change
 
 1. Fork the repository and create a branch for your change.

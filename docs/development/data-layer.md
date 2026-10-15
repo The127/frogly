@@ -33,5 +33,9 @@ To add a model:
 2. Then add the repository to `db.Context`, and the contract's tests for it
    to `internal/db/dbtest`.
 3. Add a migration and the repository to each adapter, until both pass
-   the contract.
+   the contract. A model that can be updated needs the version trigger in
+   both migrations: in Postgres, a trigger that executes the existing
+   `check_version()` function, in SQLite, a trigger like
+   `users_version_check` that raises an error when the new version isn't
+   the old one plus one.
 4. Finally, add a rule for any new package to `arch-go.yml`.

@@ -1,8 +1,8 @@
 //go:build integration
 
 // Package integration_test runs frogly as a binary against a real Keyline
-// and checks what a person can do with it, one story at a time. Run it with
-// `just integration`, which starts Keyline first.
+// and Postgres and checks what a person can do with it, one story at a
+// time. Run it with `just integration`, which starts both first.
 package integration_test
 
 import (
