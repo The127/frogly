@@ -32,6 +32,10 @@ jobs:
         run: |
           docker logs frogly-keyline || true
           docker logs frogly-postgres || true
+          # the Postgres container removes itself when it stops, but
+          # process-compose keeps what it printed
+          process-compose process list || true
+          process-compose process logs postgres --tail 100 || true
       - name: upload coverage to codecov
         uses: codecov/codecov-action@v7
         with:
