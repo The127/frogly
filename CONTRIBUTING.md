@@ -115,7 +115,8 @@ When you work on frogly's internals, these pages explain how they fit
 together:
 
 - [Services](docs/development/services.md): what `just dev` starts, the
-  addresses, Keyline's setup and its data.
+  addresses, and how to reset the data of Keyline, the service that logs
+  people in.
 - [Testing](docs/development/testing.md): unit, integration, HTTP and
   frontend tests, and the tools behind them.
 - [The data layer](docs/development/data-layer.md): how frogly stores its

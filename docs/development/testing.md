@@ -34,7 +34,8 @@ use `require`, and the linter enforces that.
 ## Integration tests
 
 Integration tests live in `test/integration`. They build frogly, run it as
-a binary against Keyline, and use it from the outside, the way a person or
+a binary against [Keyline](https://github.com/The127/Keyline), the service
+that logs people in, and use it from the outside, the way a person or
 an agent does. Each story gets a test there that shows it works. Run them
 with `just integration`, which starts Keyline and Postgres first if they
 aren't running.

@@ -41,4 +41,5 @@ The data stays in the `frogly-postgres`, `frogly-keyline-data` and
 `dev/keyline/config.yaml` on its first start. After a change there, stop
 `just dev`, remove its volumes with
 `docker volume rm frogly-keyline-data frogly-keyline-keys`, and start
-`just dev` again. A volume Keyline still uses can't be removed.
+`just dev` again. If you use Podman, run `podman volume rm` instead. A
+volume Keyline still uses can't be removed.
