@@ -39,6 +39,8 @@ type Person struct {
 	Issuer  string
 	Subject string
 	Name    string
+	// Email is empty when the token doesn't carry one.
+	Email string
 }
 
 // Verifier checks access tokens from one issuer, meant for one client.
@@ -110,6 +112,7 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 	var claims struct {
 		Name              string `json:"name"`
 		PreferredUsername string `json:"preferred_username"`
+		Email             string `json:"email"`
 	}
 
 	err = token.Claims(&claims)
@@ -126,6 +129,7 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 		Issuer:  token.Issuer,
 		Subject: token.Subject,
 		Name:    name,
+		Email:   claims.Email,
 	}, nil
 }
 
