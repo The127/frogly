@@ -154,6 +154,11 @@ export async function plantIdea(accessToken: string, projectId: string, text: st
     return { problem: await refusal(response, "frogly can't use that idea") };
   }
 
+  // frogly stops reading a body far longer than an idea may be
+  if (response.status === 413) {
+    return { problem: "an idea has at most 500 characters" };
+  }
+
   if (!response.ok) {
     throw new Error(`frogly answered ${response.status} when asked to plant an idea`);
   }

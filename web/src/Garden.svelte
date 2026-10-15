@@ -79,6 +79,7 @@
       id="idea-text"
       bind:value={text}
       placeholder="plant an idea…"
+      maxlength="500"
       readonly={saving}
       aria-busy={saving}
       aria-invalid={problem ? "true" : undefined}

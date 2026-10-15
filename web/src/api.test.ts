@@ -296,6 +296,17 @@ describe("plantIdea", () => {
     await expect(planted).rejects.toBeInstanceOf(LoggedOut);
   });
 
+  it("says how long an idea may be when the text is far too long", async () => {
+    // arrange
+    respondWith(413, { status: 413 });
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "蛙".repeat(5000));
+
+    // assert
+    expect(planted).toEqual({ problem: "an idea has at most 500 characters" });
+  });
+
   it("still gives a reason when frogly's refusal has none", async () => {
     // arrange
     vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
