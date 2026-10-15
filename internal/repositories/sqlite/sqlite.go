@@ -26,6 +26,19 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
+func requireRow(result sql.Result, what string) error {
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("counting the rows written for %s: %w", what, err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("%s: %w", what, repositories.ErrNotFound)
+	}
+
+	return nil
+}
+
 // SQLite answers a stale update with the version trigger's error, and a
 // taken unique value with a constraint error. Both mean someone else got
 // there first.

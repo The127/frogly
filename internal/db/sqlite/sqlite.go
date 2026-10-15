@@ -45,6 +45,8 @@ func Open(path string) (*Database, error) {
 
 	err = connection.Ping()
 	if err != nil {
+		_ = connection.Close() // the open failed already, that error says more
+
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 

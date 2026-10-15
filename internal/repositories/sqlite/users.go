@@ -69,10 +69,17 @@ func (repository *UserRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx,
 // ExecuteUpdate writes the whole user as the version after the one it was
 // loaded at. The schema refuses it when the row changed since.
 func (repository *UserRepository) ExecuteUpdate(ctx context.Context, tx *sql.Tx, user *repositories.User) error {
-	_, err := tx.ExecContext(ctx,
+	result, err := tx.ExecContext(ctx,
 		"update users set version = ?, name = ?, email = ? where id = ?",
 		user.Version()+1, user.Name(), user.Email(), user.ID().String(),
 	)
 
-	return written(err, "updating user "+user.ID().String())
+	err = written(err, "updating user "+user.ID().String())
+	if err != nil {
+		return err
+	}
+
+	// the version trigger only fires for a row that exists, so a missing
+	// row would otherwise pass as written
+	return requireRow(result, "user "+user.ID().String())
 }

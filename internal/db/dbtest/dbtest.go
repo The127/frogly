@@ -287,3 +287,43 @@ func (s *Suite) TestAUserIsAMemberOfAProjectOnlyOnce() {
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 }
+
+// TestAMembershipNeedsAnExistingProject checks that a membership can't
+// point to a project the database doesn't have, and that this isn't
+// mistaken for a race.
+func (s *Suite) TestAMembershipNeedsAnExistingProject() {
+	// arrange
+	karo := s.savedUser("Karo")
+	nowhere, err := repositories.NewProject("Nowhere")
+	s.Require().NoError(err)
+
+	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID(), repositories.RoleOwner)
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(membership)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestUpdatingAUserThatIsntStoredIsNotFound checks that an update of a
+// row the database doesn't have fails instead of writing nothing.
+func (s *Suite) TestUpdatingAUserThatIsntStoredIsNotFound() {
+	// arrange
+	user, err := repositories.NewUser("Karo", "karo@frogly.local")
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Users().Update(user)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrNotFound)
+}
