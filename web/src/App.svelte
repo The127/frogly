@@ -4,10 +4,20 @@
 
   import { fetchConfig, fetchMe } from "./api";
   import { callbackPath, loginSettings } from "./auth";
+  import Projects from "./Projects.svelte";
   import { type Session, resume } from "./session";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
   let login: UserManager | undefined;
+
+  async function accessToken(): Promise<string> {
+    const user = await login?.getUser();
+    if (!user) {
+      throw new Error("the login is gone");
+    }
+
+    return user.access_token;
+  }
 
   onMount(async () => {
     try {
@@ -46,6 +56,7 @@
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}
     <h1>Hello, {session.name}</h1>
+    <Projects accessToken={accessToken} />
   {:else}
     <h1>A quiet place for your team's work.</h1>
     {#if session.loginFailed}
