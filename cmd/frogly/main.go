@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,6 +23,13 @@ import (
 // a slow client mustn't hold a connection open forever before it has even
 // sent its headers
 const readHeaderTimeout = 10 * time.Second
+
+// a keep-alive connection nobody uses only costs memory
+const idleTimeout = 60 * time.Second
+
+// the default HTTP client has no timeout, so an issuer that accepts the
+// connection but never answers would hang the start
+const discoveryTimeout = 10 * time.Second
 
 // long enough for running requests to finish, short enough that a
 // container runtime doesn't kill frogly first
@@ -50,7 +58,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	verifier, err := authn.NewVerifier(ctx, cfg.OIDC.Issuer, cfg.OIDC.ClientID)
+	discoveryCtx, cancelDiscovery := context.WithTimeout(ctx, discoveryTimeout)
+	verifier, err := authn.NewVerifier(discoveryCtx, cfg.OIDC.Issuer, cfg.OIDC.ClientID)
+
+	cancelDiscovery()
+
 	if err != nil {
 		return err
 	}
@@ -59,16 +71,24 @@ func run() error {
 		Addr:              cfg.Server.ListenAddress,
 		Handler:           server.New(cfg.OIDC, verifier, logger),
 		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
+
+	// binding before serving makes a taken port fail the start, and logs the
+	// real address when the config asks for port 0
+	listener, err := net.Listen("tcp", cfg.Server.ListenAddress)
+	if err != nil {
+		return fmt.Errorf("listening on %s: %w", cfg.Server.ListenAddress, err)
+	}
+
+	logger.Info("listening", "address", listener.Addr().String())
 
 	served := make(chan error, 1)
 
 	go func() {
-		served <- httpServer.ListenAndServe()
+		served <- httpServer.Serve(listener)
 	}()
-
-	logger.Info("listening", "address", cfg.Server.ListenAddress)
 
 	select {
 	case err := <-served:

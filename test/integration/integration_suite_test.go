@@ -65,7 +65,7 @@ var _ = BeforeSuite(func() {
 
 	DeferCleanup(func() {
 		// frogly waits for running requests before it stops
-		frogly.Terminate().Wait(10 * time.Second)
+		Expect(frogly.Terminate().Wait(10 * time.Second)).To(gexec.Exit(0))
 		gexec.CleanupBuildArtifacts()
 	})
 
