@@ -4,6 +4,7 @@ package garden
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -11,6 +12,8 @@ import (
 	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/repositories"
 )
+
+var errPlanterMissing = errors.New("the idea's planter is missing")
 
 // PlantedIdea is an idea with the name of whoever planted it.
 type PlantedIdea struct {
@@ -65,6 +68,12 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 		name, known := names[idea.PlanterID()]
 		if !known {
 			planter, err := unit.Users().ByID(ctx, idea.PlanterID())
+			if errors.Is(err, repositories.ErrNotFound) {
+				// the database's foreign key rules this out, and the caller's
+				// ErrNotFound means a project they can't see
+				return nil, fmt.Errorf("idea %s: %w", idea.ID(), errPlanterMissing)
+			}
+
 			if err != nil {
 				return nil, fmt.Errorf("loading the planter of idea %s: %w", idea.ID(), err)
 			}

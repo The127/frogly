@@ -1,6 +1,7 @@
 package garden_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -71,19 +72,24 @@ func TestTheGardenNamesEveryPlanter(t *testing.T) {
 	unit.Memberships().Insert(membership)
 	require.NoError(t, unit.SaveChanges(t.Context()))
 
-	_, err = garden.Plant(t.Context(), database.NewContext(), karo, project.ID(), "first")
-	require.NoError(t, err)
-	_, err = garden.Plant(t.Context(), database.NewContext(), ana, project.ID(), "second")
-	require.NoError(t, err)
+	for _, planting := range []struct {
+		planter *repositories.User
+		text    string
+	}{{karo, "first"}, {ana, "second"}, {karo, "third"}} {
+		_, err = garden.Plant(t.Context(), database.NewContext(), planting.planter, project.ID(), planting.text)
+		require.NoError(t, err)
+	}
 
 	// act
 	listed, err := garden.List(t.Context(), database.NewContext(), karo, project.ID())
 
 	// assert
 	require.NoError(t, err)
-	require.Len(t, listed, 2)
-	assert.Equal(t, "Ana", listed[0].PlantedBy)
-	assert.Equal(t, "Karo", listed[1].PlantedBy)
+	require.Len(t, listed, 3)
+	// newest first
+	assert.Equal(t, "Karo", listed[0].PlantedBy)
+	assert.Equal(t, "Ana", listed[1].PlantedBy)
+	assert.Equal(t, "Karo", listed[2].PlantedBy)
 }
 
 func TestAGardenIsOnlyForMembers(t *testing.T) {
@@ -124,5 +130,11 @@ func TestPlantingRefusesATextItCantUse(t *testing.T) {
 	_, err := garden.Plant(t.Context(), database.NewContext(), karo, project.ID(), "   ")
 
 	// assert
-	require.ErrorAs(t, err, new(*repositories.InvalidError))
+	invalid, ok := errors.AsType[*repositories.InvalidError](err)
+	require.True(t, ok, "want an InvalidError, got %v", err)
+	assert.Equal(t, "an idea needs a text", invalid.Reason())
+
+	listed, err := garden.List(t.Context(), database.NewContext(), karo, project.ID())
+	require.NoError(t, err)
+	assert.Empty(t, listed)
 }
