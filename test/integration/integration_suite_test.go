@@ -6,18 +6,24 @@
 package integration_test
 
 import (
+	"context"
+	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/The127/Keyline/client"
-	. "github.com/onsi/ginkgo/v2" //nolint:revive // Ginkgo's DSL reads as plain English only without the package name
-	. "github.com/onsi/gomega"    //nolint:revive // same for Gomega's matchers
+	_ "github.com/jackc/pgx/v5/stdlib" // the driver the suite creates its database with
+	. "github.com/onsi/ginkgo/v2"      //nolint:revive // Ginkgo's DSL reads as plain English only without the package name
+	. "github.com/onsi/gomega"         //nolint:revive // same for Gomega's matchers
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -26,6 +32,9 @@ const (
 	issuerURL     = keylineURL + "/oidc/" + virtualServer
 	virtualServer = "frogly"
 	application   = "frogly"
+
+	// the Postgres `just integration` starts
+	postgresURL = "postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable" //nolint:gosec // the public password of the local dev database
 )
 
 var (
@@ -53,6 +62,8 @@ var _ = BeforeSuite(func() {
 		"FROGLY_OIDC__ISSUER="+issuerURL,
 		"FROGLY_OIDC__CLIENT_ID="+application,
 		"FROGLY_LOG__FORMAT=text",
+		"FROGLY_DATABASE__DRIVER=postgres",
+		"FROGLY_DATABASE__POSTGRES__URL="+freshDatabase(),
 	)
 
 	frogly, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
@@ -90,4 +101,29 @@ func logIn(serviceUser string, keyFile string) string {
 	Expect(err).NotTo(HaveOccurred(), "logging in at Keyline as %s failed, run the tests with `just integration`, which starts it", serviceUser)
 
 	return token.AccessToken
+}
+
+// freshDatabase gives frogly an empty database of its own for the run, and
+// drops it again afterwards.
+func freshDatabase() string {
+	admin, err := sql.Open("pgx", postgresURL)
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(admin.Close)
+
+	name := "integration_" + strings.ToLower(rand.Text())
+
+	_, err = admin.ExecContext(context.Background(), "create database "+name)
+	Expect(err).NotTo(HaveOccurred(), "is Postgres running? `just integration` starts it")
+
+	DeferCleanup(func() {
+		_, err := admin.ExecContext(context.Background(), "drop database "+name+" with (force)")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	fresh, err := url.Parse(postgresURL)
+	Expect(err).NotTo(HaveOccurred())
+
+	fresh.Path = "/" + name
+
+	return fresh.String()
 }

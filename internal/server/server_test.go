@@ -8,19 +8,26 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/The127/ioc"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
+	"github.com/the127/frogly/internal/db"
+	"github.com/the127/frogly/internal/db/sqlite"
 	"github.com/the127/frogly/internal/server"
 )
 
 const (
 	validToken   = "valid-token"
+	otherToken   = "token-of-someone-else"
 	outageToken  = "token-during-an-outage"
 	refusedToken = "forged"
 )
@@ -32,6 +39,9 @@ func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person,
 	case validToken:
 		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karo"}, nil
 
+	case otherToken:
+		return authn.Person{Issuer: "http://issuer.example", Subject: "ana-id", Name: "Ana"}, nil
+
 	case outageToken:
 		return authn.Person{}, errors.New("fetching the issuer's keys: connection refused")
 
@@ -40,15 +50,42 @@ func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person,
 	}
 }
 
-func newServer(log *bytes.Buffer) http.Handler {
-	logger := slog.New(slog.NewJSONHandler(log, nil))
+func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
+	t.Helper()
+
+	database, err := sqlite.Open(filepath.Join(t.TempDir(), "frogly.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, database.Close())
+	})
+
+	require.NoError(t, database.Migrate(t.Context()))
+
+	dependencies := ioc.NewDependencyCollection()
+	ioc.RegisterScoped(dependencies, func(*ioc.DependencyProvider) db.Context {
+		return database.NewContext()
+	})
 
 	return server.New(
 		config.OIDC{Issuer: "http://issuer.example", ClientID: "frogly"},
 		fakeVerifier{},
-		logger,
+		slog.New(slog.NewJSONHandler(log, nil)),
 		frontend,
+		dependencies.BuildProvider(),
 	)
+}
+
+func projects(t *testing.T, handler http.Handler, method string, token string, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	request := httptest.NewRequestWithContext(t.Context(), method, "/api/projects", strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	return recorder
 }
 
 var frontend = fstest.MapFS{
@@ -80,7 +117,7 @@ func get(t *testing.T, handler http.Handler, path string, header http.Header) *h
 
 func TestConfigTellsTheFrontendWhereToLogIn(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := get(t, handler, "/api/config", nil)
@@ -93,7 +130,7 @@ func TestConfigTellsTheFrontendWhereToLogIn(t *testing.T) {
 
 func TestMeIsUnavailableWhenTheTokenCantBeChecked(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + outageToken}})
@@ -119,7 +156,7 @@ func TestMeRefusesRequestsWithoutAValidToken(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
-			handler := newServer(&bytes.Buffer{})
+			handler := newServer(t, &bytes.Buffer{})
 
 			header := http.Header{}
 			if test.authorization != "" {
@@ -141,7 +178,7 @@ func TestMeRefusesRequestsWithoutAValidToken(t *testing.T) {
 
 func TestUnknownAPIPathsAreNotFound(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := get(t, handler, "/api/nothing-here", nil)
@@ -156,7 +193,7 @@ func TestEveryRequestIsLoggedWithItsRequestID(t *testing.T) {
 	// arrange
 	var log bytes.Buffer
 
-	handler := newServer(&log)
+	handler := newServer(t, &log)
 
 	// act
 	response := get(t, handler, "/api/config", nil)
@@ -185,7 +222,7 @@ func TestTheLogHasTheStatusButNotTheToken(t *testing.T) {
 	// arrange
 	var log bytes.Buffer
 
-	handler := newServer(&log)
+	handler := newServer(t, &log)
 
 	// act
 	get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + refusedToken}})
@@ -197,7 +234,7 @@ func TestTheLogHasTheStatusButNotTheToken(t *testing.T) {
 
 func TestTheServerChoosesTheRequestID(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 	sent := http.Header{"X-Request-Id": {"chosen-by-the-client"}}
 
 	// act
@@ -239,7 +276,7 @@ func TestServesTheFrontend(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
-			handler := newServer(&bytes.Buffer{})
+			handler := newServer(t, &bytes.Buffer{})
 
 			// act
 			response := get(t, handler, test.path, nil)
@@ -254,7 +291,7 @@ func TestServesTheFrontend(t *testing.T) {
 
 func TestAMissingAssetIsNotFound(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := get(t, handler, "/assets/index-gone.js", nil)
@@ -276,7 +313,7 @@ func TestNoAssetsDirectoryIsListed(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
-			handler := newServer(&bytes.Buffer{})
+			handler := newServer(t, &bytes.Buffer{})
 
 			// act
 			response := get(t, handler, test.path, nil)
@@ -291,7 +328,7 @@ func TestNoAssetsDirectoryIsListed(t *testing.T) {
 
 func TestAPathLeavingTheAssetsServesTheFrontendInstead(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := get(t, handler, "/assets/../../etc/passwd", nil)
@@ -302,7 +339,7 @@ func TestAPathLeavingTheAssetsServesTheFrontendInstead(t *testing.T) {
 
 func TestTheFrontendAnswersHead(t *testing.T) {
 	// arrange
-	handler := newServer(&bytes.Buffer{})
+	handler := newServer(t, &bytes.Buffer{})
 
 	// act
 	response := request(t, handler, http.MethodHead, "/", nil)
@@ -316,7 +353,7 @@ func TestMeGreetsThePersonByName(t *testing.T) {
 	for _, scheme := range []string{"Bearer", "bearer"} {
 		t.Run(scheme, func(t *testing.T) {
 			// arrange
-			handler := newServer(&bytes.Buffer{})
+			handler := newServer(t, &bytes.Buffer{})
 
 			// act
 			response := get(t, handler, "/api/me", http.Header{"Authorization": {scheme + " " + validToken}})
@@ -333,7 +370,7 @@ func TestOnlyReadsAreAllowed(t *testing.T) {
 	for _, path := range []string{"/api/config", "/api/me", "/"} {
 		t.Run(path, func(t *testing.T) {
 			// arrange
-			handler := newServer(&bytes.Buffer{})
+			handler := newServer(t, &bytes.Buffer{})
 
 			// act
 			response := request(t, handler, http.MethodPost, path, nil)
@@ -341,6 +378,88 @@ func TestOnlyReadsAreAllowed(t *testing.T) {
 			// assert
 			assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
 			assert.Equal(t, "GET, HEAD", response.Header().Get("Allow"))
+		})
+	}
+}
+
+func TestProjectsStartEmpty(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+
+	// act
+	response := projects(t, handler, http.MethodGet, validToken, "")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[]`, response.Body.String())
+}
+
+func TestACreatedProjectIsListed(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+
+	// act
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "  Garden "}`)
+
+	// assert
+	require.Equal(t, http.StatusCreated, created.Code)
+
+	var project struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &project))
+	assert.NotEmpty(t, project.ID)
+	assert.Equal(t, "Garden", project.Name)
+
+	listed := projects(t, handler, http.MethodGet, validToken, "")
+	assert.JSONEq(t, `[{"id": "`+project.ID+`", "name": "Garden"}]`, listed.Body.String())
+}
+
+func TestOthersDontSeeYourProjects(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden"}`)
+	require.Equal(t, http.StatusCreated, created.Code)
+
+	// act
+	response := projects(t, handler, http.MethodGet, otherToken, "")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[]`, response.Body.String())
+}
+
+func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		wantDetail string
+	}{
+		{name: "no name", body: `{"name": "   "}`, wantDetail: "a project needs a name"},
+		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't a project in JSON"},
+		{name: "an unknown field", body: `{"name": "Garden", "colour": "green"}`, wantDetail: "the body isn't a project in JSON"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+
+			// act
+			response := projects(t, handler, http.MethodPost, validToken, test.body)
+
+			// assert
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"))
+
+			var problem struct {
+				Detail string `json:"detail"`
+			}
+
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
+			assert.Contains(t, problem.Detail, test.wantDetail)
 		})
 	}
 }

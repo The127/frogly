@@ -51,13 +51,17 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
-  # the API speaks HTTP and leaves the checking of tokens to authn
+  # the API speaks HTTP. It leaves checking tokens to authn and storing to
+  # the unit of work, and never knows which database it talks to.
   - package: '**.internal.server$'
     shouldOnlyDependsOn:
       internal:
         - '**.internal.authn$'
         - '**.internal.config$'
+        - '**.internal.db$'
         - '**.internal.logging$'
+        - '**.internal.people$'
+        - '**.internal.repositories$'
   # the frontend's Go package only hands out the built files
   - package: '**.frogly.web$'
     shouldNotDependsOn:
@@ -135,6 +139,9 @@ dependenciesRules:
       internal:
         - '**.internal.authn$'
         - '**.internal.config$'
+        - '**.internal.db$'
+        - '**.internal.db.postgres$'
+        - '**.internal.db.sqlite$'
         - '**.internal.logging$'
         - '**.internal.server$'
         - '**.internal.version$'

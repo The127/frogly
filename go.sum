@@ -2,6 +2,8 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/The127/Keyline/client v0.0.0-20261005092824-0a18d2fb9a46 h1:sFni7I1fTDCxWGlRyiwfoGhRQPiJlNGKFJU/aDvIMEs=
 github.com/The127/Keyline/client v0.0.0-20261005092824-0a18d2fb9a46/go.mod h1:S5vdNJCLIDNVepbnkSbZLCLo9Nf/PhyQdQOP4pzFgJ0=
+github.com/The127/ioc v0.0.0-20260824091124-f97ec189819b h1:6kD/TF8AcSbGx06DiSXwKM5y5coVzXCA1L6gaxMgKm0=
+github.com/The127/ioc v0.0.0-20260824091124-f97ec189819b/go.mod h1:QOPxleQjdlDgxuNm4W69aqplsYt1C+8gtySOOCtORX4=
 github.com/coreos/go-oidc/v3 v3.21.0 h1:wZo4Q9Pum8dYEj0eMUPrqR+kvuGkeUplbLpNCkBqoWM=
 github.com/coreos/go-oidc/v3 v3.21.0/go.mod h1:DYCf24+ncYi+XkIH97GY1+dqoRlbaSI26KVTCI9SrY4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

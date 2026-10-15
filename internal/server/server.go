@@ -13,9 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/The127/ioc"
+
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
+	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/logging"
+	"github.com/the127/frogly/internal/people"
+	"github.com/the127/frogly/internal/repositories"
 )
 
 // Verifier says who an access token belongs to.
@@ -25,8 +30,9 @@ type Verifier interface {
 
 // New builds the API and serves the built frontend for every other path.
 // Clients log in at the OIDC issuer themselves and send their access
-// token, which verifier checks.
-func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS) http.Handler {
+// token, which verifier checks. services hands every authenticated request
+// a db.Context of its own, from a scope that lives as long as the request.
+func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS, services *ioc.DependencyProvider) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
@@ -35,11 +41,13 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, func(w http.ResponseWriter, _ *http.Request, person authn.Person) {
+	mux.Handle("GET /api/me", authenticated(verifier, services, func(w http.ResponseWriter, _ *http.Request, caller caller) {
 		writeJSON(w, http.StatusOK, map[string]string{
-			"name": person.Name,
+			"name": caller.user.Name(),
 		})
 	}))
+	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
+	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -128,7 +136,14 @@ func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
 	return recorder.ResponseWriter
 }
 
-func authenticated(verifier Verifier, next func(http.ResponseWriter, *http.Request, authn.Person)) http.Handler {
+// caller is who an authenticated request comes from, with the unit of work
+// the request does its work in.
+type caller struct {
+	user *repositories.User
+	unit db.Context
+}
+
+func authenticated(verifier Verifier, services *ioc.DependencyProvider, next func(http.ResponseWriter, *http.Request, caller)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -160,8 +175,30 @@ func authenticated(verifier Verifier, next func(http.ResponseWriter, *http.Reque
 			return
 		}
 
-		next(w, r, person)
+		scope := services.NewScope()
+		defer func() {
+			err := scope.Close()
+			if err != nil {
+				logging.FromContext(r.Context()).ErrorContext(r.Context(), "closing the request's scope failed", "error", err)
+			}
+		}()
+
+		unit := ioc.GetDependency[db.Context](scope)
+
+		user, err := people.Resolve(r.Context(), unit, person)
+		if err != nil {
+			fail(w, r, "finding the user failed", err)
+
+			return
+		}
+
+		next(w, r, caller{user: user, unit: unit})
 	})
+}
+
+func fail(w http.ResponseWriter, r *http.Request, what string, err error) {
+	logging.FromContext(r.Context()).ErrorContext(r.Context(), what, "error", err)
+	writeProblem(w, http.StatusInternalServerError)
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
@@ -175,6 +212,17 @@ func writeProblem(w http.ResponseWriter, status int) {
 		"type":   "about:blank",
 		"title":  http.StatusText(status),
 		"status": status,
+	})
+}
+
+// writeProblemDetail says what is wrong with a request, for a problem the
+// client can fix.
+func writeProblemDetail(w http.ResponseWriter, status int, detail string) {
+	write(w, "application/problem+json", status, map[string]any{
+		"type":   "about:blank",
+		"title":  http.StatusText(status),
+		"status": status,
+		"detail": detail,
 	})
 }
 

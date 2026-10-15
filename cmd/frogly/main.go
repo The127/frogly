@@ -12,8 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/The127/ioc"
+
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
+	"github.com/the127/frogly/internal/db"
+	"github.com/the127/frogly/internal/db/postgres"
+	"github.com/the127/frogly/internal/db/sqlite"
 	"github.com/the127/frogly/internal/logging"
 	"github.com/the127/frogly/internal/server"
 	"github.com/the127/frogly/internal/version"
@@ -67,8 +72,30 @@ func run() error {
 		return err
 	}
 
+	database, err := openDatabase(cfg.Database)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err := database.Close()
+		if err != nil {
+			logger.Error("closing the database failed", "error", err)
+		}
+	}()
+
+	err = database.Migrate(ctx)
+	if err != nil {
+		return err
+	}
+
+	dependencies := ioc.NewDependencyCollection()
+	ioc.RegisterScoped(dependencies, func(*ioc.DependencyProvider) db.Context {
+		return database.NewContext()
+	})
+
 	httpServer := &http.Server{
-		Handler:           server.New(cfg.OIDC, verifier, logger, web.Files()),
+		Handler:           server.New(cfg.OIDC, verifier, logger, web.Files(), dependencies.BuildProvider()),
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
 		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
@@ -110,4 +137,14 @@ func run() error {
 	}
 
 	return nil
+}
+
+func openDatabase(settings config.Database) (db.Database, error) {
+	switch settings.Driver {
+	case config.DriverPostgres:
+		return postgres.Open(string(settings.Postgres.URL))
+
+	default:
+		return sqlite.Open(settings.SQLite.Path)
+	}
 }
