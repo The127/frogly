@@ -90,4 +90,8 @@ func TestAProjectNeedsASavedOwner(t *testing.T) {
 
 	// assert
 	require.Error(t, err)
+
+	// a missing owner is frogly's mistake, not something the client could fix
+	_, invalid := errors.AsType[*repositories.InvalidError](err)
+	assert.False(t, invalid, "want a database error, got %v", err)
 }
