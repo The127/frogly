@@ -26,12 +26,15 @@ const (
 	issuerURL     = keylineURL + "/oidc/" + virtualServer
 	virtualServer = "frogly"
 	application   = "frogly"
-	serviceUser   = "frogly-tests"
 )
 
 var (
-	froglyURL   string
-	accessToken string
+	froglyURL string
+
+	// accessToken belongs to frogly-tests, otherAccessToken to
+	// frogly-tests-2, so a test can check what one can't see of the other
+	accessToken      string
+	otherAccessToken string
 )
 
 func TestIntegration(t *testing.T) {
@@ -40,13 +43,8 @@ func TestIntegration(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	key, err := os.ReadFile(filepath.Join("..", "..", "dev", "keyline", "test-service-user.pem"))
-	Expect(err).NotTo(HaveOccurred())
-
-	token, err := client.NewServiceUserTokenSource(keylineURL, virtualServer, string(key), serviceUser, serviceUser, application).Token()
-	Expect(err).NotTo(HaveOccurred(), "logging in at Keyline failed, run the tests with `just integration`, which starts it")
-
-	accessToken = token.AccessToken
+	accessToken = logIn("frogly-tests", "test-service-user.pem")
+	otherAccessToken = logIn("frogly-tests-2", "test-service-user-2.pem")
 
 	binary, err := gexec.Build("github.com/the127/frogly/cmd/frogly")
 	Expect(err).NotTo(HaveOccurred())
@@ -86,3 +84,13 @@ var _ = BeforeSuite(func() {
 		return nil
 	}).WithTimeout(10 * time.Second).Should(Succeed())
 })
+
+func logIn(serviceUser string, keyFile string) string {
+	key, err := os.ReadFile(filepath.Join("..", "..", "dev", "keyline", keyFile)) //nolint:gosec // the test names its own key files
+	Expect(err).NotTo(HaveOccurred())
+
+	token, err := client.NewServiceUserTokenSource(keylineURL, virtualServer, string(key), serviceUser, serviceUser, application).Token()
+	Expect(err).NotTo(HaveOccurred(), "logging in at Keyline as %s failed, run the tests with `just integration`, which starts it", serviceUser)
+
+	return token.AccessToken
+}
