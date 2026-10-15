@@ -2,7 +2,7 @@
 language: en-US
 reviews:
   # CodeRabbit is a required check on main, so every pull request needs its
-  # status, Dependabot's too. A review that fails says so instead of staying
+  # status, Renovate's too. A review that fails says so instead of staying
   # pending, which would block the merge for good.
   auto_review:
     ignore_usernames: []
