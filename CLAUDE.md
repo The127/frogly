@@ -17,7 +17,8 @@ every check. Run `just` alone to list all recipes.
   directory.
 - Every package needs a rule in `arch-go.yml` that says what it may depend
   on and why. A new package arrives together with its rule.
-- Tests follow "Writing tests" in CONTRIBUTING.md.
+- Tests follow [Testing](docs/development/testing.md).
+  [Services](docs/development/services.md) says what `just dev` starts.
 
 ## Commits
 
