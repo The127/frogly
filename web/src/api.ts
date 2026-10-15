@@ -7,30 +7,9 @@ export interface Me {
   name: string;
 }
 
-export async function fetchConfig(): Promise<Config> {
-  const response = await fetch("/api/config");
-  if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked where to log in`);
-  }
-
-  return (await response.json()) as Config;
-}
-
-// null means frogly refused the token, so the person has to log in again.
-// Any other failure is frogly's problem, not the person's.
-export async function fetchMe(accessToken: string): Promise<Me | null> {
-  const response = await fetch("/api/me", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (response.status === 401) {
-    return null;
-  }
-
-  if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked who is logged in`);
-  }
-
-  return (await response.json()) as Me;
+export interface Project {
+  id: string;
+  name: string;
 }
 
 // LoggedOut means the login ended, and trying again won't help until the
@@ -42,19 +21,52 @@ export class LoggedOut extends Error {
   }
 }
 
-export interface Project {
-  id: string;
-  name: string;
+export async function fetchConfig(): Promise<Config> {
+  const response = await fetch("/api/config");
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked where to log in`);
+  }
+
+  return (await response.json()) as Config;
 }
 
-export async function fetchProjects(accessToken: string): Promise<Project[]> {
-  const response = await fetch("/api/projects", {
-    headers: { Authorization: `Bearer ${accessToken}` },
+// Every call that needs the login goes through here, so a refused token
+// always ends up as LoggedOut.
+async function authorized(path: string, accessToken: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(path, {
+    ...init,
+    headers: { Authorization: `Bearer ${accessToken}`, ...init.headers },
   });
   if (response.status === 401) {
     throw new LoggedOut();
   }
 
+  return response;
+}
+
+// null means frogly refused the token, so the person has to log in again.
+// Any other failure is frogly's problem, not the person's.
+export async function fetchMe(accessToken: string): Promise<Me | null> {
+  let response: Response;
+  try {
+    response = await authorized("/api/me", accessToken);
+  } catch (error) {
+    if (error instanceof LoggedOut) {
+      return null;
+    }
+
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked who is logged in`);
+  }
+
+  return (await response.json()) as Me;
+}
+
+export async function fetchProjects(accessToken: string): Promise<Project[]> {
+  const response = await authorized("/api/projects", accessToken);
   if (!response.ok) {
     throw new Error(`frogly answered ${response.status} when asked for your projects`);
   }
@@ -67,15 +79,11 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
 export type Created = { project: Project } | { problem: string };
 
 export async function createProject(accessToken: string, name: string): Promise<Created> {
-  const response = await fetch("/api/projects", {
+  const response = await authorized("/api/projects", accessToken, {
     method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
-  if (response.status === 401) {
-    throw new LoggedOut();
-  }
-
   if (response.status === 400) {
     const problem = (await response.json().catch(() => ({}))) as { detail?: string };
 

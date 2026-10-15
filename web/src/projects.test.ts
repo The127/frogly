@@ -1,7 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, type Project } from "./api";
+import { LoggedOut, type Project, createProject, fetchProjects } from "./api";
 import { addProject, loadProjects } from "./projects";
+
+vi.mock("./api", async (actual) => ({
+  ...(await actual<typeof import("./api")>()),
+  createProject: vi.fn(),
+  fetchProjects: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.resetAllMocks();
+});
 
 const garden: Project = { id: "p-1", name: "Garden" };
 const token = async () => "an-access-token";
@@ -9,13 +19,11 @@ const token = async () => "an-access-token";
 describe("addProject", () => {
   it("gives the new list once the project is saved", async () => {
     // arrange
-    const api = {
-      createProject: vi.fn(async () => ({ project: garden })),
-      fetchProjects: vi.fn(async () => [garden]),
-    };
+    vi.mocked(createProject).mockResolvedValue({ project: garden });
+    vi.mocked(fetchProjects).mockResolvedValue([garden]);
 
     // act
-    const outcome = await addProject(token, "Garden", api);
+    const outcome = await addProject(token, "Garden");
 
     // assert
     expect(outcome).toEqual({ kind: "saved", projects: [garden] });
@@ -23,30 +31,23 @@ describe("addProject", () => {
 
   it("gives frogly's reason when the name can't be used", async () => {
     // arrange
-    const api = {
-      createProject: vi.fn(async () => ({ problem: "a project needs a name" })),
-      fetchProjects: vi.fn(async () => []),
-    };
+    vi.mocked(createProject).mockResolvedValue({ problem: "a project needs a name" });
 
     // act
-    const outcome = await addProject(token, "  ", api);
+    const outcome = await addProject(token, "  ");
 
     // assert
     expect(outcome).toEqual({ kind: "refused", problem: "a project needs a name" });
-    expect(api.fetchProjects).not.toHaveBeenCalled();
+    expect(fetchProjects).not.toHaveBeenCalled();
   });
 
   it("says the project is saved when only the list fails", async () => {
     // arrange
-    const api = {
-      createProject: vi.fn(async () => ({ project: garden })),
-      fetchProjects: vi.fn(async () => {
-        throw new Error("frogly answered 503");
-      }),
-    };
+    vi.mocked(createProject).mockResolvedValue({ project: garden });
+    vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
 
     // act
-    const outcome = await addProject(token, "Garden", api);
+    const outcome = await addProject(token, "Garden");
 
     // assert
     expect(outcome).toEqual({ kind: "savedButNotListed" });
@@ -54,15 +55,10 @@ describe("addProject", () => {
 
   it("says the save failed when it did", async () => {
     // arrange
-    const api = {
-      createProject: vi.fn(async () => {
-        throw new Error("frogly answered 500");
-      }),
-      fetchProjects: vi.fn(async () => []),
-    };
+    vi.mocked(createProject).mockRejectedValue(new Error("frogly answered 500"));
 
     // act
-    const outcome = await addProject(token, "Garden", api);
+    const outcome = await addProject(token, "Garden");
 
     // assert
     expect(outcome).toEqual({ kind: "notSaved" });
@@ -70,15 +66,10 @@ describe("addProject", () => {
 
   it("notices that the login ended", async () => {
     // arrange
-    const api = {
-      createProject: vi.fn(async () => {
-        throw new LoggedOut();
-      }),
-      fetchProjects: vi.fn(async () => []),
-    };
+    vi.mocked(createProject).mockRejectedValue(new LoggedOut());
 
     // act
-    const outcome = await addProject(token, "Garden", api);
+    const outcome = await addProject(token, "Garden");
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
@@ -87,32 +78,33 @@ describe("addProject", () => {
 
 describe("loadProjects", () => {
   it("gives your projects", async () => {
+    // arrange
+    vi.mocked(fetchProjects).mockResolvedValue([garden]);
+
     // act
-    const outcome = await loadProjects(token, { fetchProjects: vi.fn(async () => [garden]) });
+    const outcome = await loadProjects(token);
 
     // assert
     expect(outcome).toEqual({ kind: "listed", projects: [garden] });
   });
 
   it("notices that the login ended", async () => {
+    // arrange
+    vi.mocked(fetchProjects).mockRejectedValue(new LoggedOut());
+
     // act
-    const outcome = await loadProjects(token, {
-      fetchProjects: vi.fn(async () => {
-        throw new LoggedOut();
-      }),
-    });
+    const outcome = await loadProjects(token);
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
   });
 
   it("says when the list can't be loaded", async () => {
+    // arrange
+    vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
+
     // act
-    const outcome = await loadProjects(token, {
-      fetchProjects: vi.fn(async () => {
-        throw new Error("frogly answered 503");
-      }),
-    });
+    const outcome = await loadProjects(token);
 
     // assert
     expect(outcome).toEqual({ kind: "failed" });

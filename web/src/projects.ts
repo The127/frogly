@@ -1,15 +1,12 @@
-import { LoggedOut, type Project, createProject, fetchProjects } from "./api";
+import { type Created, LoggedOut, type Project, createProject, fetchProjects } from "./api";
 
 type AccessToken = () => Promise<string>;
 
 export type Loaded = { kind: "listed"; projects: Project[] } | { kind: "failed" } | { kind: "loggedOut" };
 
-export async function loadProjects(
-  accessToken: AccessToken,
-  api: { fetchProjects: typeof fetchProjects } = { fetchProjects },
-): Promise<Loaded> {
+export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   try {
-    return { kind: "listed", projects: await api.fetchProjects(await accessToken()) };
+    return { kind: "listed", projects: await fetchProjects(await accessToken()) };
   } catch (error) {
     if (error instanceof LoggedOut) {
       return { kind: "loggedOut" };
@@ -30,15 +27,11 @@ export type Added =
   | { kind: "notSaved" }
   | { kind: "loggedOut" };
 
-export async function addProject(
-  accessToken: AccessToken,
-  name: string,
-  api: { createProject: typeof createProject; fetchProjects: typeof fetchProjects } = { createProject, fetchProjects },
-): Promise<Added> {
-  let created: Awaited<ReturnType<typeof createProject>>;
+export async function addProject(accessToken: AccessToken, name: string): Promise<Added> {
+  let created: Created;
 
   try {
-    created = await api.createProject(await accessToken(), name);
+    created = await createProject(await accessToken(), name);
   } catch (error) {
     if (error instanceof LoggedOut) {
       return { kind: "loggedOut" };
@@ -53,7 +46,7 @@ export async function addProject(
     return { kind: "refused", problem: created.problem };
   }
 
-  const loaded = await loadProjects(accessToken, api);
+  const loaded = await loadProjects(accessToken);
   switch (loaded.kind) {
     case "listed":
       return { kind: "saved", projects: loaded.projects };
