@@ -1,16 +1,32 @@
 // Package authn finds out who a request acts for, from the access token
 // it carries. Every client logs in at the OIDC issuer itself, the web app,
 // the CLI and agents alike, and sends its access token. frogly only checks
-// that token, it keeps no sessions of its own.
+// that token and keeps no sessions of its own.
 package authn
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 )
+
+// accessTokenType is the typ header of a JWT access token (RFC 9068). An ID
+// token from the same issuer has the same signature, issuer and audience,
+// so this header is what tells the two apart.
+const accessTokenType = "at+jwt"
+
+// signingAlgorithms are the asymmetric algorithms frogly accepts. Taking
+// them from the issuer's discovery document would rely on a field that
+// describes ID tokens, and might let in a shared-secret algorithm.
+var signingAlgorithms = []jose.SignatureAlgorithm{jose.EdDSA, jose.RS256, jose.ES256}
+
+// clockSkew is how far frogly's clock may lag behind the issuer's before a
+// fresh token looks expired.
+const clockSkew = 30 * time.Second
 
 // ErrUnauthenticated is wrapped into every error about a token frogly
 // doesn't accept.
@@ -29,19 +45,31 @@ type Verifier struct {
 	verifier *oidc.IDTokenVerifier
 }
 
-// NewVerifier fetches the issuer's discovery document, so the issuer has
-// to be reachable. The issuer's keys are fetched and cached on the first
-// token.
+// NewVerifier fetches the issuer's discovery document with ctx, so the
+// issuer has to be reachable when frogly starts. The issuer's keys are
+// fetched and cached later, on the first token, independent of ctx.
 func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("discovering the OIDC issuer %s: %w", issuer, err)
 	}
 
+	algorithms := make([]string, 0, len(signingAlgorithms))
+	for _, algorithm := range signingAlgorithms {
+		algorithms = append(algorithms, string(algorithm))
+	}
+
 	// go-oidc names it an ID token verifier, but it checks any JWT from the
-	// issuer: the signature, the issuer, the audience and the expiry
+	// issuer: the signature, the issuer, the audience and the expiry. Verify
+	// adds what makes it an access token.
 	return &Verifier{
-		verifier: provider.Verifier(&oidc.Config{ClientID: clientID}),
+		verifier: provider.Verifier(&oidc.Config{
+			ClientID:             clientID,
+			SupportedSigningAlgs: algorithms,
+			Now: func() time.Time {
+				return time.Now().Add(-clockSkew)
+			},
+		}),
 	}, nil
 }
 
@@ -50,6 +78,15 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 	token, err := verifier.verifier.Verify(ctx, accessToken)
 	if err != nil {
 		return Person{}, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
+	}
+
+	err = checkType(accessToken)
+	if err != nil {
+		return Person{}, err
+	}
+
+	if token.Subject == "" {
+		return Person{}, fmt.Errorf("%w: the token has no subject", ErrUnauthenticated)
 	}
 
 	var claims struct {
@@ -72,4 +109,20 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 		Subject: token.Subject,
 		Name:    name,
 	}, nil
+}
+
+// checkType runs after the signature check, so the header it reads is the
+// one the issuer signed.
+func checkType(accessToken string) error {
+	signed, err := jose.ParseSigned(accessToken, signingAlgorithms)
+	if err != nil {
+		return fmt.Errorf("%w: reading the header: %w", ErrUnauthenticated, err)
+	}
+
+	typ := signed.Signatures[0].Protected.ExtraHeaders[jose.HeaderType]
+	if typ != accessTokenType {
+		return fmt.Errorf("%w: the token's type is %v, not %s", ErrUnauthenticated, typ, accessTokenType)
+	}
+
+	return nil
 }

@@ -19,27 +19,27 @@ import (
 
 const clientID = "frogly"
 
-// issuer is a stand-in for Keyline: it serves discovery and its keys, and
-// signs tokens the way Keyline does.
-type issuer struct {
+// fakeIssuer is a stand-in for Keyline: it serves discovery and its keys,
+// and signs access tokens the way Keyline does.
+type fakeIssuer struct {
 	url string
 	key ed25519.PrivateKey
 }
 
-func newIssuer(t *testing.T) *issuer {
+func newIssuer(t *testing.T) *fakeIssuer {
 	t.Helper()
 
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	issuer := &issuer{key: private}
+	issuer := &fakeIssuer{key: private}
 	mux := http.NewServeMux()
 
+	// no id_token_signing_alg_values_supported, frogly mustn't depend on it
 	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{
-			"issuer":                                issuer.url,
-			"jwks_uri":                              issuer.url + "/jwks",
-			"id_token_signing_alg_values_supported": []string{"EdDSA"},
+			"issuer":   issuer.url,
+			"jwks_uri": issuer.url + "/jwks",
 		})
 	})
 	mux.HandleFunc("GET /jwks", func(w http.ResponseWriter, _ *http.Request) {
@@ -63,9 +63,16 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 	assert.NoError(t, json.NewEncoder(w).Encode(body))
 }
 
-// token signs claims, filling in a valid issuer, audience and expiry unless
-// claims sets them.
-func (issuer *issuer) token(t *testing.T, claims map[string]any) string {
+// token signs an access token with claims, filling in a valid issuer,
+// audience, subject and expiry unless claims sets them.
+func (issuer *fakeIssuer) token(t *testing.T, claims map[string]any) string {
+	t.Helper()
+
+	return issuer.sign(t, "at+jwt", claims)
+}
+
+// sign signs a token with the given typ header.
+func (issuer *fakeIssuer) sign(t *testing.T, typ jose.ContentType, claims map[string]any) string {
 	t.Helper()
 
 	all := map[string]any{
@@ -81,7 +88,7 @@ func (issuer *issuer) token(t *testing.T, claims map[string]any) string {
 
 	signer, err := jose.NewSigner(
 		jose.SigningKey{Algorithm: jose.EdDSA, Key: issuer.key},
-		(&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", "test"),
+		(&jose.SignerOptions{}).WithType(typ).WithHeader("kid", "test"),
 	)
 	require.NoError(t, err)
 
@@ -91,7 +98,7 @@ func (issuer *issuer) token(t *testing.T, claims map[string]any) string {
 	return signed
 }
 
-func newVerifier(t *testing.T, issuer *issuer) *authn.Verifier {
+func newVerifier(t *testing.T, issuer *fakeIssuer) *authn.Verifier {
 	t.Helper()
 
 	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID)
@@ -144,9 +151,12 @@ func TestVerifyRefusesTokensFroglyDoesntTrust(t *testing.T) {
 		name   string
 		claims map[string]any
 	}{
-		{name: "expired", claims: map[string]any{"exp": time.Now().Add(-time.Minute).Unix()}},
+		{name: "expired", claims: map[string]any{"exp": time.Now().Add(-time.Hour).Unix()}},
+		{name: "without expiry", claims: map[string]any{"exp": nil}},
+		{name: "not valid yet", claims: map[string]any{"nbf": time.Now().Add(time.Hour).Unix()}},
 		{name: "for another client", claims: map[string]any{"aud": []string{"someone-else"}}},
 		{name: "from another issuer", claims: map[string]any{"iss": "http://elsewhere.example"}},
+		{name: "without subject", claims: map[string]any{"sub": ""}},
 	}
 
 	for _, test := range tests {
@@ -186,6 +196,45 @@ func TestVerifyRefusesGarbage(t *testing.T) {
 
 	// act
 	_, err := verifier.Verify(t.Context(), "not a token")
+
+	// assert
+	require.ErrorIs(t, err, authn.ErrUnauthenticated)
+}
+
+func TestVerifyRefusesAnIDToken(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifier(t, issuer)
+	token := issuer.sign(t, "JWT", map[string]any{"nonce": "n-0S6_WzA2Mj"})
+
+	// act
+	_, err := verifier.Verify(t.Context(), token)
+
+	// assert
+	require.ErrorIs(t, err, authn.ErrUnauthenticated)
+}
+
+func TestVerifyRefusesASymmetricSignature(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifier(t, issuer)
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.HS256, Key: []byte("a shared secret anyone could know")},
+		(&jose.SignerOptions{}).WithType("at+jwt").WithHeader("kid", "test"),
+	)
+	require.NoError(t, err)
+
+	token, err := jwt.Signed(signer).Claims(map[string]any{
+		"iss": issuer.url,
+		"aud": []string{clientID},
+		"sub": "1d0c8b4e-0000-4000-8000-000000000000",
+		"exp": time.Now().Add(time.Minute).Unix(),
+	}).Serialize()
+	require.NoError(t, err)
+
+	// act
+	_, err = verifier.Verify(t.Context(), token)
 
 	// assert
 	require.ErrorIs(t, err, authn.ErrUnauthenticated)
