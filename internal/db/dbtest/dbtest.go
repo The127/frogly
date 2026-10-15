@@ -253,6 +253,50 @@ func (s *Suite) TestProjectsAreListedForTheirMembersOnly() {
 	s.Equal(garden.ID(), projects[1].ID())
 }
 
+// TestAProjectIsFoundForItsMembers checks that a member finds the project
+// by its ID.
+func (s *Suite) TestAProjectIsFoundForItsMembers() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+
+	// act
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(garden.ID(), found.ID())
+	s.Equal(1, found.Version())
+	s.Equal("Garden", found.Name())
+}
+
+// TestAProjectIsntFoundForOthers checks that someone who isn't a member
+// gets the same answer as for a project that doesn't exist.
+func (s *Suite) TestAProjectIsntFoundForOthers() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		userID    uuid.UUID
+	}{
+		{name: "not a member", projectID: garden.ID(), userID: ana.ID()},
+		{name: "no such project", projectID: uuid.Must(uuid.NewV7()), userID: karo.ID()},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			// act
+			_, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), test.projectID, test.userID)
+
+			// assert
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+		})
+	}
+}
+
 // TestProjectsWithTheSameNameAreListedByID checks that projects with the same name
 // come in the order of their IDs.
 func (s *Suite) TestProjectsWithTheSameNameAreListedByID() {
