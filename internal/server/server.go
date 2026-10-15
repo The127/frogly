@@ -34,10 +34,27 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger) http.Handler 
 		})
 	})
 	mux.Handle("GET /api/me", authenticated(verifier, func(w http.ResponseWriter, r *http.Request) {
+		person, ok := personFrom(r.Context())
+		if !ok {
+			logging.FromContext(r.Context()).ErrorContext(r.Context(), "a handler that needs a person runs without authentication")
+			writeProblem(w, http.StatusInternalServerError)
+
+			return
+		}
+
 		writeJSON(w, http.StatusOK, map[string]string{
-			"name": personFrom(r.Context()).Name,
+			"name": person.Name,
 		})
 	}))
+
+	// without these, the catch-all below would answer other methods with 404
+	for _, path := range []string{"/api/config", "/api/me"} {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Allow", "GET, HEAD")
+			writeProblem(w, http.StatusMethodNotAllowed)
+		})
+	}
+
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeProblem(w, http.StatusNotFound)
 	})
@@ -77,18 +94,33 @@ func newRequestID() string {
 type statusRecorder struct {
 	http.ResponseWriter
 
-	status int
+	status      int
+	wroteHeader bool
 }
 
 func (recorder *statusRecorder) WriteHeader(status int) {
-	recorder.status = status
+	// net/http keeps the first status and ignores later ones
+	if !recorder.wroteHeader {
+		recorder.status = status
+		recorder.wroteHeader = true
+	}
+
 	recorder.ResponseWriter.WriteHeader(status)
+}
+
+// Unwrap lets http.ResponseController reach the writer below, for flushing
+// and deadlines.
+func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
+	return recorder.ResponseWriter
 }
 
 type personKey struct{}
 
 func authenticated(verifier Verifier, next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// what a token unlocks is personal, no cache may keep it
+		w.Header().Set("Cache-Control", "no-store")
+
 		scheme, token, found := strings.Cut(r.Header.Get("Authorization"), " ")
 		if !found || !strings.EqualFold(scheme, "Bearer") || token == "" {
 			// RFC 6750: a request without credentials gets the challenge
@@ -100,11 +132,16 @@ func authenticated(verifier Verifier, next http.HandlerFunc) http.Handler {
 		}
 
 		person, err := verifier.Verify(r.Context(), token)
-		if err != nil {
-			if !errors.Is(err, authn.ErrUnauthenticated) {
-				logging.FromContext(r.Context()).ErrorContext(r.Context(), "checking the token failed", "error", err)
-			}
+		if err != nil && !errors.Is(err, authn.ErrUnauthenticated) {
+			// the token may be fine, a 401 would make the frontend log the
+			// person out just because the issuer can't be reached
+			logging.FromContext(r.Context()).ErrorContext(r.Context(), "checking the token failed", "error", err)
+			writeProblem(w, http.StatusServiceUnavailable)
 
+			return
+		}
+
+		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 			writeProblem(w, http.StatusUnauthorized)
 
@@ -115,18 +152,17 @@ func authenticated(verifier Verifier, next http.HandlerFunc) http.Handler {
 	})
 }
 
-// Only handlers behind authenticated call it, so the context always
-// carries a person.
-func personFrom(ctx context.Context) authn.Person {
-	person, _ := ctx.Value(personKey{}).(authn.Person)
+func personFrom(ctx context.Context) (authn.Person, bool) {
+	person, ok := ctx.Value(personKey{}).(authn.Person)
 
-	return person
+	return person, ok
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body) // the client hung up, nobody is left to tell
+	// an error here means the client hung up, nobody is left to tell
+	_ = json.NewEncoder(w).Encode(body)
 }
 
 // The problem says no more than the status, so a refused token reveals
@@ -134,7 +170,8 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 func writeProblem(w http.ResponseWriter, status int) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]any{ // the client hung up, nobody is left to tell
+	// an error here means the client hung up, nobody is left to tell
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"type":   "about:blank",
 		"title":  http.StatusText(status),
 		"status": status,
