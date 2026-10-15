@@ -1,14 +1,14 @@
 # Services for local development. Start them with `just dev`.
 #
 # Everything runs in containers. Docker is the default. If you use Podman,
-# set CONTAINER_CLI=podman. Each service first removes a container of its
-# name that an earlier run left behind, for example after a crash.
+# set CONTAINER_CLI=podman. Each service first removes a stopped container
+# of its name that an earlier run left behind, for example after a crash.
 version: "0.5"
 
 processes:
   postgres:
     command: >
-      ${CONTAINER_CLI:-docker} rm -f frogly-postgres > /dev/null 2>&1;
+      dev/remove-stopped-container.sh frogly-postgres;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-postgres
       -p 127.0.0.1:5432:5432
       -e POSTGRES_USER=frogly
@@ -30,7 +30,7 @@ processes:
   # publishes amd64 images, so on Apple silicon it needs Rosetta.
   keyline:
     command: >
-      ${CONTAINER_CLI:-docker} rm -f frogly-keyline > /dev/null 2>&1;
+      dev/remove-stopped-container.sh frogly-keyline;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline
       --platform linux/amd64
       -p 127.0.0.1:8082:8081
@@ -51,7 +51,7 @@ processes:
 
   keyline-ui:
     command: >
-      ${CONTAINER_CLI:-docker} rm -f frogly-keyline-ui > /dev/null 2>&1;
+      dev/remove-stopped-container.sh frogly-keyline-ui;
       ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline-ui
       --platform linux/amd64
       -p 127.0.0.1:5177:80
