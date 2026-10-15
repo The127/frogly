@@ -443,9 +443,9 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 	}{
 		{name: "no name", body: `{"name": "   "}`, wantDetail: "a project needs a name"},
 		{name: "too long a name", body: `{"name": "` + strings.Repeat("蛙", 101) + `"}`, wantDetail: "a project's name has at most 100 characters"},
-		{name: "not JSON", body: `Garden`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
-		{name: "an unknown field", body: `{"name": "Garden", "colour": "green"}`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
-		{name: "something after the project", body: `{"name": "Garden"} {"name": "Board"}`, wantDetail: `the body isn't a project in JSON, like {"name": "Garden"}`},
+		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't the JSON this request takes"},
+		{name: "an unknown field", body: `{"name": "Garden", "colour": "green"}`, wantDetail: "the body isn't the JSON this request takes"},
+		{name: "something after the project", body: `{"name": "Garden"} {"name": "Board"}`, wantDetail: "the body isn't the JSON this request takes"},
 	}
 
 	for _, test := range tests {

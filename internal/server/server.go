@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -41,10 +42,8 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, services, func(w http.ResponseWriter, _ *http.Request, caller caller) {
-		writeJSON(w, http.StatusOK, map[string]string{
-			"name": caller.user.Name(),
-		})
+	mux.Handle("GET /api/me", authenticated(verifier, services, func(_ *http.Request, caller caller) (int, any, error) {
+		return http.StatusOK, map[string]string{"name": caller.user.Name()}, nil
 	}))
 	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
 	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
@@ -143,7 +142,16 @@ type caller struct {
 	unit db.Context
 }
 
-func authenticated(verifier Verifier, services *ioc.DependencyProvider, next func(http.ResponseWriter, *http.Request, caller)) http.Handler {
+// endpoint does what a request asks for. It answers with a status and a
+// body, or with the error that stopped it, and answerError turns that error
+// into the answer.
+type endpoint func(r *http.Request, caller caller) (int, any, error)
+
+// no request frogly takes holds more than a few short fields, so anything
+// bigger than this is a mistake
+const maxBody = 4 << 10
+
+func authenticated(verifier Verifier, services *ioc.DependencyProvider, next endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -192,8 +200,69 @@ func authenticated(verifier Verifier, services *ioc.DependencyProvider, next fun
 			return
 		}
 
-		next(w, r, caller{user: user, unit: ioc.GetDependency[db.Context](scope)})
+		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+
+		status, body, err := next(r, caller{user: user, unit: ioc.GetDependency[db.Context](scope)})
+		if err != nil {
+			answerError(w, r, err)
+
+			return
+		}
+
+		writeJSON(w, status, body)
 	})
+}
+
+// errBadBody says the request's body isn't what the endpoint takes. Its
+// text is what the client reads.
+var errBadBody = errors.New("the body isn't the JSON this request takes")
+
+// decode reads the request's body as JSON into target and refuses fields
+// target doesn't have.
+func decode(r *http.Request, target any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	err := decoder.Decode(target)
+	if err == nil {
+		// the decoder stops after the first value, and anything after it
+		// means the body was meant as something else
+		err = decoder.Decode(&struct{}{})
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+	}
+
+	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+		return err
+	}
+
+	return errBadBody
+}
+
+// answerError is the one place that decides what a client learns about an
+// error. Anything frogly doesn't expect is logged and stays a plain 500,
+// since its text may say more than the client should know.
+func answerError(w http.ResponseWriter, r *http.Request, err error) {
+	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {
+		writeProblem(w, http.StatusRequestEntityTooLarge)
+
+		return
+	}
+
+	if errors.Is(err, errBadBody) {
+		writeProblemDetail(w, http.StatusBadRequest, errBadBody.Error())
+
+		return
+	}
+
+	if invalid, ok := errors.AsType[*repositories.InvalidError](err); ok {
+		writeProblemDetail(w, http.StatusBadRequest, invalid.Reason())
+
+		return
+	}
+
+	fail(w, r, "the request failed", err)
 }
 
 func fail(w http.ResponseWriter, r *http.Request, what string, err error) {
