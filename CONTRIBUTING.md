@@ -24,36 +24,66 @@ just setup
 
 `mise install` installs [Go](https://go.dev/),
 [golangci-lint](https://golangci-lint.run/), [just](https://just.systems/),
-[lefthook](https://lefthook.dev/), [reuse](https://reuse.software/) and
-[process-compose](https://f1bonacc1.github.io/process-compose/) in the
-versions that `mise.toml` names. `just setup` installs the git hooks and
-runs every check.
+[lefthook](https://lefthook.dev/), [reuse](https://reuse.software/),
+[process-compose](https://f1bonacc1.github.io/process-compose/),
+[Hurl](https://hurl.dev/), [Node.js](https://nodejs.org/) and
+[pnpm](https://pnpm.io/) in the versions that `mise.toml` names.
+`just setup` installs the git hooks and runs every check.
+
+frogly's frontend lives in `web/`, and the frogly binary carries its build.
+`just web` builds it, and `just build` runs that first. A binary built
+without it serves the API but no frontend.
 
 Go fetches the two remaining tools on its own:
 [arch-go](https://github.com/arch-go/arch-go) checks the package
 dependency rules in `arch-go.yml`, and
 [govulncheck](https://go.dev/doc/security/vuln/) checks for known
 vulnerabilities. Both are pinned in `hack/tools/go.mod`, so their
-dependencies stay out of frogly's.
+dependencies stay out of frogly's. The one exception is
+[Ginkgo](https://onsi.github.io/ginkgo/), which runs the integration tests.
+Its command line tool is pinned in frogly's own `go.mod`, because it has to
+match the Ginkgo library the tests use.
 
-Run `just` to list all recipes. `just ci` runs every check.
+Run `just` to list all recipes. `just ci` runs every check. Its
+integration tests need Keyline, so it starts Keyline in the background if
+it isn't running yet. That needs Docker or Podman (see
+[Running frogly](#running-frogly)).
 
-## Running the services
+## Running frogly
 
-frogly needs Postgres during development. Start it with:
+Start frogly with everything it needs:
 
 ```sh
 just dev
 ```
 
-This runs [process-compose](https://f1bonacc1.github.io/process-compose/)
-with `process-compose.yml`, which starts Postgres in a container on port
-5432. Only your own machine can reach it. The user, password and database
-are all `frogly`. The data stays in
-the `frogly-postgres` volume between runs.
+Then open <http://localhost:5173> and log in as `karo` with the password
+`frogly`.
+
+`just dev` runs [process-compose](https://f1bonacc1.github.io/process-compose/)
+with `process-compose.yml`. It starts frogly from the source, the frontend
+with hot reload, and the services frogly needs:
+[Keyline](https://github.com/The127/Keyline), which logs people in, and
+Postgres. Only your own machine can reach them:
+
+| Service | Address | Notes |
+|---|---|---|
+| frogly's frontend | `http://localhost:5173` | Reloads when you change a file in `web/`. Sends API requests on to frogly. |
+| frogly | `http://localhost:8080` | The API, and the frontend as `just web` last built it. |
+| Keyline | `http://localhost:8082` | Set up by `dev/keyline/config.yaml`. |
+| Keyline's login pages | `http://localhost:5177` | |
+| Postgres | `localhost:5432` | User, password and database are all `frogly`. |
+
+frogly and the frontend run from the source. Restart frogly in
+process-compose after you change Go code.
+
+The data stays in the `frogly-postgres`, `frogly-keyline-data` and
+`frogly-keyline-keys` volumes between runs.
 
 You need Docker or Podman for this. If you use Podman, set
-`CONTAINER_CLI=podman`.
+`CONTAINER_CLI=podman`. Keyline only publishes amd64 images. On a Mac with
+Apple silicon, install Rosetta once with
+`softwareupdate --install-rosetta --agree-to-license`.
 
 ## Making a change
 
@@ -91,6 +121,56 @@ Leave out `// arrange` when there is nothing to set up. Checks use
 [testify](https://github.com/stretchr/testify): `require` when the test
 can't go on after a failure, `assert` otherwise. Checks on an error always
 use `require`, and the linter enforces that.
+
+### Integration tests
+
+Integration tests live in `test/integration`. They build frogly, run it as
+a binary against Keyline, and use it from the outside, the way a person or
+an agent does. Each story gets a test there that shows it works. Run them
+with `just integration`, which starts Keyline first if it isn't running.
+
+They use [Ginkgo](https://onsi.github.io/ginkgo/) and
+[Gomega](https://onsi.github.io/gomega/). `Describe`, `Context` and `It`
+say what the test is about, so they need no arrange, act and assert
+comments:
+
+```go
+var _ = Describe("seeing your name", func() {
+	Context("when you are logged in", func() {
+		It("greets you by name", func(ctx SpecContext) {
+			// ...
+		})
+	})
+})
+```
+
+A test logs in as the service user `frogly-tests`, with the key in
+`dev/keyline/test-service-user.pem`. The files carry the `integration`
+build tag, so `go test ./...` leaves them out.
+
+### HTTP tests
+
+Requests to the API and the answers they get are described in
+[Hurl](https://hurl.dev/) files in `test/http`, one file per endpoint:
+
+```hurl
+GET {{frogly}}/api/me
+Authorization: Bearer {{token}}
+HTTP 200
+[Asserts]
+jsonpath "$.name" == "frogly-tests"
+```
+
+The integration tests run them against the frogly they start, so `frogly`,
+`issuer` and the service user's `token` are set for you.
+
+### Frontend tests
+
+The frontend's tests sit next to the code they test, like `web/src/api.ts`
+and `web/src/api.test.ts`. They use [Vitest](https://vitest.dev/) and the
+same three parts as the Go tests. Keep logic that needs a test out of the
+Svelte components, in plain TypeScript modules. `just web-check` runs the
+tests and checks the types.
 
 ## Commit messages and pull request titles
 

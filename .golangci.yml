@@ -1,5 +1,10 @@
 version: "2"
 
+run:
+  # the integration tests only build with this tag, see test/integration
+  build-tags:
+    - integration
+
 linters:
   default: standard
   enable:

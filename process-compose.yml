@@ -1,6 +1,6 @@
 # Services for local development. Start them with `just dev`.
 #
-# Postgres runs in a container. Docker is the default. If you use Podman,
+# Everything runs in containers. Docker is the default. If you use Podman,
 # set CONTAINER_CLI=podman.
 version: "0.5"
 
@@ -21,3 +21,68 @@ processes:
         command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -U frogly -d frogly
       initial_delay_seconds: 2
       period_seconds: 2
+
+  # the login for frogly, set up by dev/keyline/config.yaml. Keyline only
+  # publishes amd64 images, so on Apple silicon it needs Rosetta.
+  keyline:
+    command: >
+      ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline
+      --platform linux/amd64
+      -p 127.0.0.1:8082:8081
+      -v ./dev/keyline/config.yaml:/app/config.yaml:ro
+      -v frogly-keyline-data:/app/data
+      -v frogly-keyline-keys:/app/keys
+      ghcr.io/the127/keyline:v0.6.4
+      /app/api --config /app/config.yaml
+    shutdown:
+      command: ${CONTAINER_CLI:-docker} stop frogly-keyline
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 8082
+        path: /oidc/frogly/.well-known/openid-configuration
+      initial_delay_seconds: 2
+      period_seconds: 2
+
+  keyline-ui:
+    command: >
+      ${CONTAINER_CLI:-docker} run --rm --name frogly-keyline-ui
+      --platform linux/amd64
+      -p 127.0.0.1:5177:80
+      -e KEYLINE_API_URL=http://localhost:8082
+      -e KEYLINE_HOST=http://localhost:5177
+      ghcr.io/the127/keyline-ui:v0.4.5
+    shutdown:
+      command: ${CONTAINER_CLI:-docker} stop frogly-keyline-ui
+    depends_on:
+      keyline:
+        condition: process_healthy
+
+  # frogly itself, built and started from the source, logging in at the
+  # Keyline above. It serves the API, and the frontend only as `just web`
+  # last built it, since the dev server below serves the current one.
+  frogly:
+    command: go run ./cmd/frogly
+    environment:
+      - FROGLY_LOG__FORMAT=text
+      - FROGLY_LOG__LEVEL=debug
+      - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
+      - FROGLY_OIDC__CLIENT_ID=frogly
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 8080
+        path: /api/config
+      initial_delay_seconds: 2
+      period_seconds: 2
+    depends_on:
+      keyline:
+        condition: process_healthy
+
+  # the frontend with hot reload on http://localhost:5173, sending API
+  # requests on to frogly
+  web:
+    command: just web-deps && pnpm --dir web dev
+    depends_on:
+      frogly:
+        condition: process_healthy

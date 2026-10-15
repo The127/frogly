@@ -1,5 +1,6 @@
 // Package config loads frogly's configuration from FROGLY_ environment
-// variables. A setting with a sensible default gets it here.
+// variables. A setting with a sensible default gets it here. A setting
+// that can't have one is required.
 //
 // A variable names its setting in upper case, with __ between the levels:
 // FROGLY_LOG__LEVEL sets log.level.
@@ -28,7 +29,21 @@ var ErrInvalid = errors.New("invalid configuration")
 
 // Config is frogly's configuration.
 type Config struct {
-	Log Log `koanf:"log"`
+	Log    Log    `koanf:"log"`
+	Server Server `koanf:"server"`
+	OIDC   OIDC   `koanf:"oidc"`
+}
+
+// Server says where frogly listens.
+type Server struct {
+	ListenAddress string `koanf:"listen_address"`
+}
+
+// OIDC says where people log in. frogly accepts the access tokens this
+// issuer gives out to this client.
+type OIDC struct {
+	Issuer   string `koanf:"issuer"`
+	ClientID string `koanf:"client_id"`
 }
 
 // Log says how frogly writes its log.
@@ -60,15 +75,23 @@ func (format *LogFormat) UnmarshalText(text []byte) error {
 	}
 }
 
+var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
+
 // Load reads the configuration from environ, the environment as
 // os.Environ returns it. A FROGLY_ variable frogly doesn't know is an
-// error, so a typo can't go unnoticed. Every error names the variable.
+// error, so a typo can't go unnoticed. A required variable that is missing
+// or empty is an error too. The error names every variable at fault at
+// once.
 func Load(environ []string) (*Config, error) {
-	// a variable that isn't set leaves its default in place
+	// mapstructure only overwrites what a variable sets, so everything else
+	// keeps these defaults
 	config := Config{
 		Log: Log{
 			Level:  slog.LevelInfo,
 			Format: LogFormatJSON,
+		},
+		Server: Server{
+			ListenAddress: ":8080",
 		},
 	}
 
@@ -81,7 +104,7 @@ func Load(environ []string) (*Config, error) {
 			return environ
 		},
 		TransformFunc: func(name string, value string) (string, any) {
-			key := strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(name, envPrefix), envLevel, "."))
+			key := keyOf(name)
 			variables[key] = name
 
 			return key, value
@@ -89,6 +112,20 @@ func Load(environ []string) (*Config, error) {
 	}), nil)
 	if err != nil {
 		return nil, fmt.Errorf("loading the environment: %w", err)
+	}
+
+	var problems []error
+
+	var missing []string
+
+	for _, key := range requiredKeys {
+		if loader.String(key) == "" {
+			missing = append(missing, variableOf(key))
+		}
+	}
+
+	if len(missing) > 0 {
+		problems = append(problems, fmt.Errorf("missing or empty variables %s", strings.Join(missing, ", ")))
 	}
 
 	var metadata mapstructure.Metadata
@@ -103,7 +140,7 @@ func Load(environ []string) (*Config, error) {
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalid, nameVariables(err, variables))
+		problems = append(problems, nameVariables(err, variables))
 	}
 
 	if len(metadata.Unused) > 0 {
@@ -114,10 +151,22 @@ func Load(environ []string) (*Config, error) {
 
 		slices.Sort(unknown)
 
-		return nil, fmt.Errorf("%w: unknown variables %s", ErrInvalid, strings.Join(unknown, ", "))
+		problems = append(problems, fmt.Errorf("unknown variables %s", strings.Join(unknown, ", ")))
+	}
+
+	if len(problems) > 0 {
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, errors.Join(problems...))
 	}
 
 	return &config, nil
+}
+
+func keyOf(variable string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(variable, envPrefix), envLevel, "."))
+}
+
+func variableOf(key string) string {
+	return envPrefix + strings.ToUpper(strings.ReplaceAll(key, ".", envLevel))
 }
 
 // mapstructure names each setting that failed by its key, which means

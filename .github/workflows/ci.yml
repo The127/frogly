@@ -22,7 +22,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
+      # `just ci` starts Keyline for the integration tests. The timeout
+      # stops a Keyline that never gets ready from holding the job for hours
       - run: just ci
+        timeout-minutes: 15
+      - name: show keyline's log
+        if: failure()
+        run: docker logs frogly-keyline || true
       - name: upload coverage to codecov
         uses: codecov/codecov-action@v7
         with:
