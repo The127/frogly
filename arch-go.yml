@@ -143,11 +143,12 @@ dependenciesRules:
         - '**.internal.db$'
         - '**.internal.repositories$'
   # the garden works through the unit of work like projects, and knows
-  # nothing about HTTP
+  # nothing about HTTP. It asks projects whether someone may see a garden.
   - package: '**.internal.garden$'
     shouldOnlyDependsOn:
       internal:
         - '**.internal.db$'
+        - '**.internal.projects$'
         - '**.internal.repositories$'
   # tests of other packages open a SQLite database through it, and only
   # tests use it

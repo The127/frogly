@@ -494,6 +494,47 @@ func TestCreatingAProjectNeedsAToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, response.Code)
 }
 
+func TestAMemberGetsTheProject(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	// act
+	response := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden"}`, response.Body.String())
+}
+
+func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	tests := []struct {
+		name      string
+		token     string
+		projectID string
+	}{
+		{name: "not a member", token: otherToken, projectID: projectID},
+		{name: "no such project", token: validToken, projectID: "01a14180-d957-7cc5-af29-7f1fe18d89bb"},
+		{name: "not an ID", token: validToken, projectID: "garden"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			response := get(t, handler, "/api/projects/"+test.projectID, http.Header{"Authorization": {"Bearer " + test.token}})
+
+			// assert
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assert.JSONEq(t, `{"type": "about:blank", "title": "Not Found", "status": 404}`, response.Body.String())
+		})
+	}
+}
+
 func TestMeAnswersWithTheLatestName(t *testing.T) {
 	// arrange
 	handler := newServer(t, &bytes.Buffer{})

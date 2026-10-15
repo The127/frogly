@@ -1,11 +1,8 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/the127/frogly/internal/garden"
 	"github.com/the127/frogly/internal/repositories"
@@ -25,17 +22,6 @@ func toIdeaJSON(idea *repositories.Idea, plantedBy string) ideaJSON {
 		PlantedBy: plantedBy,
 		PlantedAt: idea.PlantedAt(),
 	}
-}
-
-// projectID reads the project's ID from the path. An ID that can't be one
-// is a project that doesn't exist.
-func projectID(r *http.Request) (uuid.UUID, error) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("project %q: %w", r.PathValue("id"), garden.ErrProjectNotFound)
-	}
-
-	return id, nil
 }
 
 func listGarden(r *http.Request, caller caller) (int, any, error) {
