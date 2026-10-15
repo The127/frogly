@@ -42,6 +42,10 @@ reuse:
 prose:
     bash hack/check-prose.sh
 
+# start the services for local development, see process-compose.yml
+dev:
+    process-compose up
+
 # install the git hooks
 hooks:
     lefthook install

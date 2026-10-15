@@ -24,8 +24,9 @@ just setup
 
 `mise install` installs [Go](https://go.dev/),
 [golangci-lint](https://golangci-lint.run/), [just](https://just.systems/),
-[lefthook](https://lefthook.dev/) and [reuse](https://reuse.software/) in
-the versions that `mise.toml` names. `just setup` installs the git hooks and
+[lefthook](https://lefthook.dev/), [reuse](https://reuse.software/) and
+[process-compose](https://f1bonacc1.github.io/process-compose/) in the
+versions that `mise.toml` names. `just setup` installs the git hooks and
 runs every check.
 
 Go fetches the two remaining tools on its own:
@@ -36,6 +37,23 @@ vulnerabilities. Both are pinned in `hack/tools/go.mod`, so their
 dependencies stay out of frogly's.
 
 Run `just` to list all recipes. `just ci` runs every check.
+
+## Running the services
+
+frogly needs Postgres during development. Start it with:
+
+```sh
+just dev
+```
+
+This runs [process-compose](https://f1bonacc1.github.io/process-compose/)
+with `process-compose.yml`, which starts Postgres in a container on port
+5432. Only your own machine can reach it. The user, password and database
+are all `frogly`. The data stays in
+the `frogly-postgres` volume between runs.
+
+You need Docker or Podman for this. If you use Podman, set
+`CONTAINER_CLI=podman`.
 
 ## Making a change
 
