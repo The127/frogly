@@ -20,8 +20,12 @@ import (
 const clientID = "frogly"
 
 type fakeIssuer struct {
-	url string
-	key ed25519.PrivateKey
+	url    string
+	key    ed25519.PrivateKey
+	server *httptest.Server
+
+	// keysDown makes the keys endpoint fail, like an issuer in an outage
+	keysDown bool
 }
 
 func newIssuer(t *testing.T) *fakeIssuer {
@@ -41,15 +45,21 @@ func newIssuer(t *testing.T) *fakeIssuer {
 		})
 	})
 	mux.HandleFunc("GET /jwks", func(w http.ResponseWriter, _ *http.Request) {
+		if issuer.keysDown {
+			http.Error(w, "down for maintenance", http.StatusServiceUnavailable)
+
+			return
+		}
+
 		writeJSON(t, w, jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
 			{Key: public, KeyID: "test", Algorithm: string(jose.EdDSA), Use: "sig"},
 		}})
 	})
 
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
+	issuer.server = httptest.NewServer(mux)
+	t.Cleanup(issuer.server.Close)
 
-	issuer.url = server.URL
+	issuer.url = issuer.server.URL
 
 	return issuer
 }
@@ -233,4 +243,34 @@ func TestVerifyRefusesASymmetricSignature(t *testing.T) {
 
 	// assert
 	require.ErrorIs(t, err, authn.ErrUnauthenticated)
+}
+
+func TestVerifyTellsAnOutageFromABadToken(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifier(t, issuer)
+	token := issuer.token(t, nil)
+	issuer.keysDown = true
+
+	// act
+	_, err := verifier.Verify(t.Context(), token)
+
+	// assert
+	require.Error(t, err)
+	require.NotErrorIs(t, err, authn.ErrUnauthenticated)
+}
+
+func TestVerifyTellsAnUnreachableIssuerFromABadToken(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifier(t, issuer)
+	token := issuer.token(t, nil)
+	issuer.server.Close()
+
+	// act
+	_, err := verifier.Verify(t.Context(), token)
+
+	// assert
+	require.Error(t, err)
+	require.NotErrorIs(t, err, authn.ErrUnauthenticated)
 }

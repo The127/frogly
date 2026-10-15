@@ -29,7 +29,8 @@ var signingAlgorithms = []jose.SignatureAlgorithm{jose.EdDSA, jose.RS256, jose.E
 const clockSkew = 30 * time.Second
 
 // ErrUnauthenticated is wrapped into every error about a token frogly
-// doesn't accept.
+// doesn't accept. An error without it means frogly couldn't check the
+// token, for example because the issuer is down, and the token may be fine.
 var ErrUnauthenticated = errors.New("unauthenticated")
 
 // Person is who a request acts for. Issuer and Subject together identify
@@ -59,11 +60,22 @@ func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier
 		algorithms = append(algorithms, string(algorithm))
 	}
 
+	var discovery struct {
+		KeysURL string `json:"jwks_uri"`
+	}
+
+	err = provider.Claims(&discovery)
+	if err != nil {
+		return nil, fmt.Errorf("reading the discovery document of %s: %w", issuer, err)
+	}
+
+	keys := outageReportingKeySet{remote: oidc.NewRemoteKeySet(ctx, discovery.KeysURL)}
+
 	// go-oidc names it an ID token verifier, but it checks any JWT from the
 	// issuer: the signature, the issuer, the audience and the expiry. Verify
 	// adds what makes it an access token.
 	return &Verifier{
-		verifier: provider.Verifier(&oidc.Config{
+		verifier: oidc.NewVerifier(issuer, keys, &oidc.Config{
 			ClientID:             clientID,
 			SupportedSigningAlgs: algorithms,
 			Now: func() time.Time {
@@ -75,7 +87,13 @@ func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier
 
 // Verify checks the access token and says who it belongs to.
 func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Person, error) {
-	token, err := verifier.verifier.Verify(ctx, accessToken)
+	var outage error
+
+	token, err := verifier.verifier.Verify(context.WithValue(ctx, outageKey{}, &outage), accessToken)
+	if outage != nil {
+		return Person{}, fmt.Errorf("fetching the issuer's keys: %w", outage)
+	}
+
 	if err != nil {
 		return Person{}, fmt.Errorf("%w: %w", ErrUnauthenticated, err)
 	}
@@ -125,4 +143,28 @@ func checkType(accessToken string) error {
 	}
 
 	return nil
+}
+
+type outageKey struct{}
+
+// go-oidc's verifier turns every failure into a flat message, so a token it
+// can't check because the issuer's keys are unreachable looks like a forged
+// one. This key set sits below the verifier, where the cause is still
+// there, and reports an outage through the context.
+type outageReportingKeySet struct {
+	remote *oidc.RemoteKeySet
+}
+
+func (keys outageReportingKeySet) VerifySignature(ctx context.Context, jwt string) ([]byte, error) {
+	payload, err := keys.remote.VerifySignature(ctx, jwt)
+
+	// RemoteKeySet only wraps an error when fetching the keys failed. A bad
+	// signature or a malformed token comes without a cause.
+	if err != nil && errors.Unwrap(err) != nil {
+		if outage, ok := ctx.Value(outageKey{}).(*error); ok {
+			*outage = err
+		}
+	}
+
+	return payload, err
 }
