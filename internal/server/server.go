@@ -49,6 +49,8 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	}))
 	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
 	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
+	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, services, listGarden))
+	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, services, plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -258,6 +260,14 @@ func answerError(w http.ResponseWriter, r *http.Request, err error) {
 
 	if errors.Is(err, errBadBody) {
 		writeProblemDetail(w, http.StatusBadRequest, errBadBody.Error())
+
+		return
+	}
+
+	// a project someone isn't a member of looks like one that doesn't
+	// exist, so nobody learns which projects there are
+	if errors.Is(err, repositories.ErrNotFound) {
+		writeProblem(w, http.StatusNotFound)
 
 		return
 	}

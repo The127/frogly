@@ -59,6 +59,7 @@ dependenciesRules:
         - '**.internal.authn$'
         - '**.internal.config$'
         - '**.internal.db$'
+        - '**.internal.garden$'
         - '**.internal.logging$'
         - '**.internal.people$'
         - '**.internal.projects$'
