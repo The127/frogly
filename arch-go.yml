@@ -62,6 +62,8 @@ dependenciesRules:
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
       internal:
+        - '**.internal.authn$'
         - '**.internal.config$'
         - '**.internal.logging$'
+        - '**.internal.server$'
         - '**.internal.version$'
