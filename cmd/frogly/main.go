@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -69,7 +68,6 @@ func run() error {
 	}
 
 	httpServer := &http.Server{
-		Addr:              cfg.Server.ListenAddress,
 		Handler:           server.New(cfg.OIDC, verifier, logger, web.Files()),
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
@@ -98,13 +96,16 @@ func run() error {
 	case <-ctx.Done():
 	}
 
+	// a second Ctrl-C then stops frogly at once, without waiting
+	stop()
+
 	logger.Info("stopping, waiting for running requests")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	err = httpServer.Shutdown(shutdownCtx)
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err != nil {
 		return fmt.Errorf("stopping: %w", err)
 	}
 
