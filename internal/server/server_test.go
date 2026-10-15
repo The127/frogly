@@ -66,8 +66,11 @@ func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 	require.NoError(t, database.Migrate(t.Context()))
 
 	dependencies := ioc.NewDependencyCollection()
-	ioc.RegisterScoped(dependencies, func(*ioc.DependencyProvider) db.Context {
-		return database.NewContext()
+	ioc.RegisterSingleton(dependencies, func(*ioc.DependencyProvider) db.Database {
+		return database
+	})
+	ioc.RegisterScoped(dependencies, func(services *ioc.DependencyProvider) db.Context {
+		return ioc.GetDependency[db.Database](services).NewContext()
 	})
 
 	return server.New(

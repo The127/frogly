@@ -3,7 +3,6 @@ package repositories
 import (
 	"context"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 )
@@ -25,7 +24,7 @@ func NewProject(name string) (*Project, error) {
 	case name == "":
 		return nil, invalid("a project needs a name")
 
-	case utf8.RuneCountInString(name) > MaxName:
+	case !validName(name):
 		return nil, invalid("a project's name has at most %d characters", MaxName)
 	}
 

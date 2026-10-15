@@ -38,11 +38,6 @@ func NewMembership(projectID uuid.UUID, userID uuid.UUID, role Role) (*Membershi
 	}, nil
 }
 
-// NewMembershipFromDB rebuilds a membership as loaded.
-func NewMembershipFromDB(base Base, projectID uuid.UUID, userID uuid.UUID, role Role) *Membership {
-	return &Membership{Base: base, projectID: projectID, userID: userID, role: role}
-}
-
 // ProjectID is the project the user is a member of.
 func (membership *Membership) ProjectID() uuid.UUID {
 	return membership.projectID

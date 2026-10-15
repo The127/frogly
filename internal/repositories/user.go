@@ -21,7 +21,7 @@ type User struct {
 // to 100 characters.
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
-	if !ValidName(name) {
+	if !validName(name) {
 		return nil, invalid("a user needs a name of 1 to %d characters", MaxName)
 	}
 
@@ -32,9 +32,28 @@ func NewUser(name string, email string) (*User, error) {
 	}, nil
 }
 
-// ValidName says whether a trimmed name can be a user's name.
-func ValidName(name string) bool {
+// NewUserFromLogin creates a user from what their login says. A name frogly
+// can't use gives way to the subject, cut to 100 characters, since a user
+// needs a name and the subject is the only one a login is sure to have.
+func NewUserFromLogin(name string, subject string, email string) (*User, error) {
+	if !validName(strings.TrimSpace(name)) {
+		name = shortened(strings.TrimSpace(subject))
+	}
+
+	return NewUser(name, email)
+}
+
+func validName(name string) bool {
 	return name != "" && utf8.RuneCountInString(name) <= MaxName
+}
+
+func shortened(name string) string {
+	runes := []rune(name)
+	if len(runes) > MaxName {
+		return string(runes[:MaxName])
+	}
+
+	return name
 }
 
 // NewUserFromDB rebuilds a user as loaded.
@@ -58,7 +77,7 @@ func (user *User) Email() string {
 // an issuer may only send the email when asked for it.
 func (user *User) Refresh(name string, email string) bool {
 	name = strings.TrimSpace(name)
-	if !ValidName(name) {
+	if !validName(name) {
 		name = user.name
 	}
 

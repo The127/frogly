@@ -183,16 +183,16 @@ func authenticated(verifier Verifier, services *ioc.DependencyProvider, next fun
 			}
 		}()
 
-		unit := ioc.GetDependency[db.Context](scope)
-
-		user, err := people.Resolve(r.Context(), unit, person)
+		// finding the user saves on its own, so it gets its own unit of work,
+		// and the handler's stays empty for what the handler records
+		user, err := people.Resolve(r.Context(), ioc.GetDependency[db.Database](scope).NewContext(), person)
 		if err != nil {
 			fail(w, r, "finding the user failed", err)
 
 			return
 		}
 
-		next(w, r, caller{user: user, unit: unit})
+		next(w, r, caller{user: user, unit: ioc.GetDependency[db.Context](scope)})
 	})
 }
 

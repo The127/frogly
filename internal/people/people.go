@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/db"
@@ -22,8 +21,8 @@ var errNoIdentityAfterRace = errors.New("lost the race to create the user, but f
 // frogly hasn't seen yet becomes a new user with a new identity.
 //
 // Resolve saves the unit of work itself, since recovering from a lost race
-// needs a save that failed. Call it before recording anything else in the
-// same unit of work.
+// needs a save that failed. Give it a unit of work of its own, so it can't
+// save or drop what someone else recorded.
 func Resolve(ctx context.Context, unit db.Context, person authn.Person) (*repositories.User, error) {
 	user, err := existing(ctx, unit, person)
 	if err != nil || user != nil {
@@ -73,14 +72,7 @@ func existing(ctx context.Context, unit db.Context, person authn.Person) (*repos
 }
 
 func create(ctx context.Context, unit db.Context, person authn.Person) (*repositories.User, error) {
-	name := strings.TrimSpace(person.Name)
-	if !repositories.ValidName(name) {
-		// a user needs a name, and the subject is the only one the login is
-		// sure to have
-		name = shortened(person.Subject)
-	}
-
-	user, err := repositories.NewUser(name, person.Email)
+	user, err := repositories.NewUserFromLogin(person.Name, person.Subject, person.Email)
 	if err != nil {
 		return nil, err
 	}
@@ -99,13 +91,4 @@ func create(ctx context.Context, unit db.Context, person authn.Person) (*reposit
 	}
 
 	return user, nil
-}
-
-func shortened(name string) string {
-	runes := []rune(name)
-	if len(runes) > repositories.MaxName {
-		return string(runes[:repositories.MaxName])
-	}
-
-	return name
 }

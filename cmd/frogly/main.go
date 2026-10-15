@@ -90,8 +90,11 @@ func run() error {
 	}
 
 	dependencies := ioc.NewDependencyCollection()
-	ioc.RegisterScoped(dependencies, func(*ioc.DependencyProvider) db.Context {
-		return database.NewContext()
+	ioc.RegisterSingleton(dependencies, func(*ioc.DependencyProvider) db.Database {
+		return database
+	})
+	ioc.RegisterScoped(dependencies, func(services *ioc.DependencyProvider) db.Context {
+		return ioc.GetDependency[db.Database](services).NewContext()
 	})
 
 	httpServer := &http.Server{

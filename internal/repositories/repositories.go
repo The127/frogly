@@ -11,12 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ErrInvalid is wrapped into every refusal of a model that can't be stored
-// as given. The refusal is an *InvalidError, which says why in words a
-// person can act on.
-var ErrInvalid = errors.New("invalid")
-
-// InvalidError is a refusal of a model that can't be stored as given.
+// InvalidError is a refusal of a model that can't be stored as given. It
+// says why in words a person can act on.
 type InvalidError struct {
 	reason string
 }
@@ -33,11 +29,6 @@ func (err *InvalidError) Reason() string {
 
 func (err *InvalidError) Error() string {
 	return "invalid: " + err.reason
-}
-
-// Unwrap makes errors.Is(err, ErrInvalid) hold.
-func (err *InvalidError) Unwrap() error {
-	return ErrInvalid
 }
 
 // ErrNotFound is returned when nothing matches.

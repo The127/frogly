@@ -36,7 +36,7 @@ func TestNewUserRefusesANameLongerThan100Characters(t *testing.T) {
 	_, err := repositories.NewUser(strings.Repeat("蛙", 101), "")
 
 	// assert
-	require.ErrorIs(t, err, repositories.ErrInvalid)
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
 }
 
 func TestNewIdentityBelongsToItsUser(t *testing.T) {
@@ -76,7 +76,6 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 	user := repositories.NewUserFromDB(base, "", "not an email")
 	project := repositories.NewProjectFromDB(base, "")
 	identity := repositories.NewIdentityFromDB(base, uuid.Nil, "", "")
-	membership := repositories.NewMembershipFromDB(base, uuid.Nil, uuid.Nil, repositories.Role("admiral"))
 
 	// assert
 	assert.Equal(t, id, user.ID())
@@ -84,7 +83,6 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 	assert.Equal(t, "not an email", user.Email())
 	assert.Empty(t, project.Name())
 	assert.Empty(t, identity.Issuer())
-	assert.Equal(t, repositories.Role("admiral"), membership.Role())
 }
 
 func TestNewUserNeedsAName(t *testing.T) {
@@ -92,7 +90,7 @@ func TestNewUserNeedsAName(t *testing.T) {
 	_, err := repositories.NewUser("  ", "karo@frogly.local")
 
 	// assert
-	require.ErrorIs(t, err, repositories.ErrInvalid)
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
 }
 
 func TestRefreshTakesTheNewProfile(t *testing.T) {
@@ -148,7 +146,7 @@ func TestNewIdentityNeedsAnIssuerAndASubject(t *testing.T) {
 			_, err := repositories.NewIdentity(test.userID, test.issuer, test.subject)
 
 			// assert
-			require.ErrorIs(t, err, repositories.ErrInvalid)
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
 		})
 	}
 }
@@ -177,7 +175,7 @@ func TestNewProjectRefusesNamesItCantUse(t *testing.T) {
 			_, err := repositories.NewProject(test.projectName)
 
 			// assert
-			require.ErrorIs(t, err, repositories.ErrInvalid)
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
 		})
 	}
 }
@@ -200,7 +198,32 @@ func TestNewMembershipRefusesWhatItCantUse(t *testing.T) {
 			_, err := repositories.NewMembership(test.projectID, test.userID, test.role)
 
 			// assert
-			require.ErrorIs(t, err, repositories.ErrInvalid)
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestNewUserFromLoginFallsBackToTheSubject(t *testing.T) {
+	tests := []struct {
+		name     string
+		login    string
+		subject  string
+		wantName string
+	}{
+		{name: "a usable name", login: " Karo ", subject: "karo-id", wantName: "Karo"},
+		{name: "only spaces", login: "   ", subject: "karo-id", wantName: "karo-id"},
+		{name: "too long a name", login: strings.Repeat("蛙", 101), subject: "karo-id", wantName: "karo-id"},
+		{name: "too long a subject", login: "", subject: strings.Repeat("k", 120), wantName: strings.Repeat("k", 100)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			user, err := repositories.NewUserFromLogin(test.login, test.subject, "karo@frogly.local")
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.wantName, user.Name())
 		})
 	}
 }
