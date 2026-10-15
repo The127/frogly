@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createProject, fetchConfig, fetchMe, fetchProjects } from "./api";
+import { LoggedOut, createProject, fetchConfig, fetchMe, fetchProjects } from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -139,5 +139,42 @@ describe("createProject", () => {
 
     // assert
     await expect(created).rejects.toThrow("500");
+  });
+});
+
+describe("an ended login", () => {
+  it("makes fetchProjects throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const projects = fetchProjects("an-expired-token");
+
+    // assert
+    await expect(projects).rejects.toBeInstanceOf(LoggedOut);
+  });
+
+  it("makes createProject throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const created = createProject("an-expired-token", "Garden");
+
+    // assert
+    await expect(created).rejects.toBeInstanceOf(LoggedOut);
+  });
+});
+
+describe("a refusal without a reason", () => {
+  it("still gives a reason", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
+
+    // act
+    const created = await createProject("an-access-token", "Garden");
+
+    // assert
+    expect(created).toEqual({ problem: "frogly can't use that name" });
   });
 });

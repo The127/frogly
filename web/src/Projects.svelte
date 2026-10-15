@@ -1,45 +1,62 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import { type Project, createProject, fetchProjects } from "./api";
+  import type { Project } from "./api";
+  import { addProject, loadProjects } from "./projects";
 
   // the token is asked for on every call, since it renews in the background
-  let { accessToken }: { accessToken: () => Promise<string> } = $props();
+  let { accessToken, onLoggedOut }: { accessToken: () => Promise<string>; onLoggedOut: () => void } = $props();
 
   let projects = $state<Project[] | undefined>();
+  let listFailed = $state(false);
   let name = $state("");
   let problem = $state("");
   let saving = $state(false);
-  let failed = $state(false);
 
   onMount(async () => {
-    try {
-      projects = await fetchProjects(await accessToken());
-    } catch (error) {
-      console.error(error);
-      failed = true;
+    const loaded = await loadProjects(accessToken);
+    switch (loaded.kind) {
+      case "listed":
+        projects = loaded.projects;
+        break;
+      case "failed":
+        listFailed = true;
+        break;
+      case "loggedOut":
+        onLoggedOut();
     }
   });
 
   async function create(event: SubmitEvent) {
     event.preventDefault();
+    if (saving) {
+      return;
+    }
+
     saving = true;
     problem = "";
 
-    try {
-      const created = await createProject(await accessToken(), name);
-      if ("problem" in created) {
-        problem = created.problem;
-      } else {
+    const added = await addProject(accessToken, name);
+    saving = false;
+
+    switch (added.kind) {
+      case "saved":
         name = "";
-        // the server sorts, so the list comes back in its order
-        projects = await fetchProjects(await accessToken());
-      }
-    } catch (error) {
-      console.error(error);
-      problem = "frogly couldn't save the project. Try again in a moment.";
-    } finally {
-      saving = false;
+        projects = added.projects;
+        listFailed = false;
+        break;
+      case "savedButNotListed":
+        name = "";
+        listFailed = true;
+        break;
+      case "refused":
+        problem = added.problem;
+        break;
+      case "notSaved":
+        problem = "frogly couldn't save the project. Try again in a moment.";
+        break;
+      case "loggedOut":
+        onLoggedOut();
     }
   }
 </script>
@@ -47,8 +64,8 @@
 <section aria-labelledby="projects-label">
   <p class="label" id="projects-label">your projects</p>
 
-  {#if failed}
-    <p class="quiet">frogly can't list your projects right now.</p>
+  {#if listFailed}
+    <p class="quiet">frogly can't list your projects right now. Reload the page in a moment.</p>
   {:else if projects === undefined}
     <p class="quiet">…</p>
   {:else if projects.length === 0}
@@ -62,17 +79,19 @@
   {/if}
 
   <form onsubmit={create}>
+    <label class="hidden" for="project-name">Name of a new project</label>
+    <!-- readonly while saving, since a disabled field would lose the focus -->
     <input
       class="plant"
+      id="project-name"
       bind:value={name}
       placeholder="name a project…"
-      aria-label="Name of a new project"
-      aria-describedby={problem ? "project-problem" : undefined}
-      maxlength="100"
-      disabled={saving}
+      readonly={saving}
+      aria-busy={saving}
+      aria-invalid={problem ? "true" : undefined}
+      aria-describedby="project-problem"
     />
-    {#if problem}
-      <p class="problem" id="project-problem" role="alert">{problem}</p>
-    {/if}
+    <!-- always there, so screen readers announce the text when it changes -->
+    <p class="problem" id="project-problem" role="alert">{problem}</p>
   </form>
 </section>

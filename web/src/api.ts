@@ -33,6 +33,15 @@ export async function fetchMe(accessToken: string): Promise<Me | null> {
   return (await response.json()) as Me;
 }
 
+// LoggedOut means the login ended, and trying again won't help until the
+// person logs in again.
+export class LoggedOut extends Error {
+  constructor() {
+    super("the login ended");
+    this.name = "LoggedOut";
+  }
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -42,6 +51,10 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   const response = await fetch("/api/projects", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+  if (response.status === 401) {
+    throw new LoggedOut();
+  }
+
   if (!response.ok) {
     throw new Error(`frogly answered ${response.status} when asked for your projects`);
   }
@@ -59,8 +72,12 @@ export async function createProject(accessToken: string, name: string): Promise<
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   });
+  if (response.status === 401) {
+    throw new LoggedOut();
+  }
+
   if (response.status === 400) {
-    const problem = (await response.json()) as { detail?: string };
+    const problem = (await response.json().catch(() => ({}))) as { detail?: string };
 
     return { problem: problem.detail ?? "frogly can't use that name" };
   }
