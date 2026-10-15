@@ -9,36 +9,22 @@ export type GardenLoaded =
   | { kind: "loggedOut" };
 
 // The project's name comes from your list, since frogly has no call for a
-// single project yet.
+// single project yet. The garden comes first, so a project you can't see
+// ends there.
 export async function loadGarden(accessToken: AccessToken, projectId: string): Promise<GardenLoaded> {
-  let token: string;
   try {
-    token = await accessToken();
+    const token = await accessToken();
+    const ideas = await fetchGarden(token, projectId);
+    const project = (await fetchProjects(token)).find((candidate) => candidate.id === projectId);
+
+    return project ? { kind: "listed", project, ideas } : { kind: "notFound" };
   } catch (error) {
     return failure(error);
   }
-
-  // both calls run at once. When both fail, the outcome mustn't depend on
-  // which failed first, so an ended login wins, then a missing project.
-  const [projects, ideas] = await Promise.allSettled([fetchProjects(token), fetchGarden(token, projectId)]);
-  if (projects.status === "rejected" || ideas.status === "rejected") {
-    const kinds = [projects, ideas]
-      .filter((settled) => settled.status === "rejected")
-      .map((settled) => failure(settled.reason).kind);
-
-    return kinds.includes("loggedOut") ? { kind: "loggedOut" } : kinds.includes("notFound") ? { kind: "notFound" } : { kind: "failed" };
-  }
-
-  const project = projects.value.find((candidate) => candidate.id === projectId);
-
-  return project ? { kind: "listed", project, ideas: ideas.value } : { kind: "notFound" };
 }
 
-// savedButNotListed is its own outcome, since saying the planting failed
-// would make the person try again and plant the idea twice.
 export type IdeaAdded =
-  | { kind: "saved"; ideas: Idea[] }
-  | { kind: "savedButNotListed" }
+  | { kind: "saved"; idea: Idea }
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
   | { kind: "notFound" }
@@ -55,17 +41,7 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
     return failed.kind === "failed" ? { kind: "notSaved" } : failed;
   }
 
-  if ("problem" in planted) {
-    return { kind: "refused", problem: planted.problem };
-  }
-
-  try {
-    return { kind: "saved", ideas: await fetchGarden(await accessToken(), projectId) };
-  } catch (error) {
-    const failed = failure(error);
-
-    return failed.kind === "failed" ? { kind: "savedButNotListed" } : failed;
-  }
+  return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
 }
 
 function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | { kind: "loggedOut" } {

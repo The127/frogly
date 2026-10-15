@@ -2,11 +2,11 @@
   import { onMount } from "svelte";
 
   import type { Project } from "./api";
+  import { getLogin } from "./login";
   import { addProject, loadProjects } from "./projects";
   import { p } from "./router";
 
-  // the token is asked for on every call, since it renews in the background
-  let { accessToken, onLoggedOut }: { accessToken: () => Promise<string>; onLoggedOut: () => void } = $props();
+  const { accessToken, onLoggedOut } = getLogin();
 
   let projects = $state<Project[] | undefined>();
   let listFailed = $state(false);

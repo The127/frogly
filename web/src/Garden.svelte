@@ -41,11 +41,7 @@
     switch (added.kind) {
       case "saved":
         text = "";
-        garden = { ...garden, ideas: added.ideas };
-        break;
-      case "savedButNotListed":
-        text = "";
-        garden = { kind: "failed" };
+        garden = { ...garden, ideas: [added.idea, ...garden.ideas] };
         break;
       case "refused":
         problem = added.problem;
