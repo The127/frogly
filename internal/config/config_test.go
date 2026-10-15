@@ -1,41 +1,46 @@
 package config_test
 
 import (
-	"errors"
 	"log/slog"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/the127/frogly/internal/config"
 )
 
-func TestDefaultsApplyWithoutVariables(t *testing.T) {
-	loaded, err := config.Load([]string{"HOME=/home/frog"})
-	if err != nil {
-		t.Fatal(err)
+func TestLoadsTheLogSettings(t *testing.T) {
+	tests := []struct {
+		name       string
+		environ    []string
+		wantLevel  slog.Level
+		wantFormat config.LogFormat
+	}{
+		{
+			name:       "defaults without variables",
+			environ:    []string{"HOME=/home/frog"},
+			wantLevel:  slog.LevelInfo,
+			wantFormat: config.LogFormatJSON,
+		},
+		{
+			name:       "variables override the defaults",
+			environ:    []string{"FROGLY_LOG__LEVEL=debug", "FROGLY_LOG__FORMAT=text"},
+			wantLevel:  slog.LevelDebug,
+			wantFormat: config.LogFormatText,
+		},
 	}
 
-	if loaded.Log.Level != slog.LevelInfo {
-		t.Errorf("level is %v, want info", loaded.Log.Level)
-	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			loaded, err := config.Load(test.environ)
 
-	if loaded.Log.Format != config.LogFormatJSON {
-		t.Errorf("format is %q, want json", loaded.Log.Format)
-	}
-}
-
-func TestVariablesOverrideDefaults(t *testing.T) {
-	loaded, err := config.Load([]string{"FROGLY_LOG__LEVEL=debug", "FROGLY_LOG__FORMAT=text"})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if loaded.Log.Level != slog.LevelDebug {
-		t.Errorf("level is %v, want debug", loaded.Log.Level)
-	}
-
-	if loaded.Log.Format != config.LogFormatText {
-		t.Errorf("format is %q, want text", loaded.Log.Format)
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.wantLevel, loaded.Log.Level)
+			assert.Equal(t, test.wantFormat, loaded.Log.Format)
+		})
 	}
 }
 
@@ -43,36 +48,37 @@ func TestErrorsNameTheVariable(t *testing.T) {
 	tests := []struct {
 		name     string
 		variable string
+		value    string
 	}{
-		{name: "invalid log level", variable: "FROGLY_LOG__LEVEL=loud"},
-		{name: "invalid log format", variable: "FROGLY_LOG__FORMAT=xml"},
-		{name: "unknown variable", variable: "FROGLY_LOG__COLOUR=green"},
+		{name: "invalid log level", variable: "FROGLY_LOG__LEVEL", value: "loud"},
+		{name: "invalid log format", variable: "FROGLY_LOG__FORMAT", value: "xml"},
+		{name: "unknown variable", variable: "FROGLY_LOG__COLOUR", value: "green"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := config.Load([]string{test.variable})
-			if !errors.Is(err, config.ErrInvalid) {
-				t.Fatalf("error is %v, want an invalid configuration", err)
-			}
+			// arrange
+			environ := []string{test.variable + "=" + test.value}
 
-			name, _, _ := strings.Cut(test.variable, "=")
-			if !strings.Contains(err.Error(), name) {
-				t.Errorf("error %q doesn't name %s", err, name)
-			}
+			// act
+			_, err := config.Load(environ)
+
+			// assert
+			require.ErrorIs(t, err, config.ErrInvalid)
+			require.ErrorContains(t, err, test.variable)
 		})
 	}
 }
 
 func TestErrorsNameEveryInvalidVariable(t *testing.T) {
-	_, err := config.Load([]string{"FROGLY_LOG__LEVEL=loud", "FROGLY_LOG__FORMAT=xml"})
-	if err == nil {
-		t.Fatal("loaded without an error")
-	}
+	// arrange
+	environ := []string{"FROGLY_LOG__LEVEL=loud", "FROGLY_LOG__FORMAT=xml"}
 
-	for _, name := range []string{"FROGLY_LOG__LEVEL", "FROGLY_LOG__FORMAT"} {
-		if !strings.Contains(err.Error(), name) {
-			t.Errorf("error %q doesn't name %s", err, name)
-		}
-	}
+	// act
+	_, err := config.Load(environ)
+
+	// assert
+	require.ErrorIs(t, err, config.ErrInvalid)
+	require.ErrorContains(t, err, "FROGLY_LOG__LEVEL")
+	require.ErrorContains(t, err, "FROGLY_LOG__FORMAT")
 }

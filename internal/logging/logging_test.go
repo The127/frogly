@@ -5,62 +5,94 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/the127/frogly/internal/config"
 	"github.com/the127/frogly/internal/logging"
 )
 
-func TestJSONWritesOneObjectPerLine(t *testing.T) {
-	var out bytes.Buffer
-
-	logging.New(config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON}, &out).Info("planted", "idea", 42)
-
-	var line map[string]any
-
-	err := json.Unmarshal(out.Bytes(), &line)
-	if err != nil {
-		t.Fatalf("%q isn't JSON: %v", out.String(), err)
-	}
-
-	if line["msg"] != "planted" || line["idea"] != float64(42) {
-		t.Errorf("line is %v, want msg planted and idea 42", line)
-	}
+type line struct {
+	Msg  string `json:"msg"`
+	Idea int    `json:"idea"`
 }
 
-func TestTextWritesKeyValuePairs(t *testing.T) {
-	var out bytes.Buffer
+func readLines(t *testing.T, out *bytes.Buffer) []line {
+	t.Helper()
 
-	logging.New(config.Log{Level: slog.LevelInfo, Format: config.LogFormatText}, &out).Info("planted", "idea", 42)
+	var lines []line
 
-	if !strings.Contains(out.String(), "msg=planted idea=42") {
-		t.Errorf("line is %q, want msg=planted idea=42", out.String())
+	decoder := json.NewDecoder(out)
+	for decoder.More() {
+		var next line
+
+		require.NoError(t, decoder.Decode(&next))
+
+		lines = append(lines, next)
 	}
+
+	return lines
 }
 
-func TestLevelHidesLowerLines(t *testing.T) {
+func TestJSONWritesTheFields(t *testing.T) {
+	// arrange
+	var out bytes.Buffer
+
+	logger := logging.New(config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON}, &out)
+
+	// act
+	logger.Info("planted", "idea", 42)
+
+	// assert
+	assert.Equal(t, []line{{Msg: "planted", Idea: 42}}, readLines(t, &out))
+}
+
+func TestTextIsNotJSON(t *testing.T) {
+	// arrange
 	var out bytes.Buffer
 
 	logger := logging.New(config.Log{Level: slog.LevelInfo, Format: config.LogFormatText}, &out)
+
+	// act
+	logger.Info("planted")
+
+	// assert
+	assert.False(t, json.Valid(out.Bytes()), "%q is JSON", out.String())
+	assert.Contains(t, out.String(), "msg=planted")
+}
+
+func TestLevelHidesLowerLines(t *testing.T) {
+	// arrange
+	var out bytes.Buffer
+
+	logger := logging.New(config.Log{Level: slog.LevelInfo, Format: config.LogFormatJSON}, &out)
+
+	// act
 	logger.Debug("hidden")
 	logger.Info("shown")
 
-	if strings.Contains(out.String(), "hidden") || !strings.Contains(out.String(), "shown") {
-		t.Errorf("log is %q, want only the info line", out.String())
-	}
+	// assert
+	assert.Equal(t, []line{{Msg: "shown"}}, readLines(t, &out))
 }
 
 func TestContextCarriesTheLogger(t *testing.T) {
+	// arrange
 	logger := slog.New(slog.DiscardHandler)
+	ctx := logging.WithLogger(t.Context(), logger)
 
-	if logging.FromContext(logging.WithLogger(t.Context(), logger)) != logger {
-		t.Error("the context lost the logger")
-	}
+	// act
+	got := logging.FromContext(ctx)
+
+	// assert
+	assert.Same(t, logger, got)
 }
 
 func TestContextWithoutLoggerGivesTheDefault(t *testing.T) {
-	if logging.FromContext(context.Background()) != slog.Default() {
-		t.Error("an empty context didn't give slog.Default")
-	}
+	// act
+	got := logging.FromContext(context.Background())
+
+	// assert
+	assert.Same(t, slog.Default(), got)
 }
