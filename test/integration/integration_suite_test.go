@@ -33,8 +33,9 @@ const (
 	virtualServer = "frogly"
 	application   = "frogly"
 
-	// the Postgres `just integration` starts
-	postgresURL = "postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable" //nolint:gosec // the public password of the local dev database
+	// the Postgres `just integration` starts, unless TEST_POSTGRES_URL names
+	// another one
+	defaultPostgresURL = "postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable" //nolint:gosec // the public password of the local dev database
 )
 
 var (
@@ -106,6 +107,11 @@ func logIn(serviceUser string, keyFile string) string {
 // freshDatabase gives frogly an empty database of its own for the run, and
 // drops it again afterwards.
 func freshDatabase() string {
+	postgresURL := os.Getenv("TEST_POSTGRES_URL")
+	if postgresURL == "" {
+		postgresURL = defaultPostgresURL
+	}
+
 	admin, err := sql.Open("pgx", postgresURL)
 	Expect(err).NotTo(HaveOccurred())
 	DeferCleanup(admin.Close)

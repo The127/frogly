@@ -155,8 +155,9 @@ build tag, so `go test ./...` leaves them out.
 
 Tests in `internal/` that need a running service, like the Postgres
 adapter's, carry the same tag, and `just integration` runs them too. They
-use the Postgres from `just dev` unless `FROGLY_TEST_POSTGRES_URL` names
-another one.
+use the Postgres from `just dev` unless `TEST_POSTGRES_URL` names another
+one. It doesn't start with `FROGLY_`, since frogly refuses variables of its
+own prefix that it doesn't know.
 
 ### HTTP tests
 

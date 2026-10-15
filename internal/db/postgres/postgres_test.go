@@ -46,7 +46,7 @@ func TestPostgresMeetsTheContract(t *testing.T) {
 func freshDatabase(t *testing.T) string {
 	t.Helper()
 
-	server := os.Getenv("FROGLY_TEST_POSTGRES_URL")
+	server := os.Getenv("TEST_POSTGRES_URL")
 	if server == "" {
 		server = defaultURL
 	}
