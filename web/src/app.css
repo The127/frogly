@@ -117,6 +117,36 @@ h1 {
   border-bottom: 1px solid var(--line);
 }
 
+a {
+  color: inherit;
+}
+
+.projects a {
+  text-decoration: none;
+}
+
+.projects a:hover,
+.projects a:focus-visible {
+  color: var(--pond);
+}
+
+.ideas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ideas li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ideas .meta {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
 .plant {
   width: 100%;
   font: inherit;

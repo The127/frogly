@@ -81,3 +81,9 @@ function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | { 
 
   return { kind: "failed" };
 }
+
+// The day an idea was planted, as the person reads dates. The locale and
+// time zone are the browser's unless a test sets them.
+export function plantedOn(plantedAt: string, locale?: string, timeZone?: string): string {
+  return new Date(plantedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric", timeZone });
+}

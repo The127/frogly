@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Idea, LoggedOut, NotFound, type Project, fetchGarden, fetchProjects, plantIdea } from "./api";
-import { addIdea, loadGarden } from "./garden";
+import { addIdea, loadGarden, plantedOn } from "./garden";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -193,5 +193,15 @@ describe("addIdea", () => {
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
+  });
+});
+
+describe("plantedOn", () => {
+  it("gives the day in the person's own time zone", async () => {
+    // act
+    const day = plantedOn("2026-10-15T23:30:00Z", "en-GB", "Europe/Berlin");
+
+    // assert
+    expect(day).toBe("16 Oct 2026");
   });
 });
