@@ -13,14 +13,20 @@
     try {
       login = new UserManager(loginSettings(await fetchConfig(), window.location.origin));
       session = await resume(login, window.location.pathname, fetchMe);
+
+      // automaticSilentRenew failed, maybe because the refresh token expired
+      login.events.addSilentRenewError(() => {
+        session = { kind: "loggedOut" };
+      });
     } catch (error) {
       console.error(error);
       session = "failed";
-    }
-
-    // the callback URL holds a one-time code, a reload mustn't use it again
-    if (window.location.pathname === "/callback") {
-      window.history.replaceState(null, "", "/");
+    } finally {
+      // the callback URL holds a one-time code, a reload mustn't use it
+      // again, whether the login worked or not
+      if (window.location.pathname === "/callback") {
+        window.history.replaceState(null, "", "/");
+      }
     }
   });
 </script>
@@ -42,6 +48,9 @@
     <h1>Hello, {session.name}</h1>
   {:else}
     <h1>A quiet place for your team's work.</h1>
+    {#if session.loginFailed}
+      <p class="quiet">The login didn't work. Try again.</p>
+    {/if}
     <button class="btn pond" onclick={() => login?.signinRedirect()}>log in</button>
   {/if}
 </main>

@@ -90,4 +90,18 @@ describe("resume", () => {
     expect(login.removeUser).toHaveBeenCalledOnce();
     expect(session).toEqual({ kind: "loggedOut" });
   });
+
+  it("offers the login again when Keyline's answer can't be used", async () => {
+    // arrange
+    const login = fakeLogin(null);
+    login.signinRedirectCallback = vi.fn(async () => {
+      throw new Error("No matching state found in storage");
+    });
+
+    // act
+    const session = await resume(login, "/callback", frogly({}));
+
+    // assert
+    expect(session).toEqual({ kind: "loggedOut", loginFailed: true });
+  });
 });

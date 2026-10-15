@@ -1,6 +1,8 @@
 import type { Me } from "./api";
 
-export type Session = { kind: "loggedOut" } | { kind: "loggedIn"; name: string };
+export type Session =
+  | { kind: "loggedOut"; loginFailed?: boolean }
+  | { kind: "loggedIn"; name: string };
 
 // The parts of oidc-client-ts's User and UserManager this module needs, so
 // the tests don't need a browser.
@@ -23,7 +25,15 @@ export async function resume(
   fetchMe: (accessToken: string) => Promise<Me | null>,
 ): Promise<Session> {
   if (path === "/callback") {
-    await login.signinRedirectCallback();
+    try {
+      await login.signinRedirectCallback();
+    } catch (error) {
+      // a refused or abandoned login, or an old callback URL from the
+      // history. The person can just try again.
+      console.warn("finishing the login failed", error);
+
+      return { kind: "loggedOut", loginFailed: true };
+    }
   }
 
   let user = await login.getUser();
