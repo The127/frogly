@@ -24,9 +24,9 @@ just setup
 
 `mise install` installs [Go](https://go.dev/),
 [golangci-lint](https://golangci-lint.run/), [just](https://just.systems/),
-[lefthook](https://lefthook.dev/), [reuse](https://reuse.software/) and
-[process-compose](https://f1bonacc1.github.io/process-compose/) in the
-versions that `mise.toml` names. `just setup` installs the git hooks and
+[lefthook](https://lefthook.dev/), [reuse](https://reuse.software/),
+[process-compose](https://f1bonacc1.github.io/process-compose/) and
+[Hurl](https://hurl.dev/) in the versions that `mise.toml` names. `just setup` installs the git hooks and
 runs every check.
 
 Go fetches the two remaining tools on its own:
