@@ -53,6 +53,9 @@ func freshDatabase(t *testing.T) string {
 
 	admin, err := sql.Open("pgx", server)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, admin.Close())
+	})
 
 	name := "dbtest_" + strings.ToLower(rand.Text())
 
@@ -63,7 +66,6 @@ func freshDatabase(t *testing.T) string {
 		// the test's context is done by the time cleanups run
 		_, err := admin.ExecContext(context.Background(), "drop database "+name+" with (force)")
 		require.NoError(t, err)
-		require.NoError(t, admin.Close())
 	})
 
 	fresh, err := url.Parse(server)

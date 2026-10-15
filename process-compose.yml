@@ -18,7 +18,9 @@ processes:
       command: ${CONTAINER_CLI:-docker} stop frogly-postgres
     readiness_probe:
       exec:
-        command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -U frogly -d frogly
+        # over TCP, since the image's first start runs a temporary server
+        # that only listens on a socket
+        command: ${CONTAINER_CLI:-docker} exec frogly-postgres pg_isready -h 127.0.0.1 -U frogly -d frogly
       initial_delay_seconds: 2
       period_seconds: 2
 

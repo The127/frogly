@@ -45,8 +45,8 @@ Its command line tool is pinned in frogly's own `go.mod`, because it has to
 match the Ginkgo library the tests use.
 
 Run `just` to list all recipes. `just ci` runs every check. Its
-integration tests need Keyline, so it starts Keyline in the background if
-it isn't running yet. That needs Docker or Podman (see
+integration tests need Keyline and Postgres, so it starts them in the
+background if they aren't running yet. That needs Docker or Podman (see
 [Running frogly](#running-frogly)).
 
 ## Running frogly
@@ -127,7 +127,8 @@ use `require`, and the linter enforces that.
 Integration tests live in `test/integration`. They build frogly, run it as
 a binary against Keyline, and use it from the outside, the way a person or
 an agent does. Each story gets a test there that shows it works. Run them
-with `just integration`, which starts Keyline first if it isn't running.
+with `just integration`, which starts Keyline and Postgres first if they
+aren't running.
 
 They use [Ginkgo](https://onsi.github.io/ginkgo/) and
 [Gomega](https://onsi.github.io/gomega/). `Describe`, `Context` and `It`
@@ -149,6 +150,11 @@ A test logs in as one of two service users, `frogly-tests` and
 `dev/keyline/test-service-user-2.pem`. There are two, so a test can check
 what one person can't see of another's. The files carry the `integration`
 build tag, so `go test ./...` leaves them out.
+
+Tests in `internal/` that need a running service, like the Postgres
+adapter's, carry the same tag, and `just integration` runs them too. They
+use the Postgres from `just dev` unless `FROGLY_TEST_POSTGRES_URL` names
+another one.
 
 ### HTTP tests
 

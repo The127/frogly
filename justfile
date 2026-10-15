@@ -38,9 +38,15 @@ services:
     set -euo pipefail
     cli="${CONTAINER_CLI:-docker}"
     keyline() { curl -sf --max-time 5 http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; }
-    postgres() { "$cli" exec frogly-postgres pg_isready -U frogly -d frogly > /dev/null 2>&1; }
-    keyline && postgres && exit 0
-    process-compose up keyline postgres --detached
+    # over TCP, since Postgres's first start runs a temporary server that
+    # only listens on a socket
+    postgres() { "$cli" exec frogly-postgres pg_isready -h 127.0.0.1 -U frogly -d frogly > /dev/null 2>&1; }
+    missing=()
+    keyline || missing+=(keyline)
+    postgres || missing+=(postgres)
+    ((${#missing[@]} == 0)) && exit 0
+    # starting a running service again would clash with its container
+    process-compose up "${missing[@]}" --detached
     # pulling the images on a first run takes a while, but a service that
     # never gets ready mustn't hold the tests forever
     deadline=$((SECONDS + 300))
