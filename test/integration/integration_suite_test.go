@@ -28,10 +28,7 @@ const (
 )
 
 var (
-	// froglyURL is where the frogly under test listens.
-	froglyURL string
-	// accessToken is the service user's token, the way a logged in person
-	// presents themselves to frogly's API.
+	froglyURL   string
 	accessToken string
 )
 
@@ -86,8 +83,7 @@ var _ = BeforeSuite(func() {
 	}).WithTimeout(10*time.Second).Should(Succeed(), "frogly doesn't listen on %s", address)
 })
 
-// freeAddress asks the system for a port nothing listens on, so the tests
-// don't depend on 8080 being free.
+// the tests mustn't depend on 8080 being free
 func freeAddress() string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	Expect(err).NotTo(HaveOccurred())

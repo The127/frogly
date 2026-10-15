@@ -14,18 +14,18 @@ import (
 	"github.com/go-jose/go-jose/v4"
 )
 
-// accessTokenType is the typ header of a JWT access token (RFC 9068). An ID
-// token from the same issuer has the same signature, issuer and audience,
-// so this header is what tells the two apart.
+// An ID token from the same issuer has the same signature, issuer and
+// audience as an access token. Only the typ header from RFC 9068 tells the
+// two apart.
 const accessTokenType = "at+jwt"
 
-// signingAlgorithms are the asymmetric algorithms frogly accepts. Taking
-// them from the issuer's discovery document would rely on a field that
-// describes ID tokens, and might let in a shared-secret algorithm.
+// Taking the algorithms from the issuer's discovery document would rely on
+// a field that describes ID tokens, and might let in a shared-secret
+// algorithm.
 var signingAlgorithms = []jose.SignatureAlgorithm{jose.EdDSA, jose.RS256, jose.ES256}
 
-// clockSkew is how far frogly's clock may lag behind the issuer's before a
-// fresh token looks expired.
+// Keyline and frogly can run on hosts whose clocks differ a little, and a
+// fresh token mustn't look expired because of it.
 const clockSkew = 30 * time.Second
 
 // ErrUnauthenticated is wrapped into every error about a token frogly

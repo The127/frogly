@@ -19,8 +19,6 @@ import (
 
 const clientID = "frogly"
 
-// fakeIssuer is a stand-in for Keyline: it serves discovery and its keys,
-// and signs access tokens the way Keyline does.
 type fakeIssuer struct {
 	url string
 	key ed25519.PrivateKey
@@ -63,15 +61,12 @@ func writeJSON(t *testing.T, w http.ResponseWriter, body any) {
 	assert.NoError(t, json.NewEncoder(w).Encode(body))
 }
 
-// token signs an access token with claims, filling in a valid issuer,
-// audience, subject and expiry unless claims sets them.
 func (issuer *fakeIssuer) token(t *testing.T, claims map[string]any) string {
 	t.Helper()
 
 	return issuer.sign(t, "at+jwt", claims)
 }
 
-// sign signs a token with the given typ header.
 func (issuer *fakeIssuer) sign(t *testing.T, typ jose.ContentType, claims map[string]any) string {
 	t.Helper()
 

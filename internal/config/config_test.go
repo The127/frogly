@@ -11,8 +11,7 @@ import (
 	"github.com/the127/frogly/internal/config"
 )
 
-// required are the settings without a default, so every test that expects
-// a working configuration sets them.
+// without these, every configuration is invalid
 var required = []string{
 	"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly",
 	"FROGLY_OIDC__CLIENT_ID=frogly",

@@ -75,7 +75,6 @@ func (format *LogFormat) UnmarshalText(text []byte) error {
 	}
 }
 
-// requiredKeys are the settings without a default.
 var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
 
 // Load reads the configuration from environ, the environment as
@@ -84,7 +83,8 @@ var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
 // or empty is an error too. The error names every variable at fault at
 // once.
 func Load(environ []string) (*Config, error) {
-	// a variable that isn't set leaves its default in place
+	// mapstructure only overwrites what a variable sets, so everything else
+	// keeps these defaults
 	config := Config{
 		Log: Log{
 			Level:  slog.LevelInfo,
@@ -161,8 +161,6 @@ func Load(environ []string) (*Config, error) {
 	return &config, nil
 }
 
-// keyOf and variableOf turn a variable's name into its setting's key and
-// back: FROGLY_OIDC__CLIENT_ID is oidc.client_id.
 func keyOf(variable string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.TrimPrefix(variable, envPrefix), envLevel, "."))
 }
