@@ -121,6 +121,14 @@ dependenciesRules:
         - '**.internal.db$'
         - '**.internal.repositories$'
         - '**.internal.repositories.postgres$'
+  # people works with users through the unit of work, never with a
+  # database directly
+  - package: '**.internal.people$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.authn$'
+        - '**.internal.db$'
+        - '**.internal.repositories$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
