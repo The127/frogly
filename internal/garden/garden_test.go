@@ -114,8 +114,8 @@ func TestAGardenIsOnlyForMembers(t *testing.T) {
 			_, listErr := garden.List(t.Context(), database.NewContext(), ana, test.projectID)
 
 			// assert
-			require.ErrorIs(t, plantErr, repositories.ErrNotFound)
-			require.ErrorIs(t, listErr, repositories.ErrNotFound)
+			require.ErrorIs(t, plantErr, garden.ErrProjectNotFound)
+			require.ErrorIs(t, listErr, garden.ErrProjectNotFound)
 		})
 	}
 }

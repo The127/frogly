@@ -21,6 +21,7 @@ import (
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
 	"github.com/the127/frogly/internal/db"
+	"github.com/the127/frogly/internal/garden"
 	"github.com/the127/frogly/internal/logging"
 	"github.com/the127/frogly/internal/people"
 	"github.com/the127/frogly/internal/repositories"
@@ -264,9 +265,7 @@ func answerError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 
-	// a project someone isn't a member of looks like one that doesn't
-	// exist, so nobody learns which projects there are
-	if errors.Is(err, repositories.ErrNotFound) {
+	if errors.Is(err, garden.ErrProjectNotFound) {
 		writeProblem(w, http.StatusNotFound)
 
 		return

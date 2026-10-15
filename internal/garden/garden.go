@@ -13,7 +13,10 @@ import (
 	"github.com/the127/frogly/internal/repositories"
 )
 
-var errPlanterMissing = errors.New("the idea's planter is missing")
+// ErrProjectNotFound means the project doesn't exist or the user isn't a
+// member of it. It doesn't say which, so nobody learns which projects
+// exist.
+var ErrProjectNotFound = errors.New("project not found")
 
 // PlantedIdea is an idea with the name of whoever planted it.
 type PlantedIdea struct {
@@ -23,10 +26,10 @@ type PlantedIdea struct {
 
 // Plant writes an idea down in the project's garden. A project that
 // doesn't exist or that planter isn't a member of gives
-// repositories.ErrNotFound, and a text frogly can't use a
+// ErrProjectNotFound, and a text frogly can't use a
 // *repositories.InvalidError.
 func Plant(ctx context.Context, unit db.Context, planter *repositories.User, projectID uuid.UUID, text string) (*repositories.Idea, error) {
-	_, err := unit.Projects().ByIDForMember(ctx, projectID, planter.ID())
+	err := requireMember(ctx, unit, projectID, planter.ID())
 	if err != nil {
 		return nil, err
 	}
@@ -48,9 +51,9 @@ func Plant(ctx context.Context, unit db.Context, planter *repositories.User, pro
 
 // List lists the project's garden for one of its members, newest first. A
 // project that doesn't exist or that user isn't a member of gives
-// repositories.ErrNotFound.
+// ErrProjectNotFound.
 func List(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) ([]PlantedIdea, error) {
-	_, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
+	err := requireMember(ctx, unit, projectID, user.ID())
 	if err != nil {
 		return nil, err
 	}
@@ -68,12 +71,6 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 		name, known := names[idea.PlanterID()]
 		if !known {
 			planter, err := unit.Users().ByID(ctx, idea.PlanterID())
-			if errors.Is(err, repositories.ErrNotFound) {
-				// the database's foreign key rules this out, and the caller's
-				// ErrNotFound means a project they can't see
-				return nil, fmt.Errorf("idea %s: %w", idea.ID(), errPlanterMissing)
-			}
-
 			if err != nil {
 				return nil, fmt.Errorf("loading the planter of idea %s: %w", idea.ID(), err)
 			}
@@ -86,4 +83,13 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 	}
 
 	return planted, nil
+}
+
+func requireMember(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
+	_, err := unit.Projects().ByIDForMember(ctx, projectID, userID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return fmt.Errorf("project %s for user %s: %w", projectID, userID, ErrProjectNotFound)
+	}
+
+	return err
 }

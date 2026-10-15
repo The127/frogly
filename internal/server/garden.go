@@ -32,7 +32,7 @@ func toIdeaJSON(idea *repositories.Idea, plantedBy string) ideaJSON {
 func projectID(r *http.Request) (uuid.UUID, error) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("project %q: %w", r.PathValue("id"), repositories.ErrNotFound)
+		return uuid.Nil, fmt.Errorf("project %q: %w", r.PathValue("id"), garden.ErrProjectNotFound)
 	}
 
 	return id, nil
