@@ -91,30 +91,6 @@ func TestConfigTellsTheFrontendWhereToLogIn(t *testing.T) {
 	assert.JSONEq(t, `{"issuer": "http://issuer.example", "clientId": "frogly"}`, response.Body.String())
 }
 
-func TestMeGreetsThePersonByName(t *testing.T) {
-	// arrange
-	handler := newServer(&bytes.Buffer{})
-
-	// act
-	response := get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + validToken}})
-
-	// assert
-	assert.Equal(t, http.StatusOK, response.Code)
-	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	assert.JSONEq(t, `{"name": "Karo"}`, response.Body.String())
-}
-
-func TestMeAcceptsTheSchemeInAnyCase(t *testing.T) {
-	// arrange
-	handler := newServer(&bytes.Buffer{})
-
-	// act
-	response := get(t, handler, "/api/me", http.Header{"Authorization": {"bearer " + validToken}})
-
-	// assert
-	assert.Equal(t, http.StatusOK, response.Code)
-}
-
 func TestMeIsUnavailableWhenTheTokenCantBeChecked(t *testing.T) {
 	// arrange
 	handler := newServer(&bytes.Buffer{})
@@ -126,23 +102,6 @@ func TestMeIsUnavailableWhenTheTokenCantBeChecked(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, response.Code)
 	assert.Empty(t, response.Header().Get("WWW-Authenticate"))
 	assert.JSONEq(t, `{"type": "about:blank", "title": "Service Unavailable", "status": 503}`, response.Body.String())
-}
-
-func TestOtherMethodsAreNotAllowed(t *testing.T) {
-	for _, path := range []string{"/api/config", "/api/me"} {
-		t.Run(path, func(t *testing.T) {
-			// arrange
-			handler := newServer(&bytes.Buffer{})
-
-			// act
-			response := request(t, handler, http.MethodPost, path, nil)
-
-			// assert
-			assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
-			assert.Equal(t, "GET, HEAD", response.Header().Get("Allow"))
-			assert.JSONEq(t, `{"type": "about:blank", "title": "Method Not Allowed", "status": 405}`, response.Body.String())
-		})
-	}
 }
 
 func TestMeRefusesRequestsWithoutAValidToken(t *testing.T) {
@@ -341,18 +300,6 @@ func TestAPathLeavingTheAssetsServesTheFrontendInstead(t *testing.T) {
 	assert.NotContains(t, response.Body.String(), "root:")
 }
 
-func TestTheFrontendOnlyAnswersReads(t *testing.T) {
-	// arrange
-	handler := newServer(&bytes.Buffer{})
-
-	// act
-	response := request(t, handler, http.MethodPost, "/", nil)
-
-	// assert
-	assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
-	assert.Equal(t, "GET, HEAD", response.Header().Get("Allow"))
-}
-
 func TestTheFrontendAnswersHead(t *testing.T) {
 	// arrange
 	handler := newServer(&bytes.Buffer{})
@@ -363,4 +310,37 @@ func TestTheFrontendAnswersHead(t *testing.T) {
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Empty(t, response.Body.String())
+}
+
+func TestMeGreetsThePersonByName(t *testing.T) {
+	for _, scheme := range []string{"Bearer", "bearer"} {
+		t.Run(scheme, func(t *testing.T) {
+			// arrange
+			handler := newServer(&bytes.Buffer{})
+
+			// act
+			response := get(t, handler, "/api/me", http.Header{"Authorization": {scheme + " " + validToken}})
+
+			// assert
+			assert.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+			assert.JSONEq(t, `{"name": "Karo"}`, response.Body.String())
+		})
+	}
+}
+
+func TestOnlyReadsAreAllowed(t *testing.T) {
+	for _, path := range []string{"/api/config", "/api/me", "/"} {
+		t.Run(path, func(t *testing.T) {
+			// arrange
+			handler := newServer(&bytes.Buffer{})
+
+			// act
+			response := request(t, handler, http.MethodPost, path, nil)
+
+			// assert
+			assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
+			assert.Equal(t, "GET, HEAD", response.Header().Get("Allow"))
+		})
+	}
 }

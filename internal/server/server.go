@@ -4,7 +4,6 @@ package server
 import (
 	"context"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io/fs"
@@ -36,35 +35,12 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, func(w http.ResponseWriter, r *http.Request) {
-		person, ok := personFrom(r.Context())
-		if !ok {
-			logging.FromContext(r.Context()).ErrorContext(r.Context(), "a handler that needs a person runs without authentication")
-			writeProblem(w, http.StatusInternalServerError)
-
-			return
-		}
-
+	mux.Handle("GET /api/me", authenticated(verifier, func(w http.ResponseWriter, _ *http.Request, person authn.Person) {
 		writeJSON(w, http.StatusOK, map[string]string{
 			"name": person.Name,
 		})
 	}))
-
-	// without these, the catch-all below would answer other methods with 404
-	for _, path := range []string{"/api/config", "/api/me"} {
-		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
-			w.Header().Set("Allow", "GET, HEAD")
-			writeProblem(w, http.StatusMethodNotAllowed)
-		})
-	}
-
-	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
-		writeProblem(w, http.StatusNotFound)
-	})
-
-	// "GET /" would conflict with the method-less "/api/" above, so the
-	// frontend checks the method itself
-	mux.Handle("/", serveFrontend(frontend))
+	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
 }
@@ -73,14 +49,13 @@ func serveFrontend(frontend fs.FS) http.Handler {
 	files := http.FileServerFS(frontend)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			w.Header().Set("Allow", "GET, HEAD")
-			writeProblem(w, http.StatusMethodNotAllowed)
+		name := path.Clean(r.URL.Path)
+		if strings.HasPrefix(name, "/api/") {
+			writeProblem(w, http.StatusNotFound)
 
 			return
 		}
 
-		name := path.Clean(r.URL.Path)
 		if strings.HasPrefix(name, "/assets/") {
 			// a missing asset stays a 404, because an old page asks for it and
 			// index.html wouldn't help. A directory isn't an asset, and its
@@ -111,7 +86,7 @@ func serveFrontend(frontend fs.FS) http.Handler {
 func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
-		requestID := newRequestID()
+		requestID := rand.Text()
 		requestLogger := logger.With("request_id", requestID)
 
 		w.Header().Set("X-Request-Id", requestID)
@@ -126,13 +101,6 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 			"duration", time.Since(started),
 		)
 	})
-}
-
-func newRequestID() string {
-	id := make([]byte, 8)
-	_, _ = rand.Read(id) // never fails, see crypto/rand.Read
-
-	return hex.EncodeToString(id)
 }
 
 // http.ResponseWriter doesn't tell what status a handler wrote, and the log
@@ -160,9 +128,7 @@ func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
 	return recorder.ResponseWriter
 }
 
-type personKey struct{}
-
-func authenticated(verifier Verifier, next http.HandlerFunc) http.Handler {
+func authenticated(verifier Verifier, next func(http.ResponseWriter, *http.Request, authn.Person)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -194,32 +160,27 @@ func authenticated(verifier Verifier, next http.HandlerFunc) http.Handler {
 			return
 		}
 
-		next(w, r.WithContext(context.WithValue(r.Context(), personKey{}, person)))
+		next(w, r, person)
 	})
 }
 
-func personFrom(ctx context.Context) (authn.Person, bool) {
-	person, ok := ctx.Value(personKey{}).(authn.Person)
-
-	return person, ok
-}
-
 func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	// an error here means the client hung up, nobody is left to tell
-	_ = json.NewEncoder(w).Encode(body)
+	write(w, "application/json", status, body)
 }
 
 // The problem says no more than the status, so a refused token reveals
 // nothing about why it was refused.
 func writeProblem(w http.ResponseWriter, status int) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(status)
-	// an error here means the client hung up, nobody is left to tell
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	write(w, "application/problem+json", status, map[string]any{
 		"type":   "about:blank",
 		"title":  http.StatusText(status),
 		"status": status,
 	})
+}
+
+func write(w http.ResponseWriter, contentType string, status int, body any) {
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(status)
+	// an error here means the client hung up, nobody is left to tell
+	_ = json.NewEncoder(w).Encode(body)
 }
