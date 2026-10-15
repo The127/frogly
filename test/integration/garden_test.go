@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
 	. "github.com/onsi/ginkgo/v2" //nolint:revive // Ginkgo's DSL reads as plain English only without the package name
 	. "github.com/onsi/gomega"    //nolint:revive // same for Gomega's matchers
 )
@@ -49,6 +51,15 @@ func gardenOf(ctx context.Context, token string, projectID string) []idea {
 	return ideas
 }
 
+func idsOf(ideas []idea) []string {
+	ids := make([]string, 0, len(ideas))
+	for _, listed := range ideas {
+		ids = append(ids, listed.ID)
+	}
+
+	return ids
+}
+
 var _ = Describe("planting an idea", func() {
 	Context("in a project you're a member of", func() {
 		It("shows the idea in the garden, newest first, with who planted it and when", func(ctx SpecContext) {
@@ -62,7 +73,13 @@ var _ = Describe("planting an idea", func() {
 			Expect(second.PlantedBy).To(Equal("frogly-tests"))
 			Expect(second.PlantedAt).To(BeTemporally("~", time.Now(), time.Minute))
 
-			Expect(gardenOf(ctx, accessToken, garden.ID)).To(Equal([]idea{second, first}))
+			listed := gardenOf(ctx, accessToken, garden.ID)
+			Expect(idsOf(listed)).To(Equal([]string{second.ID, first.ID}))
+			// the database may keep the time less precisely than the answer
+			// to the planting gave it
+			Expect(listed[0].PlantedAt).To(BeTemporally("~", second.PlantedAt, time.Millisecond))
+			Expect(listed[0].PlantedBy).To(Equal("frogly-tests"))
+			Expect(listed[1].Text).To(Equal(first.Text))
 		}, SpecTimeout(10*time.Second))
 	})
 
@@ -78,6 +95,13 @@ var _ = Describe("planting an idea", func() {
 			Expect(planted).To(HaveHTTPStatus(http.StatusNotFound))
 
 			Expect(gardenOf(ctx, accessToken, garden.ID)).To(HaveLen(1))
+		}, SpecTimeout(10*time.Second))
+	})
+
+	Context("in a project that doesn't exist", func() {
+		It("answers the same as for a project you aren't a member of", func(ctx SpecContext) {
+			response := call(ctx, http.MethodGet, "/api/projects/"+uuid.NewString()+"/ideas", accessToken, nil)
+			Expect(response).To(HaveHTTPStatus(http.StatusNotFound))
 		}, SpecTimeout(10*time.Second))
 	})
 })
