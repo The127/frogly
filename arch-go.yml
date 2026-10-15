@@ -44,6 +44,13 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
+  # authentication only checks tokens against the issuer, so it knows
+  # nothing about the rest of frogly
+  - package: '**.internal.authn$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:

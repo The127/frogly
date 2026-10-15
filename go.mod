@@ -4,6 +4,8 @@ go 1.27.2
 
 require (
 	github.com/The127/Keyline/client v0.0.0-20261005092824-0a18d2fb9a46
+	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/knadh/koanf/providers/env/v2 v2.0.2
 	github.com/knadh/koanf/v2 v2.3.8
