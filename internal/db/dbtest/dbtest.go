@@ -383,7 +383,7 @@ func (s *Suite) TestAnIdeaComesBackAsPlanted() {
 	// arrange
 	karo := s.savedUser("Karo")
 	garden := s.savedProject("Garden", karo)
-	idea := s.planted(garden, karo, "search should find ideas by any word")
+	idea := s.planted(garden, karo, "grüne Ideen 🌱\tmit Tab")
 
 	// act
 	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
@@ -395,7 +395,7 @@ func (s *Suite) TestAnIdeaComesBackAsPlanted() {
 	s.Equal(1, ideas[0].Version())
 	s.Equal(garden.ID(), ideas[0].ProjectID())
 	s.Equal(karo.ID(), ideas[0].PlanterID())
-	s.Equal("search should find ideas by any word", ideas[0].Text())
+	s.Equal("grüne Ideen 🌱\tmit Tab", ideas[0].Text())
 	s.Equal(idea.PlantedAt(), ideas[0].PlantedAt())
 }
 
@@ -406,8 +406,10 @@ func (s *Suite) TestAGardenListsItsOwnIdeasNewestFirst() {
 	karo := s.savedUser("Karo")
 	garden, kitchen := s.savedProject("Garden", karo), s.savedProject("Kitchen", karo)
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	older := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "older", now.Add(-time.Hour)))
-	newer := s.savedIdea(repositories.NewIdeaFromDB(newBase(), garden.ID(), karo.ID(), "newer", now))
+	// the newer idea gets the smaller ID, so only the time can put it first
+	newerBase, olderBase := newBase(), newBase()
+	older := s.savedIdea(repositories.NewIdeaFromDB(olderBase, garden.ID(), karo.ID(), "older", now.Add(-time.Hour)))
+	newer := s.savedIdea(repositories.NewIdeaFromDB(newerBase, garden.ID(), karo.ID(), "newer", now))
 	s.planted(kitchen, karo, "a bigger fridge")
 
 	// act
@@ -441,11 +443,13 @@ func (s *Suite) TestIdeasPlantedAtTheSameTimeAreListedByIDNewestFirst() {
 }
 
 // TestAnIdeaNeedsAnExistingProject checks that an idea can't be planted in
-// a project the database doesn't have.
+// a project the database doesn't have, and that this isn't mistaken for a
+// race.
 func (s *Suite) TestAnIdeaNeedsAnExistingProject() {
 	// arrange
 	karo := s.savedUser("Karo")
-	idea, err := repositories.NewIdea(uuid.Must(uuid.NewV7()), karo.ID(), "nowhere to grow")
+	nowhere := uuid.Must(uuid.NewV7())
+	idea, err := repositories.NewIdea(nowhere, karo.ID(), "nowhere to grow")
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()
@@ -456,7 +460,35 @@ func (s *Suite) TestAnIdeaNeedsAnExistingProject() {
 
 	// assert
 	s.Require().Error(err)
-	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+	s.Require().NotErrorIs(err, repositories.ErrConcurrentModification)
+
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), nowhere)
+	s.Require().NoError(err)
+	s.Empty(ideas)
+}
+
+// TestAnIdeaNeedsAnExistingPlanter checks that an idea can't name a
+// planter the database doesn't have.
+func (s *Suite) TestAnIdeaNeedsAnExistingPlanter() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	idea, err := repositories.NewIdea(garden.ID(), uuid.Must(uuid.NewV7()), "from nobody")
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Ideas().Insert(idea)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.Require().NotErrorIs(err, repositories.ErrConcurrentModification)
+
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
+	s.Require().NoError(err)
+	s.Empty(ideas)
 }
 
 // newBase gives a model rebuilt with NewIdeaFromDB a fresh ID, for a test

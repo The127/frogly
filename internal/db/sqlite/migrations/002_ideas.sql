@@ -12,17 +12,6 @@ create table ideas
     planted_at integer not null
 );
 
--- +migrate StatementBegin
-create trigger ideas_version_check
-    before update
-    on ideas
-    for each row
-    when new.version <> old.version + 1
-begin
-    select raise(fail, 'ideas: version mismatch');
-end;
--- +migrate StatementEnd
-
 create index ideas_by_project on ideas (project_id, planted_at desc, id desc);
 
 -- +migrate Down

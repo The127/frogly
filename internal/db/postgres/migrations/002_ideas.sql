@@ -10,12 +10,6 @@ create table ideas
     planted_at timestamptz not null
 );
 
-create trigger ideas_version_check
-    before update
-    on ideas
-    for each row
-execute function check_version();
-
 create index ideas_by_project on ideas (project_id, planted_at desc, id desc);
 
 -- +migrate Down
