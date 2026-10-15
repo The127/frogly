@@ -64,6 +64,25 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
+  # the change tracker is plain data, the repositories of every database
+  # use it
+  - package: '**.internal.change$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+  # the models and repository interfaces know no database, so the rest of
+  # frogly doesn't either
+  - package: '**.internal.repositories$'
+    shouldNotDependsOn:
+      internal:
+        - '**.internal.**'
+        - '**.cmd.**'
+  # the unit of work's interfaces only speak in models and repositories
+  - package: '**.internal.db$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.repositories$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
