@@ -57,3 +57,31 @@ processes:
     depends_on:
       keyline:
         condition: process_healthy
+
+  # frogly itself, built and started from the source, logging in at the
+  # Keyline above. It serves the API and the last frontend `just web` built.
+  frogly:
+    command: just web && go run ./cmd/frogly
+    environment:
+      - FROGLY_LOG__FORMAT=text
+      - FROGLY_LOG__LEVEL=debug
+      - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
+      - FROGLY_OIDC__CLIENT_ID=frogly
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: 8080
+        path: /api/config
+      initial_delay_seconds: 2
+      period_seconds: 2
+    depends_on:
+      keyline:
+        condition: process_healthy
+
+  # the frontend with hot reload on http://localhost:5173, sending API
+  # requests on to frogly
+  web:
+    command: pnpm --dir web install --frozen-lockfile && pnpm --dir web dev
+    depends_on:
+      frogly:
+        condition: process_healthy

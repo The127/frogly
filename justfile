@@ -69,8 +69,12 @@ reuse:
 prose:
     bash hack/check-prose.sh
 
-# start the services for local development, see process-compose.yml
+# start Postgres, Keyline and frogly for local development, see
+# process-compose.yml
 dev:
+    # `just integration` may have left Keyline running in the background,
+    # and two process-composes can't share a port
+    -process-compose down 2> /dev/null
     process-compose up
 
 # install the git hooks
