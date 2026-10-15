@@ -22,6 +22,7 @@ import (
 
 const (
 	keylineURL    = "http://localhost:8082"
+	issuerURL     = keylineURL + "/oidc/" + virtualServer
 	virtualServer = "frogly"
 	application   = "frogly"
 	serviceUser   = "frogly-tests"
@@ -55,7 +56,7 @@ var _ = BeforeSuite(func() {
 	command := exec.Command(binary) //nolint:gosec // the binary gexec just built from this repository
 	command.Env = append(os.Environ(),
 		"FROGLY_SERVER__LISTEN_ADDRESS="+address,
-		"FROGLY_OIDC__ISSUER="+keylineURL+"/oidc/"+virtualServer,
+		"FROGLY_OIDC__ISSUER="+issuerURL,
 		"FROGLY_OIDC__CLIENT_ID="+application,
 		"FROGLY_LOG__FORMAT=text",
 	)

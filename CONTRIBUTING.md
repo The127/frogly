@@ -134,6 +134,22 @@ A test logs in as the service user `frogly-tests`, with the key in
 `dev/keyline/test-service-user.pem`. The files carry the `integration`
 build tag, so `go test ./...` leaves them out.
 
+### HTTP tests
+
+Requests to the API and the answers they get are described in
+[Hurl](https://hurl.dev/) files in `test/http`, one file per endpoint:
+
+```hurl
+GET {{frogly}}/api/me
+Authorization: Bearer {{token}}
+HTTP 200
+[Asserts]
+jsonpath "$.name" == "frogly-tests"
+```
+
+The integration tests run them against the frogly they start, so `frogly`,
+`issuer` and the service user's `token` are set for you.
+
 ## Commit messages and pull request titles
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
