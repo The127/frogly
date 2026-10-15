@@ -51,6 +51,13 @@ dependenciesRules:
       internal:
         - '**.internal.**'
         - '**.cmd.**'
+  # the API speaks HTTP and leaves the checking of tokens to authn
+  - package: '**.internal.server$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.authn$'
+        - '**.internal.config$'
+        - '**.internal.logging$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
