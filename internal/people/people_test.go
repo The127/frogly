@@ -2,7 +2,6 @@ package people_test
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,24 +10,10 @@ import (
 
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/db"
-	"github.com/the127/frogly/internal/db/sqlite"
+	"github.com/the127/frogly/internal/db/sqlite/sqlitetest"
 	"github.com/the127/frogly/internal/people"
 	"github.com/the127/frogly/internal/repositories"
 )
-
-func newDatabase(t *testing.T) db.Database {
-	t.Helper()
-
-	database, err := sqlite.Open(filepath.Join(t.TempDir(), "frogly.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, database.Close())
-	})
-
-	require.NoError(t, database.Migrate(t.Context()))
-
-	return database
-}
 
 var karo = authn.Person{
 	Issuer:  "http://issuer.example",
@@ -39,7 +24,7 @@ var karo = authn.Person{
 
 func TestTheFirstRequestCreatesTheUser(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 
 	// act
 	user, err := people.Resolve(t.Context(), database.NewContext(), karo)
@@ -56,7 +41,7 @@ func TestTheFirstRequestCreatesTheUser(t *testing.T) {
 
 func TestALaterRequestFindsTheSameUser(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	first, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 
@@ -70,7 +55,7 @@ func TestALaterRequestFindsTheSameUser(t *testing.T) {
 
 func TestAChangedProfileIsStored(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	first, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 
@@ -90,7 +75,7 @@ func TestAChangedProfileIsStored(t *testing.T) {
 
 func TestALoginWithoutANameIsCalledBySubject(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	nameless := karo
 	nameless.Name = ""
 
@@ -122,7 +107,7 @@ func (identities *staleIdentities) FirstOrNil(ctx context.Context, issuer string
 
 func TestTheSlowerOfTwoFirstRequestsGetsTheSameUser(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	faster, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 
@@ -173,7 +158,7 @@ func TestALoginNameFroglyCantUseFallsBackToTheSubject(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
-			database := newDatabase(t)
+			database := sqlitetest.Open(t)
 
 			// act
 			user, err := people.Resolve(t.Context(), database.NewContext(), test.person)
@@ -187,7 +172,7 @@ func TestALoginNameFroglyCantUseFallsBackToTheSubject(t *testing.T) {
 
 func TestALoginWithoutAnEmailKeepsTheOldOne(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	_, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 
@@ -204,7 +189,7 @@ func TestALoginWithoutAnEmailKeepsTheOldOne(t *testing.T) {
 
 func TestTheSameSubjectAtAnotherIssuerIsAnotherUser(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	first, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 
@@ -239,7 +224,7 @@ func (unit *racingSave) SaveChanges(ctx context.Context) error {
 
 func TestARefreshThatLostARaceAnswersWithWhatIsStored(t *testing.T) {
 	// arrange
-	database := newDatabase(t)
+	database := sqlitetest.Open(t)
 	_, err := people.Resolve(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 

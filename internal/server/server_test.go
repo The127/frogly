@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -21,7 +21,7 @@ import (
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/config"
 	"github.com/the127/frogly/internal/db"
-	"github.com/the127/frogly/internal/db/sqlite"
+	"github.com/the127/frogly/internal/db/sqlite/sqlitetest"
 	"github.com/the127/frogly/internal/server"
 )
 
@@ -57,14 +57,7 @@ func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person,
 func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 	t.Helper()
 
-	database, err := sqlite.Open(filepath.Join(t.TempDir(), "frogly.db"))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, database.Close())
-	})
-
-	require.NoError(t, database.Migrate(t.Context()))
-
+	database := sqlitetest.Open(t)
 	dependencies := ioc.NewDependencyCollection()
 	ioc.RegisterSingleton(dependencies, func(*ioc.DependencyProvider) db.Database {
 		return database
@@ -85,14 +78,12 @@ func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 func projects(t *testing.T, handler http.Handler, method string, token string, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(t.Context(), method, "/api/projects", strings.NewReader(body))
-	request.Header.Set("Authorization", "Bearer "+token)
-	request.Header.Set("Content-Type", "application/json")
+	header := http.Header{"Content-Type": {"application/json"}}
+	if token != "" {
+		header.Set("Authorization", "Bearer "+token)
+	}
 
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	return recorder
+	return requestWithBody(t, handler, method, "/api/projects", header, strings.NewReader(body))
 }
 
 var frontend = fstest.MapFS{
@@ -105,7 +96,13 @@ var frontend = fstest.MapFS{
 func request(t *testing.T, handler http.Handler, method string, path string, header http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 
-	request := httptest.NewRequestWithContext(t.Context(), method, path, nil)
+	return requestWithBody(t, handler, method, path, header, nil)
+}
+
+func requestWithBody(t *testing.T, handler http.Handler, method string, path string, header http.Header, body io.Reader) *httptest.ResponseRecorder {
+	t.Helper()
+
+	request := httptest.NewRequestWithContext(t.Context(), method, path, body)
 	for name, values := range header {
 		request.Header[name] = values
 	}

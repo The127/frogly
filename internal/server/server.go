@@ -208,22 +208,22 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 // The problem says no more than the status, so a refused token reveals
 // nothing about why it was refused.
 func writeProblem(w http.ResponseWriter, status int) {
-	write(w, "application/problem+json", status, map[string]any{
-		"type":   "about:blank",
-		"title":  http.StatusText(status),
-		"status": status,
-	})
+	writeProblemDetail(w, status, "")
 }
 
 // writeProblemDetail says what is wrong with a request, for a problem the
 // client can fix.
 func writeProblemDetail(w http.ResponseWriter, status int, detail string) {
-	write(w, "application/problem+json", status, map[string]any{
+	problem := map[string]any{
 		"type":   "about:blank",
 		"title":  http.StatusText(status),
 		"status": status,
-		"detail": detail,
-	})
+	}
+	if detail != "" {
+		problem["detail"] = detail
+	}
+
+	write(w, "application/problem+json", status, problem)
 }
 
 func write(w http.ResponseWriter, contentType string, status int, body any) {

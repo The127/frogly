@@ -133,6 +133,13 @@ dependenciesRules:
         - '**.internal.authn$'
         - '**.internal.db$'
         - '**.internal.repositories$'
+  # tests of other packages open a SQLite database through it, and only
+  # tests use it
+  - package: '**.internal.db.sqlite.sqlitetest$'
+    shouldOnlyDependsOn:
+      internal:
+        - '**.internal.db$'
+        - '**.internal.db.sqlite$'
   # a command only wires packages together, the work happens in internal
   - package: '**.cmd.frogly$'
     shouldOnlyDependsOn:
