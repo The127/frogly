@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/the127/frogly/internal/authn"
 	"github.com/the127/frogly/internal/db"
@@ -19,6 +20,10 @@ var errNoIdentityAfterRace = errors.New("lost the race to create the user, but f
 // Resolve finds the user the person is, by the issuer and subject of their
 // login, and stores the name and email from it when they changed. A person
 // frogly hasn't seen yet becomes a new user with a new identity.
+//
+// Resolve saves the unit of work itself, since recovering from a lost race
+// needs a save that failed. Call it before recording anything else in the
+// same unit of work.
 func Resolve(ctx context.Context, unit db.Context, person authn.Person) (*repositories.User, error) {
 	user, err := existing(ctx, unit, person)
 	if err != nil || user != nil {
@@ -48,7 +53,7 @@ func existing(ctx context.Context, unit db.Context, person authn.Person) (*repos
 
 	user, err := unit.Users().First(ctx, identity.UserID())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("the user of %s at %s: %w", person.Subject, person.Issuer, err)
 	}
 
 	if !user.Refresh(person.Name, person.Email) {
@@ -59,19 +64,20 @@ func existing(ctx context.Context, unit db.Context, person authn.Person) (*repos
 
 	err = unit.SaveChanges(ctx)
 	if errors.Is(err, repositories.ErrConcurrentModification) {
-		// another request stored the new profile first, which is just as good
-		return user, nil
+		// another request stored a profile first. Answering with that one
+		// keeps the request in line with what's stored.
+		return unit.Users().First(ctx, identity.UserID())
 	}
 
 	return user, err
 }
 
 func create(ctx context.Context, unit db.Context, person authn.Person) (*repositories.User, error) {
-	name := person.Name
-	if name == "" {
+	name := strings.TrimSpace(person.Name)
+	if !repositories.ValidName(name) {
 		// a user needs a name, and the subject is the only one the login is
 		// sure to have
-		name = person.Subject
+		name = shortened(person.Subject)
 	}
 
 	user, err := repositories.NewUser(name, person.Email)
@@ -93,4 +99,13 @@ func create(ctx context.Context, unit db.Context, person authn.Person) (*reposit
 	}
 
 	return user, nil
+}
+
+func shortened(name string) string {
+	runes := []rune(name)
+	if len(runes) > repositories.MaxName {
+		return string(runes[:repositories.MaxName])
+	}
+
+	return name
 }

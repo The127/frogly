@@ -17,8 +17,9 @@ var ErrInvalid = errors.New("invalid")
 // ErrNotFound is returned when nothing matches.
 var ErrNotFound = errors.New("not found")
 
-// maxName keeps names short enough for a list and a page title.
-const maxName = 100
+// MaxName keeps names short enough for a list and a page title, in
+// characters.
+const MaxName = 100
 
 // ErrConcurrentModification is returned when saving would overwrite
 // someone else's change, because a row changed since it was loaded, or a

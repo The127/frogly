@@ -3,6 +3,7 @@ package people_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -144,4 +145,114 @@ type staleUnit struct {
 
 func (unit staleUnit) Identities() repositories.IdentityRepository {
 	return unit.identities
+}
+
+func TestALoginNameFroglyCantUseFallsBackToTheSubject(t *testing.T) {
+	tests := []struct {
+		name     string
+		person   authn.Person
+		wantName string
+	}{
+		{
+			name:     "only spaces",
+			person:   authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "   "},
+			wantName: "karo-id",
+		},
+		{
+			name:     "longer than 100 characters",
+			person:   authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: strings.Repeat("蛙", 101)},
+			wantName: "karo-id",
+		},
+		{
+			name:     "no name and a subject longer than 100 characters",
+			person:   authn.Person{Issuer: "http://issuer.example", Subject: strings.Repeat("k", 120)},
+			wantName: strings.Repeat("k", 100),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			database := newDatabase(t)
+
+			// act
+			user, err := people.Resolve(t.Context(), database.NewContext(), test.person)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.wantName, user.Name())
+		})
+	}
+}
+
+func TestALoginWithoutAnEmailKeepsTheOldOne(t *testing.T) {
+	// arrange
+	database := newDatabase(t)
+	_, err := people.Resolve(t.Context(), database.NewContext(), karo)
+	require.NoError(t, err)
+
+	withoutEmail := karo
+	withoutEmail.Email = ""
+
+	// act
+	user, err := people.Resolve(t.Context(), database.NewContext(), withoutEmail)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, "karo@frogly.local", user.Email())
+}
+
+func TestTheSameSubjectAtAnotherIssuerIsAnotherUser(t *testing.T) {
+	// arrange
+	database := newDatabase(t)
+	first, err := people.Resolve(t.Context(), database.NewContext(), karo)
+	require.NoError(t, err)
+
+	elsewhere := karo
+	elsewhere.Issuer = "http://elsewhere.example"
+
+	// act
+	other, err := people.Resolve(t.Context(), database.NewContext(), elsewhere)
+
+	// assert
+	require.NoError(t, err)
+	assert.NotEqual(t, first.ID(), other.ID())
+}
+
+// racingSave loses the first save to another request, like a refresh that
+// raced another one.
+type racingSave struct {
+	db.Context
+
+	lost bool
+}
+
+func (unit *racingSave) SaveChanges(ctx context.Context) error {
+	if !unit.lost {
+		unit.lost = true
+
+		return repositories.ErrConcurrentModification
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestARefreshThatLostARaceAnswersWithWhatIsStored(t *testing.T) {
+	// arrange
+	database := newDatabase(t)
+	_, err := people.Resolve(t.Context(), database.NewContext(), karo)
+	require.NoError(t, err)
+
+	renamed := karo
+	renamed.Name = "Karolin"
+
+	// act
+	user, err := people.Resolve(t.Context(), &racingSave{Context: database.NewContext()}, renamed)
+
+	// assert
+	require.NoError(t, err)
+
+	stored, err := database.NewContext().Users().First(t.Context(), user.ID())
+	require.NoError(t, err)
+	assert.Equal(t, stored.Name(), user.Name())
 }

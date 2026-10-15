@@ -22,8 +22,8 @@ type User struct {
 // to 100 characters.
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
-	if !validName(name) {
-		return nil, fmt.Errorf("%w: a user needs a name of 1 to %d characters", ErrInvalid, maxName)
+	if !ValidName(name) {
+		return nil, fmt.Errorf("%w: a user needs a name of 1 to %d characters", ErrInvalid, MaxName)
 	}
 
 	return &User{
@@ -33,8 +33,9 @@ func NewUser(name string, email string) (*User, error) {
 	}, nil
 }
 
-func validName(name string) bool {
-	return name != "" && utf8.RuneCountInString(name) <= maxName
+// ValidName says whether a trimmed name can be a user's name.
+func ValidName(name string) bool {
+	return name != "" && utf8.RuneCountInString(name) <= MaxName
 }
 
 // NewUserFromDB rebuilds a user as loaded.
@@ -58,7 +59,7 @@ func (user *User) Email() string {
 // an issuer may only send the email when asked for it.
 func (user *User) Refresh(name string, email string) bool {
 	name = strings.TrimSpace(name)
-	if !validName(name) {
+	if !ValidName(name) {
 		name = user.name
 	}
 

@@ -26,8 +26,8 @@ func NewProject(name string) (*Project, error) {
 	case name == "":
 		return nil, fmt.Errorf("%w: a project needs a name", ErrInvalid)
 
-	case utf8.RuneCountInString(name) > maxName:
-		return nil, fmt.Errorf("%w: a project's name has at most %d characters", ErrInvalid, maxName)
+	case utf8.RuneCountInString(name) > MaxName:
+		return nil, fmt.Errorf("%w: a project's name has at most %d characters", ErrInvalid, MaxName)
 	}
 
 	return &Project{Base: newBase(), name: name}, nil
