@@ -447,6 +447,27 @@ func (s *Suite) TestAnIdeaComesBackAsPlanted() {
 	s.Equal("Karo", ideas[0].PlantedBy)
 }
 
+// TestEachIdeaIsListedWithItsOwnPlanter checks that every idea in a
+// garden carries the name of whoever planted it, not someone else's.
+func (s *Suite) TestEachIdeaIsListedWithItsOwnPlanter() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+	s.planted(garden, karo, "from Karo")
+	s.planted(garden, ana, "from Ana")
+
+	// act
+	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(ideas, 2)
+	s.Equal("from Ana", ideas[0].Idea.Text())
+	s.Equal("Ana", ideas[0].PlantedBy)
+	s.Equal("from Karo", ideas[1].Idea.Text())
+	s.Equal("Karo", ideas[1].PlantedBy)
+}
+
 // TestAGardenListsItsOwnIdeasNewestFirst checks that a project's garden
 // holds only its own ideas, the newest first.
 func (s *Suite) TestAGardenListsItsOwnIdeasNewestFirst() {
