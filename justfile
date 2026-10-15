@@ -35,10 +35,17 @@ integration: keyline web
 keyline:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! curl -sf http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; then
-        process-compose up keyline --detached
-        process-compose project is-ready --wait
-    fi
+    ready() { curl -sf --max-time 5 http://localhost:8082/oidc/frogly/.well-known/openid-configuration > /dev/null; }
+    ready && exit 0
+    process-compose up keyline --detached
+    # pulling the image on a first run takes a while, but a Keyline that
+    # never gets ready mustn't hold the tests forever
+    for _ in $(seq 60); do
+        ready && exit 0
+        sleep 5
+    done
+    echo "Keyline didn't get ready within five minutes, see: process-compose process logs keyline" >&2
+    exit 1
 
 # lint
 lint:
