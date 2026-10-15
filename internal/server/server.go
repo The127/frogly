@@ -80,10 +80,20 @@ func serveFrontend(frontend fs.FS) http.Handler {
 			return
 		}
 
-		if strings.HasPrefix(path.Clean(r.URL.Path), "/assets/") {
+		name := path.Clean(r.URL.Path)
+		if strings.HasPrefix(name, "/assets/") {
+			// a missing asset stays a 404, because an old page asks for it and
+			// index.html wouldn't help. A directory isn't an asset, and its
+			// listing would be cached forever like one.
+			info, err := fs.Stat(frontend, strings.TrimPrefix(name, "/"))
+			if err != nil || info.IsDir() {
+				http.NotFound(w, r)
+
+				return
+			}
+
 			// Vite puts a hash of the content into every asset's name, so an
-			// asset never changes. A missing one stays a 404, because an old
-			// page asks for it and index.html wouldn't help.
+			// asset never changes
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			files.ServeHTTP(w, r)
 

@@ -52,9 +52,10 @@ func newServer(log *bytes.Buffer) http.Handler {
 }
 
 var frontend = fstest.MapFS{
-	"index.html":          {Data: []byte("<!doctype html><title>frogly</title>")},
-	"assets/index-a1.js":  {Data: []byte("console.log('frogly')")},
-	"assets/index-a1.css": {Data: []byte("body{}")},
+	"index.html":           {Data: []byte("<!doctype html><title>frogly</title>")},
+	"assets/index-a1.js":   {Data: []byte("console.log('frogly')")},
+	"assets/index-a1.css":  {Data: []byte("body{}")},
+	"assets/fonts/a.woff2": {Data: []byte("font")},
 }
 
 func request(t *testing.T, handler http.Handler, method string, path string, header http.Header) *httptest.ResponseRecorder {
@@ -301,4 +302,65 @@ func TestAMissingAssetIsNotFound(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusNotFound, response.Code)
+}
+
+func TestNoAssetsDirectoryIsListed(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		wantCode int
+	}{
+		{name: "the assets directory itself, which is a page of the frontend", path: "/assets/", wantCode: http.StatusOK},
+		{name: "a directory inside it", path: "/assets/fonts/", wantCode: http.StatusNotFound},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(&bytes.Buffer{})
+
+			// act
+			response := get(t, handler, test.path, nil)
+
+			// assert
+			assert.Equal(t, test.wantCode, response.Code)
+			assert.NotContains(t, response.Body.String(), "a.woff2")
+			assert.NotContains(t, response.Body.String(), "index-a1.js")
+		})
+	}
+}
+
+func TestAPathLeavingTheAssetsServesTheFrontendInstead(t *testing.T) {
+	// arrange
+	handler := newServer(&bytes.Buffer{})
+
+	// act
+	response := get(t, handler, "/assets/../../etc/passwd", nil)
+
+	// assert
+	assert.NotContains(t, response.Body.String(), "root:")
+}
+
+func TestTheFrontendOnlyAnswersReads(t *testing.T) {
+	// arrange
+	handler := newServer(&bytes.Buffer{})
+
+	// act
+	response := request(t, handler, http.MethodPost, "/", nil)
+
+	// assert
+	assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
+	assert.Equal(t, "GET, HEAD", response.Header().Get("Allow"))
+}
+
+func TestTheFrontendAnswersHead(t *testing.T) {
+	// arrange
+	handler := newServer(&bytes.Buffer{})
+
+	// act
+	response := request(t, handler, http.MethodHead, "/", nil)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Empty(t, response.Body.String())
 }
