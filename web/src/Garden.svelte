@@ -73,15 +73,12 @@
 
   <form onsubmit={plant}>
     <label class="hidden" for="idea-text">A new idea</label>
-    <!-- readonly while saving, since a disabled field would lose the focus.
-         maxlength counts UTF-16 code units, and frogly's 500 characters can
-         take up to 1000 of them, so frogly's own check is the real limit. -->
+    <!-- readonly while saving, since a disabled field would lose the focus -->
     <input
       class="plant"
       id="idea-text"
       bind:value={text}
       placeholder="plant an idea…"
-      maxlength="1000"
       readonly={saving}
       aria-busy={saving}
       aria-invalid={problem ? "true" : undefined}
