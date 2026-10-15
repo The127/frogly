@@ -28,7 +28,7 @@ cover:
     go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
 # run the integration tests, starting Keyline first if it isn't running
-integration: keyline web
+integration: containers keyline web
     go tool ginkgo -tags integration -race ./test/integration
 
 # start Keyline in the background unless it's running already
@@ -78,11 +78,23 @@ prose:
     bash hack/check-prose.sh
 
 # start frogly and everything it needs, see process-compose.yml
-dev:
-    # `just integration` may have left Keyline running in the background,
-    # and two process-composes can't share a port
-    -process-compose down 2> /dev/null
+dev: containers
+    @# `just integration` may have left Keyline running in the background,
+    @# and two process-composes can't share a port
+    -@process-compose down > /dev/null 2>&1
     process-compose up
+
+# check that Docker or Podman answers, the services run in containers
+[private]
+containers:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cli="${CONTAINER_CLI:-docker}"
+    if ! "$cli" info > /dev/null 2>&1; then
+        echo "$cli doesn't answer. Is it running, and does DOCKER_HOST point to it?" >&2
+        "$cli" info 2>&1 | tail -3 >&2 || true
+        exit 1
+    fi
 
 # install the git hooks
 hooks:
