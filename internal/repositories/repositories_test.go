@@ -242,39 +242,86 @@ func TestNewIdeaIsPlantedNowWithATrimmedText(t *testing.T) {
 	assert.Equal(t, planterID, idea.PlanterID())
 	assert.Equal(t, "search should find ideas by any word", idea.Text())
 	assert.WithinDuration(t, time.Now(), idea.PlantedAt(), time.Second)
-}
-
-func TestNewIdeaKeepsTheTimeAsPreciseAsTheDatabases(t *testing.T) {
-	// act
-	idea, err := repositories.NewIdea(uuid.New(), uuid.New(), "a calmer color for done tickets")
-
-	// assert
-	require.NoError(t, err)
+	// both databases keep microseconds
 	assert.Equal(t, idea.PlantedAt().Truncate(time.Microsecond), idea.PlantedAt())
 	assert.Equal(t, time.UTC, idea.PlantedAt().Location())
 }
 
-func TestNewIdeaRefusesWhatItCantUse(t *testing.T) {
+func TestNewIdeaTakesWhatFitsInOneLine(t *testing.T) {
 	tests := []struct {
-		name      string
-		projectID uuid.UUID
-		planterID uuid.UUID
-		text      string
+		name string
+		text string
 	}{
-		{name: "empty", projectID: uuid.New(), planterID: uuid.New(), text: "   "},
-		{name: "more than one line", projectID: uuid.New(), planterID: uuid.New(), text: "one\ntwo"},
-		{name: "longer than 500 characters", projectID: uuid.New(), planterID: uuid.New(), text: strings.Repeat("蛙", 501)},
-		{name: "no project", projectID: uuid.Nil, planterID: uuid.New(), text: "an idea"},
-		{name: "no planter", projectID: uuid.New(), planterID: uuid.Nil, text: "an idea"},
+		{name: "500 characters", text: strings.Repeat("蛙", 500)},
+		{name: "500 characters and spaces around them", text: "  " + strings.Repeat("蛙", 500) + "  "},
+		{name: "a tab", text: "search\tfind"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// act
-			_, err := repositories.NewIdea(test.projectID, test.planterID, test.text)
+			_, err := repositories.NewIdea(uuid.New(), uuid.New(), test.text)
+
+			// assert
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestNewIdeaRefusesATextItCantUse(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "empty", text: " \n "},
+		{name: "a line feed", text: "one\ntwo"},
+		{name: "a carriage return", text: "one\rtwo"},
+		{name: "a line separator", text: "one\u2028two"},
+		{name: "a NUL", text: "one\x00two"},
+		{name: "invalid UTF-8", text: "one\xfftwo"},
+		{name: "longer than 500 characters", text: strings.Repeat("蛙", 501)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewIdea(uuid.New(), uuid.New(), test.text)
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))
 		})
 	}
+}
+
+func TestNewIdeaNeedsAProjectAndAPlanter(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		planterID uuid.UUID
+	}{
+		{name: "no project", projectID: uuid.Nil, planterID: uuid.New()},
+		{name: "no planter", projectID: uuid.New(), planterID: uuid.Nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewIdea(test.projectID, test.planterID, "an idea")
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestNewIdeaFromDBKeepsTheTimeInUTC(t *testing.T) {
+	// arrange
+	plantedAt := time.Date(2026, 10, 15, 23, 0, 0, 0, time.FixedZone("CEST", 2*60*60))
+
+	// act
+	idea := repositories.NewIdeaFromDB(repositories.NewBaseFromDB(uuid.New(), 1), uuid.New(), uuid.New(), "an idea", plantedAt)
+
+	// assert
+	assert.Equal(t, time.UTC, idea.PlantedAt().Location())
+	assert.True(t, plantedAt.Equal(idea.PlantedAt()))
 }

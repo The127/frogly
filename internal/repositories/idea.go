@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -34,8 +35,11 @@ func NewIdea(projectID uuid.UUID, planterID uuid.UUID, text string) (*Idea, erro
 	case text == "":
 		return nil, invalid("an idea needs a text")
 
-	case strings.ContainsAny(text, "\r\n"):
-		return nil, invalid("an idea is one line")
+	case !utf8.ValidString(text):
+		return nil, invalid("an idea's text isn't valid UTF-8")
+
+	case strings.IndexFunc(text, breaksTheLine) >= 0:
+		return nil, invalid("an idea is one line of text")
 
 	case utf8.RuneCountInString(text) > MaxIdeaText:
 		return nil, invalid("an idea has at most %d characters", MaxIdeaText)
@@ -52,6 +56,13 @@ func NewIdea(projectID uuid.UUID, planterID uuid.UUID, text string) (*Idea, erro
 	}, nil
 }
 
+// breaksTheLine also catches control characters like NUL, which Postgres
+// refuses to store, and Unicode's own line and paragraph separators. A tab
+// is fine within a line.
+func breaksTheLine(r rune) bool {
+	return (unicode.IsControl(r) && r != '\t') || r == '\u2028' || r == '\u2029'
+}
+
 // NewIdeaFromDB rebuilds an idea as loaded.
 func NewIdeaFromDB(base Base, projectID uuid.UUID, planterID uuid.UUID, text string, plantedAt time.Time) *Idea {
 	return &Idea{
@@ -59,7 +70,7 @@ func NewIdeaFromDB(base Base, projectID uuid.UUID, planterID uuid.UUID, text str
 		projectID: projectID,
 		planterID: planterID,
 		text:      text,
-		plantedAt: plantedAt,
+		plantedAt: plantedAt.UTC(),
 	}
 }
 
