@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"log/slog"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,17 @@ import (
 
 	"github.com/the127/frogly/internal/config"
 )
+
+// required are the settings without a default, so every test that expects
+// a working configuration sets them.
+var required = []string{
+	"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly",
+	"FROGLY_OIDC__CLIENT_ID=frogly",
+}
+
+func environment(variables ...string) []string {
+	return append(slices.Clone(required), variables...)
+}
 
 func TestLoadsTheLogSettings(t *testing.T) {
 	tests := []struct {
@@ -19,13 +31,13 @@ func TestLoadsTheLogSettings(t *testing.T) {
 	}{
 		{
 			name:       "defaults without variables",
-			environ:    []string{"HOME=/home/frog"},
+			environ:    environment("HOME=/home/frog"),
 			wantLevel:  slog.LevelInfo,
 			wantFormat: config.LogFormatJSON,
 		},
 		{
 			name:       "variables override the defaults",
-			environ:    []string{"FROGLY_LOG__LEVEL=debug", "FROGLY_LOG__FORMAT=text"},
+			environ:    environment("FROGLY_LOG__LEVEL=debug", "FROGLY_LOG__FORMAT=text"),
 			wantLevel:  slog.LevelDebug,
 			wantFormat: config.LogFormatText,
 		},
@@ -58,7 +70,7 @@ func TestErrorsNameTheVariable(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
-			environ := []string{test.variable + "=" + test.value}
+			environ := environment(test.variable + "=" + test.value)
 
 			// act
 			_, err := config.Load(environ)
@@ -72,7 +84,7 @@ func TestErrorsNameTheVariable(t *testing.T) {
 
 func TestErrorsNameEveryInvalidVariable(t *testing.T) {
 	// arrange
-	environ := []string{"FROGLY_LOG__LEVEL=loud", "FROGLY_LOG__FORMAT=xml"}
+	environ := environment("FROGLY_LOG__LEVEL=loud", "FROGLY_LOG__FORMAT=xml")
 
 	// act
 	_, err := config.Load(environ)
@@ -81,4 +93,49 @@ func TestErrorsNameEveryInvalidVariable(t *testing.T) {
 	require.ErrorIs(t, err, config.ErrInvalid)
 	require.ErrorContains(t, err, "FROGLY_LOG__LEVEL")
 	require.ErrorContains(t, err, "FROGLY_LOG__FORMAT")
+}
+
+func TestLoadsTheServerAndOIDCSettings(t *testing.T) {
+	tests := []struct {
+		name              string
+		environ           []string
+		wantListenAddress string
+	}{
+		{
+			name:              "default listen address",
+			environ:           environment(),
+			wantListenAddress: ":8080",
+		},
+		{
+			name:              "variable overrides the listen address",
+			environ:           environment("FROGLY_SERVER__LISTEN_ADDRESS=127.0.0.1:9000"),
+			wantListenAddress: "127.0.0.1:9000",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			loaded, err := config.Load(test.environ)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.wantListenAddress, loaded.Server.ListenAddress)
+			assert.Equal(t, "http://localhost:8082/oidc/frogly", loaded.OIDC.Issuer)
+			assert.Equal(t, "frogly", loaded.OIDC.ClientID)
+		})
+	}
+}
+
+func TestErrorsNameEveryMissingRequiredVariable(t *testing.T) {
+	// arrange
+	environ := []string{"HOME=/home/frog"}
+
+	// act
+	_, err := config.Load(environ)
+
+	// assert
+	require.ErrorIs(t, err, config.ErrInvalid)
+	require.ErrorContains(t, err, "FROGLY_OIDC__ISSUER")
+	require.ErrorContains(t, err, "FROGLY_OIDC__CLIENT_ID")
 }

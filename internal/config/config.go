@@ -1,5 +1,6 @@
 // Package config loads frogly's configuration from FROGLY_ environment
-// variables. A setting with a sensible default gets it here.
+// variables. A setting with a sensible default gets it here. A setting
+// that can't have one is required.
 //
 // A variable names its setting in upper case, with __ between the levels:
 // FROGLY_LOG__LEVEL sets log.level.
@@ -28,8 +29,25 @@ var ErrInvalid = errors.New("invalid configuration")
 
 // Config is frogly's configuration.
 type Config struct {
-	Log Log `koanf:"log"`
+	Log    Log    `koanf:"log"`
+	Server Server `koanf:"server"`
+	OIDC   OIDC   `koanf:"oidc"`
 }
+
+// Server says where frogly listens.
+type Server struct {
+	ListenAddress string `koanf:"listen_address"`
+}
+
+// OIDC says where people log in. frogly accepts the access tokens this
+// issuer gives out to this client.
+type OIDC struct {
+	Issuer   string `koanf:"issuer"`
+	ClientID string `koanf:"client_id"`
+}
+
+// requiredKeys are the settings without a default.
+var requiredKeys = []string{"oidc.issuer", "oidc.client_id"}
 
 // Log says how frogly writes its log.
 type Log struct {
@@ -70,6 +88,9 @@ func Load(environ []string) (*Config, error) {
 			Level:  slog.LevelInfo,
 			Format: LogFormatJSON,
 		},
+		Server: Server{
+			ListenAddress: ":8080",
+		},
 	}
 
 	variables := make(map[string]string)
@@ -89,6 +110,18 @@ func Load(environ []string) (*Config, error) {
 	}), nil)
 	if err != nil {
 		return nil, fmt.Errorf("loading the environment: %w", err)
+	}
+
+	var missing []string
+
+	for _, key := range requiredKeys {
+		if !loader.Exists(key) {
+			missing = append(missing, variableOf(key))
+		}
+	}
+
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("%w: missing variables %s", ErrInvalid, strings.Join(missing, ", "))
 	}
 
 	var metadata mapstructure.Metadata
@@ -118,6 +151,10 @@ func Load(environ []string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func variableOf(key string) string {
+	return envPrefix + strings.ToUpper(strings.ReplaceAll(key, ".", envLevel))
 }
 
 // mapstructure names each setting that failed by its key, which means
