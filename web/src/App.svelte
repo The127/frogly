@@ -3,10 +3,9 @@
   import { onMount } from "svelte";
 
   import { LoggedOut, fetchConfig, fetchMe } from "./api";
-  import { Router } from "sv-router";
-
   import { callbackPath, loginSettings } from "./auth";
   import { setLogin } from "./login";
+  import { Router } from "./router";
   import { type Session, resume } from "./session";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
