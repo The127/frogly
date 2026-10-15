@@ -15,8 +15,7 @@ every check. Run `just` alone to list all recipes.
   else in `internal/`.
 - Every package needs a rule in `arch-go.yml` that says what it may depend
   on and why. A new package arrives together with its rule.
-- Tests use external test packages (`package foo_test`) and run with the
-  race detector.
+- Tests follow "Writing tests" in CONTRIBUTING.md.
 
 ## Commits
 

@@ -65,6 +65,33 @@ You need Docker or Podman for this. If you use Podman, set
 5. A maintainer reviews the pull request and may ask for changes.
 6. Once it is approved, a maintainer squash merges it.
 
+## Writing tests
+
+Tests live in an external test package, like `package config_test` for
+`config`, so they use a package the way its callers do. `just test` runs
+them with the race detector.
+
+Each test has three parts, marked with a comment:
+
+```go
+func TestVariablesOverrideDefaults(t *testing.T) {
+	// arrange
+	environ := []string{"FROGLY_LOG__LEVEL=debug"}
+
+	// act
+	loaded, err := config.Load(environ)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, slog.LevelDebug, loaded.Log.Level)
+}
+```
+
+Leave out `// arrange` when there is nothing to set up. Checks use
+[testify](https://github.com/stretchr/testify): `require` when the test
+can't go on after a failure, `assert` otherwise. Checks on an error always
+use `require`, and the linter enforces that.
+
 ## Commit messages and pull request titles
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
