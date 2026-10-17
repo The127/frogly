@@ -102,7 +102,9 @@
       aria-invalid={problem ? "true" : undefined}
       aria-describedby="project-problem"
     />
-    <fieldset class="choice" disabled={saving}>
+    <!-- not disabled while saving, a disabled radio would lose the focus.
+         create() already refuses a second save. -->
+    <fieldset class="choice" aria-describedby="project-problem">
       <legend class="hidden">Who sees the new project</legend>
       <label><input type="radio" name="visibility" value="private" bind:group={visibility} /> private, only its members see it</label>
       <label><input type="radio" name="visibility" value="public" bind:group={visibility} /> public, everyone in frogly sees its name</label>
