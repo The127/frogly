@@ -138,3 +138,81 @@ func TestPlantingRefusesATextItCantUse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, listed)
 }
+
+// sharedIdea is an idea Karo planted in a project Ana is a member of too.
+func sharedIdea(t *testing.T, database db.Database) (karo, ana *repositories.User, project *repositories.Project, idea *repositories.Idea) {
+	t.Helper()
+
+	karo, ana = savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	project = savedProject(t, database, karo)
+
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, project.ID(), ana.ID())
+	require.NoError(t, err)
+
+	idea, err = garden.Plant(t.Context(), database.NewContext(), karo, project.ID(), "search by any word")
+	require.NoError(t, err)
+
+	return karo, ana, project, idea
+}
+
+func TestAMeTooCountsOneMorePerson(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	_, ana, project, idea := sharedIdea(t, database)
+
+	// act
+	said, err := garden.MeToo(t.Context(), database.NewContext(), ana, project.ID(), idea.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, idea.ID(), said.Idea.ID())
+	assert.Equal(t, "Karo", said.PlantedBy)
+	assert.Equal(t, 2, said.People)
+}
+
+func TestAMeTooAgainOrByThePlanterChangesNothing(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, project, idea := sharedIdea(t, database)
+	_, err := garden.MeToo(t.Context(), database.NewContext(), ana, project.ID(), idea.ID())
+	require.NoError(t, err)
+
+	for _, who := range []*repositories.User{ana, karo} {
+		// act
+		said, err := garden.MeToo(t.Context(), database.NewContext(), who, project.ID(), idea.ID())
+
+		// assert
+		require.NoError(t, err, who.Name())
+		assert.Equal(t, 2, said.People, who.Name())
+	}
+}
+
+func TestSomeoneOutsideTheProjectCantSayMeToo(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	_, _, project, idea := sharedIdea(t, database)
+	tomas := savedUser(t, database, "Tomás")
+
+	// act
+	_, err := garden.MeToo(t.Context(), database.NewContext(), tomas, project.ID(), idea.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+func TestAnIdeaThatIsntInTheProjectIsNotFound(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, project, _ := sharedIdea(t, database)
+	elsewhere := savedProject(t, database, karo)
+	other, err := garden.Plant(t.Context(), database.NewContext(), karo, elsewhere.ID(), "an idea elsewhere")
+	require.NoError(t, err)
+
+	for _, ideaID := range []uuid.UUID{other.ID(), uuid.Must(uuid.NewV7())} {
+		// act
+		_, err := garden.MeToo(t.Context(), database.NewContext(), ana, project.ID(), ideaID)
+
+		// assert
+		require.ErrorIs(t, err, garden.ErrIdeaNotFound)
+	}
+}
