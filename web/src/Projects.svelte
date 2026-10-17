@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Project } from "./api";
+  import type { Project, Visibility } from "./api";
   import { getLogin } from "./login";
   import { addProject, loadProjects } from "./projects";
   import { p } from "./router";
@@ -11,6 +11,8 @@
   let projects = $state<Project[] | undefined>();
   let listFailed = $state(false);
   let name = $state("");
+  // nothing is chosen in advance, the person decides who sees a project
+  let visibility = $state<Visibility | undefined>();
   let problem = $state("");
   let saving = $state(false);
 
@@ -40,17 +42,19 @@
     saving = true;
     problem = "";
 
-    const added = await addProject(accessToken, name);
+    const added = await addProject(accessToken, name, visibility);
     saving = false;
 
     switch (added.kind) {
       case "saved":
         name = "";
+        visibility = undefined;
         projects = added.projects;
         listFailed = false;
         break;
       case "savedButNotListed":
         name = "";
+        visibility = undefined;
         listFailed = true;
         break;
       case "refused":
@@ -98,6 +102,11 @@
       aria-invalid={problem ? "true" : undefined}
       aria-describedby="project-problem"
     />
+    <fieldset class="choice" disabled={saving}>
+      <legend class="hidden">Who sees the new project</legend>
+      <label><input type="radio" name="visibility" value="private" bind:group={visibility} /> private, only its members see it</label>
+      <label><input type="radio" name="visibility" value="public" bind:group={visibility} /> public, everyone in frogly sees its name</label>
+    </fieldset>
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" id="project-problem" role="alert">{problem}</p>
   </form>

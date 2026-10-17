@@ -7,9 +7,12 @@ export interface Me {
   name: string;
 }
 
+export type Visibility = "public" | "private";
+
 export interface Project {
   id: string;
   name: string;
+  visibility: Visibility;
 }
 
 // frogly's limit for an idea, in characters
@@ -140,14 +143,16 @@ export async function fetchProject(accessToken: string, projectId: string): Prom
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
 
-export async function createProject(accessToken: string, name: string): Promise<Created> {
+// visibility is undefined until the person chooses, and frogly's answer
+// then says that a choice is missing
+export async function createProject(accessToken: string, name: string, visibility: Visibility | undefined): Promise<Created> {
   const response = await authorized("/api/projects", accessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, visibility }),
   });
   if (response.status === 400) {
-    return { problem: await refusal(response, "frogly can't use that name") };
+    return { problem: await refusal(response, "frogly can't create that project") };
   }
 
   if (!response.ok) {

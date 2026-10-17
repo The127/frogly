@@ -1,4 +1,12 @@
-import { type Created, type Project, type SessionEnded, createProject, fetchProjects, sessionEnded } from "./api";
+import {
+  type Created,
+  type Project,
+  type SessionEnded,
+  type Visibility,
+  createProject,
+  fetchProjects,
+  sessionEnded,
+} from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -31,11 +39,11 @@ export type Added =
   | { kind: "notSaved" }
   | SessionEnded;
 
-export async function addProject(accessToken: AccessToken, name: string): Promise<Added> {
+export async function addProject(accessToken: AccessToken, name: string, visibility: Visibility | undefined): Promise<Added> {
   let created: Created;
 
   try {
-    created = await createProject(await accessToken(), name);
+    created = await createProject(await accessToken(), name, visibility);
   } catch (error) {
     const ended = sessionEnded(error);
     if (ended) {

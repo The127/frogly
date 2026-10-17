@@ -13,7 +13,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-const garden: Project = { id: "p-1", name: "Garden" };
+const garden: Project = { id: "p-1", name: "Garden", visibility: "private" };
 const token = async () => "an-access-token";
 
 describe("addProject", () => {
@@ -23,10 +23,11 @@ describe("addProject", () => {
     vi.mocked(fetchProjects).mockResolvedValue([garden]);
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "saved", projects: [garden] });
+    expect(createProject).toHaveBeenCalledWith("an-access-token", "Garden", "private");
   });
 
   it("gives frogly's reason when the name can't be used", async () => {
@@ -34,7 +35,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockResolvedValue({ problem: "a project needs a name" });
 
     // act
-    const outcome = await addProject(token, "  ");
+    const outcome = await addProject(token, "  ", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "refused", problem: "a project needs a name" });
@@ -47,7 +48,7 @@ describe("addProject", () => {
     vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "savedButNotListed" });
@@ -59,7 +60,7 @@ describe("addProject", () => {
     vi.mocked(fetchProjects).mockRejectedValue(new NotAllowed());
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "notAllowed" });
@@ -70,7 +71,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new Error("frogly answered 500"));
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "notSaved" });
@@ -81,7 +82,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new LoggedOut());
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
@@ -92,7 +93,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new NotAllowed());
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "notAllowed" });

@@ -174,20 +174,32 @@ describe("fetchProject", () => {
 });
 
 describe("createProject", () => {
-  it("sends the name and gives the new project", async () => {
+  it("sends the name and visibility and gives the new project", async () => {
     // arrange
-    respondWith(201, { id: "p-1", name: "Garden" });
+    respondWith(201, { id: "p-1", name: "Garden", visibility: "public" });
 
     // act
-    const created = await createProject("an-access-token", "Garden");
+    const created = await createProject("an-access-token", "Garden", "public");
 
     // assert
-    expect(created).toEqual({ project: { id: "p-1", name: "Garden" } });
+    expect(created).toEqual({ project: { id: "p-1", name: "Garden", visibility: "public" } });
     expect(fetch).toHaveBeenCalledWith("/api/projects", {
       method: "POST",
       headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Garden" }),
+      body: JSON.stringify({ name: "Garden", visibility: "public" }),
     });
+  });
+
+  it("leaves the choice to frogly's answer when none was made", async () => {
+    // arrange
+    respondWith(400, { status: 400, detail: "a project is public or private" });
+
+    // act
+    const created = await createProject("an-access-token", "Garden", undefined);
+
+    // assert
+    expect(created).toEqual({ problem: "a project is public or private" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects", expect.objectContaining({ body: JSON.stringify({ name: "Garden" }) }));
   });
 
   it("gives frogly's reason when the name can't be used", async () => {
@@ -195,7 +207,7 @@ describe("createProject", () => {
     respondWith(400, { status: 400, detail: "a project needs a name" });
 
     // act
-    const created = await createProject("an-access-token", "  ");
+    const created = await createProject("an-access-token", "  ", "private");
 
     // assert
     expect(created).toEqual({ problem: "a project needs a name" });
@@ -206,7 +218,7 @@ describe("createProject", () => {
     respondWith(500, { status: 500 });
 
     // act
-    const created = createProject("an-access-token", "Garden");
+    const created = createProject("an-access-token", "Garden", "private");
 
     // assert
     await expect(created).rejects.toThrow("500");
@@ -241,7 +253,7 @@ describe("an ended login", () => {
     respondWith(401, { status: 401 });
 
     // act
-    const created = createProject("an-expired-token", "Garden");
+    const created = createProject("an-expired-token", "Garden", "private");
 
     // assert
     await expect(created).rejects.toBeInstanceOf(LoggedOut);
@@ -254,10 +266,10 @@ describe("a refusal without a reason", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
 
     // act
-    const created = await createProject("an-access-token", "Garden");
+    const created = await createProject("an-access-token", "Garden", "private");
 
     // assert
-    expect(created).toEqual({ problem: "frogly can't use that name" });
+    expect(created).toEqual({ problem: "frogly can't create that project" });
   });
 });
 
