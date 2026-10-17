@@ -422,7 +422,7 @@ func TestCreatingAProjectWithoutFroglysRoleIsForbidden(t *testing.T) {
 	handler := newServer(t, &bytes.Buffer{})
 
 	// act
-	response := projects(t, handler, http.MethodPost, noRoleToken, `{"name": "Garden", "visibility": "private"}`)
+	response := projects(t, handler, http.MethodPost, noRoleToken, `{"name": "Garden", "visibility": "private", "joining": "closed"}`)
 
 	// assert
 	assert.Equal(t, http.StatusForbidden, response.Code)
@@ -501,7 +501,7 @@ func TestACreatedProjectIsListed(t *testing.T) {
 	handler := newServer(t, &bytes.Buffer{})
 
 	// act
-	created := projects(t, handler, http.MethodPost, validToken, `{"name": "  Garden ", "visibility": "public"}`)
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "  Garden ", "visibility": "public", "joining": "closed"}`)
 
 	// assert
 	require.Equal(t, http.StatusCreated, created.Code)
@@ -518,14 +518,14 @@ func TestACreatedProjectIsListed(t *testing.T) {
 	assert.Equal(t, "public", project.Visibility)
 
 	listed := projects(t, handler, http.MethodGet, validToken, "")
-	assert.JSONEq(t, `[{"id": "`+project.ID+`", "name": "Garden", "visibility": "public"}]`, listed.Body.String())
+	assert.JSONEq(t, `[{"id": "`+project.ID+`", "name": "Garden", "visibility": "public", "joining": "closed"}]`, listed.Body.String())
 }
 
 func TestOthersDontSeeYourProjects(t *testing.T) {
 	// arrange
 	handler := newServer(t, &bytes.Buffer{})
 	// public, because a public project still belongs only in its members' list
-	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "public"}`)
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "public", "joining": "closed"}`)
 	require.Equal(t, http.StatusCreated, created.Code)
 
 	// act
@@ -545,6 +545,8 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 		{name: "no name", body: `{"name": "   ", "visibility": "private"}`, wantDetail: "a project needs a name"},
 		{name: "too long a name", body: `{"name": "` + strings.Repeat("蛙", 101) + `", "visibility": "private"}`, wantDetail: "a project's name has at most 100 characters"},
 		{name: "no visibility", body: `{"name": "Garden"}`, wantDetail: "a project is public or private"},
+		{name: "a public project without how to join", body: `{"name": "Garden", "visibility": "public"}`, wantDetail: "a project is open to join or closed"},
+		{name: "an open private project", body: `{"name": "Garden", "visibility": "private", "joining": "open"}`, wantDetail: "only a public project can be open to join"},
 		{name: "an unknown visibility", body: `{"name": "Garden", "visibility": "secret"}`, wantDetail: "a project is public or private"},
 		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't the JSON this request takes"},
 		{name: "an unknown field", body: `{"name": "Garden", "visibility": "private", "colour": "green"}`, wantDetail: "the body isn't the JSON this request takes"},
@@ -607,7 +609,7 @@ func TestAMemberGetsTheProject(t *testing.T) {
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private"}`, response.Body.String())
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed"}`, response.Body.String())
 }
 
 func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
@@ -683,10 +685,10 @@ func TestAMemberChangesTheVisibility(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public"}`, response.Body.String())
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "closed"}`, response.Body.String())
 
 	got := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
-	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public"}`, got.Body.String())
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "closed"}`, got.Body.String())
 }
 
 func TestAVisibilityYouCantChangeIsNotFound(t *testing.T) {
@@ -713,7 +715,7 @@ func TestAVisibilityYouCantChangeIsNotFound(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, response.Code)
 
 			got := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
-			assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private"}`, got.Body.String())
+			assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed"}`, got.Body.String())
 		})
 	}
 }
@@ -760,7 +762,7 @@ func TestOthersSeeAPublicProjectByItsName(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Garden"}]`, response.Body.String())
+	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Garden", "joining": "closed"}]`, response.Body.String())
 }
 
 func TestYourOwnPublicProjectIsntAmongTheOthers(t *testing.T) {
@@ -941,4 +943,126 @@ func TestSomeoneOutsideTheProjectNeitherSearchesNorAdds(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, searched.Code)
 	assert.Equal(t, http.StatusNotFound, added.Code)
 	assert.JSONEq(t, `[]`, projects(t, handler, http.MethodGet, otherToken, "").Body.String())
+}
+
+func joinProject(t *testing.T, handler http.Handler, token string, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/join", http.Header{"Authorization": {"Bearer " + token}})
+}
+
+func changeJoining(t *testing.T, handler http.Handler, token string, projectID string, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	header := http.Header{"Content-Type": {"application/json"}, "Authorization": {"Bearer " + token}}
+
+	return requestWithBody(t, handler, http.MethodPut, "/api/projects/"+projectID+"/joining", header, strings.NewReader(body))
+}
+
+func openProject(t *testing.T, handler http.Handler) string {
+	t.Helper()
+
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Summer fair", "visibility": "public", "joining": "open"}`)
+	require.Equal(t, http.StatusCreated, created.Code)
+
+	var project struct {
+		ID string `json:"id"`
+	}
+
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &project))
+
+	return project.ID
+}
+
+func TestSomeoneJoinsAnOpenProject(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := openProject(t, handler)
+
+	// act
+	response := joinProject(t, handler, otherToken, projectID)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Summer fair", "visibility": "public", "joining": "open"}`, response.Body.String())
+
+	listed := projects(t, handler, http.MethodGet, otherToken, "")
+	assert.Contains(t, listed.Body.String(), projectID)
+}
+
+func TestOthersSeeThatAPublicProjectIsOpen(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := openProject(t, handler)
+
+	// act
+	response := get(t, handler, "/api/projects/public", http.Header{"Authorization": {"Bearer " + otherToken}})
+
+	// assert
+	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Summer fair", "joining": "open"}]`, response.Body.String())
+}
+
+func TestAProjectYouCantJoinIsNotFound(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID func(http.Handler) string
+	}{
+		{name: "closed", projectID: func(handler http.Handler) string { return createdProjectWith(t, handler, "public") }},
+		{name: "private", projectID: func(handler http.Handler) string { return createdProject(t, handler) }},
+		{name: "no such project", projectID: func(http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
+		{name: "not an ID", projectID: func(http.Handler) string { return "garden" }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+
+			// act
+			response := joinProject(t, handler, otherToken, test.projectID(handler))
+
+			// assert
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assert.JSONEq(t, `{"type": "about:blank", "title": "Not Found", "status": 404}`, response.Body.String())
+		})
+	}
+}
+
+func TestAMemberOpensAProject(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProjectWith(t, handler, "public")
+
+	// act
+	response := changeJoining(t, handler, validToken, projectID, `{"joining": "open"}`)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "open"}`, response.Body.String())
+}
+
+func TestSomeoneOutsideCantChangeHowPeopleJoin(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProjectWith(t, handler, "public")
+
+	// act
+	response := changeJoining(t, handler, otherToken, projectID, `{"joining": "open"}`)
+
+	// assert
+	assert.Equal(t, http.StatusNotFound, response.Code)
+	assert.Equal(t, http.StatusNotFound, joinProject(t, handler, otherToken, projectID).Code)
+}
+
+func TestAJoiningFroglyCantUseIsABadRequest(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	// act
+	response := changeJoining(t, handler, validToken, projectID, `{"joining": "open"}`)
+
+	// assert
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), "only a public project can be open to join")
 }

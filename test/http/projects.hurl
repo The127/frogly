@@ -11,6 +11,7 @@ header "Content-Type" == "application/json"
 header "Cache-Control" == "no-store"
 jsonpath "$.name" == "Hurl garden"
 jsonpath "$.visibility" == "private"
+jsonpath "$.joining" == "closed"
 
 # and lists it among your projects
 GET {{frogly}}/api/projects

@@ -29,11 +29,11 @@ func publicProjectsFor(ctx context.Context, token string) []map[string]any {
 
 var _ = Describe("making a project public or private", func() {
 	Context("for someone outside the project", func() {
-		It("lists a public project by its name only", func(ctx SpecContext) {
+		It("lists a public project by its name and whether it's open", func(ctx SpecContext) {
 			fair := createProject(ctx, accessToken, "Summer fair", "public")
 			Expect(fair.Visibility).To(Equal("public"))
 
-			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair"}))
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair", "joining": "closed"}))
 		}, SpecTimeout(10*time.Second))
 
 		It("doesn't list a private project", func(ctx SpecContext) {
@@ -65,7 +65,7 @@ var _ = Describe("making a project public or private", func() {
 			fair := createProject(ctx, accessToken, "Summer fair", "public")
 
 			Expect(publicProjectsFor(ctx, accessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
-			Expect(projectsOf(ctx, accessToken)).To(ContainElement(project{ID: fair.ID, Name: "Summer fair", Visibility: "public"}))
+			Expect(projectsOf(ctx, accessToken)).To(ContainElement(project{ID: fair.ID, Name: "Summer fair", Visibility: "public", Joining: "closed"}))
 		}, SpecTimeout(10*time.Second))
 
 		It("hides a public project once they make it private, and shows it again once it's public", func(ctx SpecContext) {
