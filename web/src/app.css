@@ -177,15 +177,27 @@ a {
   gap: 8px 14px;
 }
 
+/* one setting below the other, so a new one is just another block */
+.fields .label {
+  display: block;
+  margin: 32px 0 8px;
+}
+
 .choice {
   border: 0;
   padding: 0;
-  margin: 10px 0 0;
+  margin: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 20px;
-  font-size: 14px;
-  color: var(--ink-2);
+  flex-direction: column;
+  gap: 8px;
+}
+
+.choice legend {
+  padding: 0;
+}
+
+.acts {
+  margin-top: 32px;
 }
 
 .choice input {

@@ -32,11 +32,8 @@ export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   }
 }
 
-// savedButNotListed is its own outcome, since saying the save failed would
-// make the person try again and create the project twice.
 export type Added =
-  | { kind: "saved"; projects: Project[] }
-  | { kind: "savedButNotListed" }
+  | { kind: "saved"; project: Project }
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
   | SessionEnded;
@@ -57,20 +54,7 @@ export async function addProject(accessToken: AccessToken, name: string, visibil
     return { kind: "notSaved" };
   }
 
-  if ("problem" in created) {
-    return { kind: "refused", problem: created.problem };
-  }
-
-  const loaded = await loadProjects(accessToken);
-  switch (loaded.kind) {
-    case "listed":
-      return { kind: "saved", projects: loaded.projects };
-    case "loggedOut":
-    case "notAllowed":
-      return { kind: loaded.kind };
-    case "failed":
-      return { kind: "savedButNotListed" };
-  }
+  return "problem" in created ? { kind: "refused", problem: created.problem } : { kind: "saved", project: created.project };
 }
 
 export type PublicLoaded = { kind: "listed"; projects: PublicProject[] } | { kind: "failed" } | SessionEnded;

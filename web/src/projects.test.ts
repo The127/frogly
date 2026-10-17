@@ -18,16 +18,15 @@ const garden: Project = { id: "p-1", name: "Garden", visibility: "private" };
 const token = async () => "an-access-token";
 
 describe("addProject", () => {
-  it("gives the new list once the project is saved", async () => {
+  it("gives the new project once it's saved", async () => {
     // arrange
     vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockResolvedValue([garden]);
 
     // act
     const outcome = await addProject(token, "Garden", "private");
 
     // assert
-    expect(outcome).toEqual({ kind: "saved", projects: [garden] });
+    expect(outcome).toEqual({ kind: "saved", project: garden });
     expect(createProject).toHaveBeenCalledWith("an-access-token", "Garden", "private");
   });
 
@@ -40,31 +39,6 @@ describe("addProject", () => {
 
     // assert
     expect(outcome).toEqual({ kind: "refused", problem: "a project needs a name" });
-    expect(fetchProjects).not.toHaveBeenCalled();
-  });
-
-  it("says the project is saved when only the list fails", async () => {
-    // arrange
-    vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
-
-    // act
-    const outcome = await addProject(token, "Garden", "private");
-
-    // assert
-    expect(outcome).toEqual({ kind: "savedButNotListed" });
-  });
-
-  it("notices a lost role when listing after the save", async () => {
-    // arrange
-    vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockRejectedValue(new NotAllowed());
-
-    // act
-    const outcome = await addProject(token, "Garden", "private");
-
-    // assert
-    expect(outcome).toEqual({ kind: "notAllowed" });
   });
 
   it("says the save failed when it did", async () => {
