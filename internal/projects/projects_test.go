@@ -224,6 +224,10 @@ func TestAVisibilityFroglyDoesntKnowChangesNothing(t *testing.T) {
 
 	// assert
 	require.ErrorAs(t, err, new(*repositories.InvalidError))
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, project.Visibility())
 }
 
 func TestOthersPublicProjectsAreListed(t *testing.T) {
