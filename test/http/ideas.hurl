@@ -28,6 +28,7 @@ header "Cache-Control" == "no-store"
 jsonpath "$.text" == "search should find ideas by any word"
 jsonpath "$.plantedBy" == "frogly-tests"
 jsonpath "$.plantedAt" isIsoDate
+jsonpath "$.people" == 1
 
 # and the garden lists it
 GET {{frogly}}/api/projects/{{project}}/ideas

@@ -62,6 +62,7 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	mux.Handle("POST /api/projects/{id}/members", auth(addMember))
 	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))
 	mux.Handle("POST /api/projects/{id}/ideas", auth(plantIdea))
+	mux.Handle("POST /api/projects/{id}/ideas/{ideaId}/metoo", auth(sayMeToo))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)

@@ -62,6 +62,7 @@ func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
 		Text      string    `json:"text"`
 		PlantedBy string    `json:"plantedBy"`
 		PlantedAt time.Time `json:"plantedAt"`
+		People    int       `json:"people"`
 	}
 
 	answer := planted.Body.String()
@@ -70,6 +71,7 @@ func TestAPlantedIdeaIsInTheGarden(t *testing.T) {
 	assert.Equal(t, "search by any word", idea.Text)
 	assert.Equal(t, "Karo", idea.PlantedBy)
 	assert.WithinDuration(t, time.Now(), idea.PlantedAt, time.Minute)
+	assert.Equal(t, 1, idea.People)
 
 	listed := ideas(t, handler, http.MethodGet, validToken, projectID, "")
 	assert.Equal(t, http.StatusOK, listed.Code)
@@ -155,6 +157,98 @@ func TestPlantingNeedsAToken(t *testing.T) {
 
 	// act
 	response := ideas(t, handler, http.MethodPost, "", projectID, `{"text": "an idea"}`)
+
+	// assert
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+}
+
+func meToo(t *testing.T, handler http.Handler, token string, projectID string, ideaID string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	header := http.Header{"Authorization": {"Bearer " + token}}
+
+	return request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/ideas/"+ideaID+"/metoo", header)
+}
+
+func plantedIdeaID(t *testing.T, handler http.Handler, projectID string) string {
+	t.Helper()
+
+	planted := ideas(t, handler, http.MethodPost, validToken, projectID, `{"text": "search by any word"}`)
+	require.Equal(t, http.StatusCreated, planted.Code)
+
+	var idea struct {
+		ID string `json:"id"`
+	}
+
+	require.NoError(t, json.Unmarshal(planted.Body.Bytes(), &idea))
+
+	return idea.ID
+}
+
+func TestAMeTooAnswersWithTheIdeaAndItsPeople(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	require.Equal(t, http.StatusOK, addMember(t, handler, validToken, projectID, `{"userId": "`+anaID(t, handler, projectID)+`"}`).Code)
+	ideaID := plantedIdeaID(t, handler, projectID)
+
+	// act
+	response := meToo(t, handler, otherToken, projectID, ideaID)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+
+	var idea struct {
+		ID        string `json:"id"`
+		PlantedBy string `json:"plantedBy"`
+		People    int    `json:"people"`
+	}
+
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &idea))
+	assert.Equal(t, ideaID, idea.ID)
+	assert.Equal(t, "Karo", idea.PlantedBy)
+	assert.Equal(t, 2, idea.People)
+
+	listed := ideas(t, handler, http.MethodGet, validToken, projectID, "")
+	assert.Contains(t, listed.Body.String(), `"people":2`)
+}
+
+func TestAMeTooYouCantSayIsNotFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		token  string
+		ideaID func(string) string
+	}{
+		{name: "not a member", token: otherToken, ideaID: func(id string) string { return id }},
+		{name: "no such idea", token: validToken, ideaID: func(string) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
+		{name: "not an ID", token: validToken, ideaID: func(string) string { return "search" }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+			projectID := createdProjectWith(t, handler, "public")
+			ideaID := plantedIdeaID(t, handler, projectID)
+
+			// act
+			response := meToo(t, handler, test.token, projectID, test.ideaID(ideaID))
+
+			// assert
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assert.JSONEq(t, `{"type": "about:blank", "title": "Not Found", "status": 404}`, response.Body.String())
+		})
+	}
+}
+
+func TestAMeTooNeedsAToken(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	ideaID := plantedIdeaID(t, handler, projectID)
+
+	// act
+	response := meToo(t, handler, "", projectID, ideaID)
 
 	// assert
 	assert.Equal(t, http.StatusUnauthorized, response.Code)
