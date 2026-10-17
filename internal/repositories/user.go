@@ -100,6 +100,10 @@ func (user *User) Refresh(name string, email string) bool {
 type UserRepository interface {
 	// ByID returns ErrNotFound when no user has the ID.
 	ByID(ctx context.Context, id uuid.UUID) (*User, error)
+	// SearchNonMembers gives up to limit users who aren't members of the
+	// project and whose name or email contains text, ignoring the case of
+	// ASCII letters. They're sorted by name byte by byte, then by ID.
+	SearchNonMembers(ctx context.Context, projectID uuid.UUID, text string, limit int) ([]*User, error)
 	Insert(user *User)
 	Update(user *User)
 }

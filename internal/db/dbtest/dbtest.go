@@ -47,7 +47,11 @@ func (s *base) save(unit db.Context) {
 }
 
 func (s *base) savedUser(name string) *repositories.User {
-	user, err := repositories.NewUser(name, name+"@frogly.local")
+	return s.savedUserWith(name, name+"@frogly.local")
+}
+
+func (s *base) savedUserWith(name string, email string) *repositories.User {
+	user, err := repositories.NewUser(name, email)
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()
