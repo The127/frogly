@@ -53,6 +53,18 @@ describe("addProject", () => {
     expect(outcome).toEqual({ kind: "savedButNotListed" });
   });
 
+  it("notices a lost role when listing after the save", async () => {
+    // arrange
+    vi.mocked(createProject).mockResolvedValue({ project: garden });
+    vi.mocked(fetchProjects).mockRejectedValue(new NotAllowed());
+
+    // act
+    const outcome = await addProject(token, "Garden");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAllowed" });
+  });
+
   it("says the save failed when it did", async () => {
     // arrange
     vi.mocked(createProject).mockRejectedValue(new Error("frogly answered 500"));
