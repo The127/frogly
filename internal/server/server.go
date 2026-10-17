@@ -40,20 +40,26 @@ type Verifier interface {
 func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS, services *ioc.DependencyProvider) http.Handler {
 	mux := http.NewServeMux()
 
+	// every route that needs a login goes through here, so none can skip
+	// the role check
+	auth := func(next endpoint) http.Handler {
+		return authenticated(verifier, oidc.Roles.User, services, next)
+	}
+
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
 			"issuer":   oidc.Issuer,
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, oidc.Roles.User, services, func(_ *http.Request, caller caller) (int, any, error) {
+	mux.Handle("GET /api/me", auth(func(_ *http.Request, caller caller) (int, any, error) {
 		return http.StatusOK, map[string]string{"name": caller.user.Name()}, nil
 	}))
-	mux.Handle("GET /api/projects", authenticated(verifier, oidc.Roles.User, services, listProjects))
-	mux.Handle("POST /api/projects", authenticated(verifier, oidc.Roles.User, services, createProject))
-	mux.Handle("GET /api/projects/{id}", authenticated(verifier, oidc.Roles.User, services, getProject))
-	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, oidc.Roles.User, services, listGarden))
-	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, oidc.Roles.User, services, plantIdea))
+	mux.Handle("GET /api/projects", auth(listProjects))
+	mux.Handle("POST /api/projects", auth(createProject))
+	mux.Handle("GET /api/projects/{id}", auth(getProject))
+	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))
+	mux.Handle("POST /api/projects/{id}/ideas", auth(plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
