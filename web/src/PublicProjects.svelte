@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
 
   import type { PublicProject, SessionEnded } from "./api";
   import { getLogin } from "./login";
@@ -12,6 +12,11 @@
   let listFailed = $state(false);
   let joining = $state(false);
   let joinProblem = $state("");
+  // a join can finish after the person moved on, and mustn't pull them back
+  let gone = false;
+  onDestroy(() => {
+    gone = true;
+  });
 
   function handledElsewhere(outcome: SessionEnded) {
     if (outcome.kind === "loggedOut") {
@@ -48,7 +53,9 @@
 
     switch (outcome.kind) {
       case "joined":
-        void navigate("/projects/:id", { params: { id: outcome.project.id } });
+        if (!gone) {
+          void navigate("/projects/:id", { params: { id: outcome.project.id } });
+        }
         break;
       case "notJoined":
         joinProblem = `frogly couldn't join ${project.name}. Try again in a moment.`;
@@ -82,6 +89,8 @@
             <button class="btn" onclick={() => join(project)} aria-disabled={joining}>
               join <span class="hidden">{project.name}</span>
             </button>
+          {:else}
+            <span class="meta">a member adds people</span>
           {/if}
         </li>
       {/each}
