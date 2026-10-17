@@ -48,13 +48,15 @@ func TestAPlantedIdeaIsInTheGardenWithItsPlanter(t *testing.T) {
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, "search by any word", planted.Text())
-	assert.Equal(t, karo.ID(), planted.PlanterID())
+	assert.Equal(t, "search by any word", planted.Idea.Text())
+	assert.Equal(t, karo.ID(), planted.Idea.PlanterID())
+	assert.Equal(t, "Karo", planted.PlantedBy)
+	assert.Equal(t, 1, planted.People)
 
 	listed, err := garden.List(t.Context(), database.NewContext(), karo, project.ID())
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	assert.Equal(t, planted.ID(), listed[0].Idea.ID())
+	assert.Equal(t, planted.Idea.ID(), listed[0].Idea.ID())
 	assert.Equal(t, "Karo", listed[0].PlantedBy)
 }
 
@@ -149,8 +151,10 @@ func sharedIdea(t *testing.T, database db.Database) (karo, ana *repositories.Use
 	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, project.ID(), ana.ID())
 	require.NoError(t, err)
 
-	idea, err = garden.Plant(t.Context(), database.NewContext(), karo, project.ID(), "search by any word")
+	planted, err := garden.Plant(t.Context(), database.NewContext(), karo, project.ID(), "search by any word")
 	require.NoError(t, err)
+
+	idea = planted.Idea
 
 	return karo, ana, project, idea
 }
@@ -212,7 +216,7 @@ func TestAnIdeaThatIsntInTheProjectIsNotFound(t *testing.T) {
 	other, err := garden.Plant(t.Context(), database.NewContext(), karo, elsewhere.ID(), "an idea elsewhere")
 	require.NoError(t, err)
 
-	for _, ideaID := range []uuid.UUID{other.ID(), uuid.Must(uuid.NewV7())} {
+	for _, ideaID := range []uuid.UUID{other.Idea.ID(), uuid.Must(uuid.NewV7())} {
 		// act
 		_, err := garden.MeToo(t.Context(), database.NewContext(), ana, project.ID(), ideaID)
 

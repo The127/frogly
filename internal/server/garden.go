@@ -64,13 +64,12 @@ func plantIdea(r *http.Request, caller caller) (int, any, error) {
 		return 0, nil, err
 	}
 
-	idea, err := garden.Plant(r.Context(), caller.unit, caller.user, id, body.Text)
+	planted, err := garden.Plant(r.Context(), caller.unit, caller.user, id, body.Text)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	// a new idea has nobody behind it but its planter
-	return http.StatusCreated, toIdeaJSON(repositories.PlantedIdea{Idea: idea, PlantedBy: caller.user.Name(), People: 1}), nil
+	return http.StatusCreated, toIdeaJSON(planted), nil
 }
 
 func sayMeToo(r *http.Request, caller caller) (int, any, error) {

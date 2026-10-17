@@ -19,29 +19,30 @@ import (
 // may see.
 var ErrIdeaNotFound = fmt.Errorf("idea not found: %w", projects.ErrNotFound)
 
-// Plant writes an idea down in the project's garden. A project that
-// doesn't exist or that planter isn't a member of gives
-// projects.ErrNotFound, and a text frogly can't use a
+// Plant writes an idea down in the project's garden and gives it back as
+// the garden lists it. A project that doesn't exist or that planter isn't
+// a member of gives projects.ErrNotFound, and a text frogly can't use a
 // *repositories.InvalidError.
-func Plant(ctx context.Context, unit db.Context, planter *repositories.User, projectID uuid.UUID, text string) (*repositories.Idea, error) {
+func Plant(ctx context.Context, unit db.Context, planter *repositories.User, projectID uuid.UUID, text string) (repositories.PlantedIdea, error) {
 	_, err := projects.Get(ctx, unit, planter, projectID)
 	if err != nil {
-		return nil, err
+		return repositories.PlantedIdea{}, err
 	}
 
 	idea, err := repositories.NewIdea(projectID, planter.ID(), text)
 	if err != nil {
-		return nil, err
+		return repositories.PlantedIdea{}, err
 	}
 
 	unit.Ideas().Insert(idea)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("saving the idea: %w", err)
+		return repositories.PlantedIdea{}, fmt.Errorf("saving the idea: %w", err)
 	}
 
-	return idea, nil
+	// loaded again, so only the garden's query knows how people are counted
+	return unit.Ideas().ByIDInProject(ctx, projectID, idea.ID())
 }
 
 // List lists the project's garden for one of its members, newest first,
