@@ -2,7 +2,7 @@
 POST {{frogly}}/api/projects
 Authorization: Bearer {{token}}
 Content-Type: application/json
-{"name": "  Hurl garden  "}
+{"name": "  Hurl garden  ", "visibility": "private"}
 HTTP 201
 [Captures]
 id: jsonpath "$.id"
@@ -10,6 +10,7 @@ id: jsonpath "$.id"
 header "Content-Type" == "application/json"
 header "Cache-Control" == "no-store"
 jsonpath "$.name" == "Hurl garden"
+jsonpath "$.visibility" == "private"
 
 # and lists it among your projects
 GET {{frogly}}/api/projects
@@ -39,7 +40,7 @@ header "Content-Type" == "application/problem+json"
 POST {{frogly}}/api/projects
 Authorization: Bearer {{token}}
 Content-Type: application/json
-{"name": "   "}
+{"name": "   ", "visibility": "private"}
 HTTP 400
 [Asserts]
 header "Content-Type" == "application/problem+json"

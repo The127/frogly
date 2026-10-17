@@ -11,12 +11,19 @@ import (
 )
 
 type projectJSON struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Visibility string `json:"visibility"`
 }
 
 func toProjectJSON(project *repositories.Project) projectJSON {
-	return projectJSON{ID: project.ID().String(), Name: project.Name()}
+	return projectJSON{ID: project.ID().String(), Name: project.Name(), Visibility: string(project.Visibility())}
+}
+
+// publicProjectJSON is what someone outside a project sees of it
+type publicProjectJSON struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // projectID reads the project's ID from the path. An ID that can't be one
@@ -61,7 +68,8 @@ func listProjects(r *http.Request, caller caller) (int, any, error) {
 
 func createProject(r *http.Request, caller caller) (int, any, error) {
 	var body struct {
-		Name string `json:"name"`
+		Name       string                  `json:"name"`
+		Visibility repositories.Visibility `json:"visibility"`
 	}
 
 	err := decode(r, &body)
@@ -69,10 +77,47 @@ func createProject(r *http.Request, caller caller) (int, any, error) {
 		return 0, nil, err
 	}
 
-	project, err := projects.Create(r.Context(), caller.unit, caller.user, body.Name, repositories.VisibilityPrivate)
+	project, err := projects.Create(r.Context(), caller.unit, caller.user, body.Name, body.Visibility)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	return http.StatusCreated, toProjectJSON(project), nil
+}
+
+func changeVisibility(r *http.Request, caller caller) (int, any, error) {
+	id, err := projectID(r)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	var body struct {
+		Visibility repositories.Visibility `json:"visibility"`
+	}
+
+	err = decode(r, &body)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	project, err := projects.ChangeVisibility(r.Context(), caller.unit, caller.user, id, body.Visibility)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return http.StatusOK, toProjectJSON(project), nil
+}
+
+func listPublicProjects(r *http.Request, caller caller) (int, any, error) {
+	found, err := projects.ListPublicFor(r.Context(), caller.unit, caller.user)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	listed := make([]publicProjectJSON, 0, len(found))
+	for _, project := range found {
+		listed = append(listed, publicProjectJSON{ID: project.ID().String(), Name: project.Name()})
+	}
+
+	return http.StatusOK, listed, nil
 }
