@@ -28,10 +28,10 @@ func savedUser(t *testing.T, database db.Database, name string) *repositories.Us
 	return user
 }
 
-func savedProject(t *testing.T, database db.Database, owner *repositories.User) *repositories.Project {
+func savedProject(t *testing.T, database db.Database, creator *repositories.User) *repositories.Project {
 	t.Helper()
 
-	project, err := projects.Create(t.Context(), database.NewContext(), owner, "Garden", repositories.VisibilityPrivate)
+	project, err := projects.Create(t.Context(), database.NewContext(), creator, "Garden", repositories.VisibilityPrivate)
 	require.NoError(t, err)
 
 	return project
@@ -65,7 +65,7 @@ func TestTheGardenNamesEveryPlanter(t *testing.T) {
 	ana := savedUser(t, database, "Ana")
 	project := savedProject(t, database, karo)
 
-	membership, err := repositories.NewMembership(project.ID(), ana.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(project.ID(), ana.ID())
 	require.NoError(t, err)
 
 	unit := database.NewContext()

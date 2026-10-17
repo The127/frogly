@@ -2,6 +2,7 @@ package projects_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,7 +28,7 @@ func savedUser(t *testing.T, database db.Database, name string) *repositories.Us
 	return user
 }
 
-func TestACreatedProjectIsListedForItsOwner(t *testing.T) {
+func TestACreatedProjectIsListedForItsCreator(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
@@ -80,7 +81,7 @@ func TestANameFroglyCantUseCreatesNothing(t *testing.T) {
 	assert.Empty(t, listed)
 }
 
-func TestAProjectNeedsASavedOwner(t *testing.T) {
+func TestAProjectNeedsASavedCreator(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	stranger, err := repositories.NewUser("Stranger", "")
@@ -92,7 +93,7 @@ func TestAProjectNeedsASavedOwner(t *testing.T) {
 	// assert
 	require.Error(t, err)
 
-	// a missing owner is frogly's mistake, not something the client could fix
+	// a missing creator is frogly's mistake, not something the client could fix
 	_, invalid := errors.AsType[*repositories.InvalidError](err)
 	assert.False(t, invalid, "want a database error, got %v", err)
 }
@@ -245,4 +246,177 @@ func TestOthersPublicProjectsAreListed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	assert.Equal(t, fair.ID(), listed[0].ID())
+}
+
+func TestAMemberFindsPeopleToAdd(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana Costa")
+	savedUser(t, database, "Tomás")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	found, err := projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), "  costa ")
+
+	// assert
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	assert.Equal(t, ana.ID(), found[0].ID())
+}
+
+func TestASearchGivesAtMostTenPeople(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	for range 11 {
+		savedUser(t, database, "Ana")
+	}
+
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	found, err := projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), "ana")
+
+	// assert
+	require.NoError(t, err)
+	assert.Len(t, found, 10)
+}
+
+func TestAnEmptySearchFindsNobody(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), "   ")
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+}
+
+func TestASearchLongerThanAnyEmailIsRefused(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), strings.Repeat("a", 100_000))
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+}
+
+func TestSomeoneOutsideAProjectFindsNobodyForIt(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.FindPeople(t.Context(), database.NewContext(), ana, garden.ID(), "karo")
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+func TestAMemberAddsSomeone(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	added, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, ana.ID(), added.ID())
+
+	project, err := projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.NoError(t, err)
+	assert.Equal(t, garden.ID(), project.ID())
+}
+
+func TestAddingAMemberAgainChangesNothing(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	_, err = projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	for _, who := range []*repositories.User{ana, karo} {
+		// act
+		_, err = projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), who.ID())
+
+		// assert
+		require.NoError(t, err, "adding %s", who.Name())
+
+		listed, err := projects.ListFor(t.Context(), database.NewContext(), who)
+		require.NoError(t, err)
+		assert.Len(t, listed, 1, "%s is a member once", who.Name())
+	}
+}
+
+func TestSomeoneOutsideAProjectAddsNobody(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.AddMember(t.Context(), database.NewContext(), ana, garden.ID(), ana.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+func TestSomeoneOutsideAProjectLearnsNothingFromWhatTheySend(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	_, searched := projects.FindPeople(t.Context(), database.NewContext(), ana, garden.ID(), "   ")
+	_, added := projects.AddMember(t.Context(), database.NewContext(), ana, garden.ID(), uuid.Must(uuid.NewV7()))
+
+	// assert
+	require.ErrorIs(t, searched, projects.ErrNotFound, "an empty search")
+	require.ErrorIs(t, added, projects.ErrNotFound, "an unknown ID")
+}
+
+func TestNobodyWithTheIDIsAdded(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), uuid.Must(uuid.NewV7()))
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
 }

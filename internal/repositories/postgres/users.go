@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/huandu/go-sqlbuilder"
@@ -12,6 +13,8 @@ import (
 	"github.com/the127/frogly/internal/change"
 	"github.com/the127/frogly/internal/repositories"
 )
+
+var errBadLimit = errors.New("bad limit")
 
 // UserRepository loads users from Postgres.
 type UserRepository struct {
@@ -48,6 +51,73 @@ func (repository *UserRepository) ByID(ctx context.Context, id uuid.UUID) (*repo
 	}
 
 	return repositories.NewUserFromDB(repositories.NewBaseFromDB(rowID, version), name, email), nil
+}
+
+// SearchNonMembers finds the users to add to a project. ilike ignores case.
+func (repository *UserRepository) SearchNonMembers(ctx context.Context, projectID uuid.UUID, text string, limit int) ([]*repositories.User, error) {
+	// go-sqlbuilder leaves the limit out when it's negative, which would
+	// give every user
+	if limit < 1 {
+		return nil, fmt.Errorf("%w: a search needs a limit of at least 1, not %d", errBadLimit, limit)
+	}
+
+	membership := sqlbuilder.Select("1").From("memberships m")
+	membership.Where("m.user_id = u.id", membership.Equal("m.project_id", projectID))
+
+	pattern := "%" + escapeLike(text) + "%"
+
+	selection := sqlbuilder.Select("u.id", "u.version", "u.name", "u.email").From("users u")
+	selection.Where(
+		selection.NotExists(membership),
+		selection.Or(
+			"u.name ilike "+selection.Var(pattern)+` escape '\'`,
+			"u.email ilike "+selection.Var(pattern)+` escape '\'`,
+		),
+	)
+	selection.OrderBy(`u.name collate "C"`, "u.id")
+	selection.Limit(limit)
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	rows, err := repository.reader.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("searching people for project %s: %w", projectID, err)
+	}
+
+	defer func() {
+		_ = rows.Close() // a read-only query, closing can't lose anything
+	}()
+
+	var users []*repositories.User
+
+	for rows.Next() {
+		var (
+			id      uuid.UUID
+			version int
+			name    string
+			email   string
+		)
+
+		err := rows.Scan(&id, &version, &name, &email)
+		if err != nil {
+			return nil, fmt.Errorf("reading a user: %w", err)
+		}
+
+		users = append(users, repositories.NewUserFromDB(repositories.NewBaseFromDB(id, version), name, email))
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("searching people for project %s: %w", projectID, err)
+	}
+
+	return users, nil
+}
+
+// escapeLike makes %, _ and the escape character itself stand for
+// themselves, so a search can't match more than it says.
+func escapeLike(text string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(text)
 }
 
 // Insert records the user to be written.

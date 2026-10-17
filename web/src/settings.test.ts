@@ -1,12 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotAllowed, NotFound, type Project, changeVisibility, fetchProject } from "./api";
-import { loadSettings, switchVisibility } from "./settings";
+import {
+  LoggedOut,
+  NotAllowed,
+  NotFound,
+  type Person,
+  type Project,
+  addMember,
+  changeVisibility,
+  fetchProject,
+  searchPeople,
+} from "./api";
+import { addPerson, findPeople, loadSettings, switchVisibility } from "./settings";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   changeVisibility: vi.fn(),
   fetchProject: vi.fn(),
+  searchPeople: vi.fn(),
+  addMember: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -70,6 +82,79 @@ describe("switchVisibility", () => {
 
     // act
     const outcome = await switchVisibility(token, "p-1", "public");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+const ana: Person = { id: "u-2", name: "Ana Costa", email: "ana@school.org" };
+
+describe("findPeople", () => {
+  it("gives the people found", async () => {
+    // arrange
+    vi.mocked(searchPeople).mockResolvedValue({ people: [ana] });
+
+    // act
+    const outcome = await findPeople(token, "p-1", "ana");
+
+    // assert
+    expect(outcome).toEqual({ kind: "found", people: [ana] });
+    expect(searchPeople).toHaveBeenCalledWith("an-access-token", "p-1", "ana");
+  });
+
+  it("gives frogly's reason when the search can't be used", async () => {
+    // arrange
+    vi.mocked(searchPeople).mockResolvedValue({ problem: "type part of a name or an email" });
+
+    // act
+    const outcome = await findPeople(token, "p-1", " ");
+
+    // assert
+    expect(outcome).toEqual({ kind: "refused", problem: "type part of a name or an email" });
+  });
+
+  it.each([
+    { name: "the search failed", error: new Error("frogly answered 500"), kind: "failed" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(searchPeople).mockRejectedValue(error);
+
+    // act
+    const outcome = await findPeople(token, "p-1", "ana");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("addPerson", () => {
+  it("gives the person added", async () => {
+    // arrange
+    vi.mocked(addMember).mockResolvedValue(ana);
+
+    // act
+    const outcome = await addPerson(token, "p-1", "u-2");
+
+    // assert
+    expect(outcome).toEqual({ kind: "added", person: ana });
+    expect(addMember).toHaveBeenCalledWith("an-access-token", "p-1", "u-2");
+  });
+
+  it.each([
+    { name: "adding failed", error: new Error("frogly answered 500"), kind: "notAdded" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(addMember).mockRejectedValue(error);
+
+    // act
+    const outcome = await addPerson(token, "p-1", "u-2");
 
     // assert
     expect(outcome).toEqual({ kind });

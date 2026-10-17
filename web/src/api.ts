@@ -21,6 +21,13 @@ export interface PublicProject {
   name: string;
 }
 
+// Person is someone who has logged in to frogly.
+export interface Person {
+  id: string;
+  name: string;
+  email: string;
+}
+
 // frogly's limit for an idea, in characters
 export const maxIdeaLength = 500;
 
@@ -164,6 +171,49 @@ export async function changeVisibility(accessToken: string, projectId: string, v
   }
 
   return (await response.json()) as Project;
+}
+
+// Either the people found, or frogly's reason for refusing the search,
+// which the person can act on.
+export async function searchPeople(
+  accessToken: string,
+  projectId: string,
+  text: string,
+): Promise<{ people: Person[] } | { problem: string }> {
+  const search = new URLSearchParams({ search: text }).toString();
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/people?${search}`, accessToken);
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (response.status === 400) {
+    return { problem: await refusal(response, "frogly can't search for that") };
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to search for people`);
+  }
+
+  return { people: (await response.json()) as Person[] };
+}
+
+// the person comes from frogly's own search, so a refusal is frogly's
+// problem, not something the person can fix
+export async function addMember(accessToken: string, projectId: string, userId: string): Promise<Person> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/members`, accessToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to add someone to a project`);
+  }
+
+  return (await response.json()) as Person;
 }
 
 export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {

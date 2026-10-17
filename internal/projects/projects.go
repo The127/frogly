@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -17,17 +19,28 @@ import (
 // of it. It doesn't say which, so nobody learns which projects exist.
 var ErrNotFound = errors.New("project not found")
 
-// Create makes a project called name with owner as its only member. A name
+// ErrUnknownPerson refuses to add someone frogly doesn't know.
+var ErrUnknownPerson = repositories.Invalid("nobody with that ID uses frogly")
+
+// searchLimit keeps a search to a list someone reads at a glance, and
+// stops a short text from listing everyone who uses frogly at once.
+const searchLimit = 10
+
+// maxSearch is the longest an email can be, so a longer text can't match
+// anything, and the database never gets a pattern that large.
+const maxSearch = 320
+
+// Create makes a project called name with creator as its only member. A name
 // or visibility frogly can't use gives a *repositories.InvalidError.
-func Create(ctx context.Context, unit db.Context, owner *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
+func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
 	project, err := repositories.NewProject(name, visibility)
 	if err != nil {
 		return nil, err
 	}
 
-	membership, err := repositories.NewMembership(project.ID(), owner.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(project.ID(), creator.ID())
 	if err != nil {
-		return nil, fmt.Errorf("making %s the owner: %w", owner.ID(), err)
+		return nil, fmt.Errorf("making %s a member: %w", creator.ID(), err)
 	}
 
 	unit.Projects().Insert(project)
@@ -83,4 +96,70 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 // ListPublicFor lists the public projects user isn't a member of.
 func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]*repositories.Project, error) {
 	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
+}
+
+// FindPeople lets a member find the people who could join the project, by
+// part of their name or email. Someone who isn't a member gets
+// ErrNotFound, like Get.
+func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, text string) ([]*repositories.User, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	text = strings.TrimSpace(text)
+
+	switch {
+	case text == "":
+		return nil, repositories.Invalid("type part of a name or an email")
+
+	case utf8.RuneCountInString(text) > maxSearch:
+		return nil, repositories.Invalid("a search has at most %d characters", maxSearch)
+	}
+
+	return unit.Users().SearchNonMembers(ctx, projectID, text, searchLimit)
+}
+
+// AddMember lets a member add someone who has logged in to frogly, and
+// gives them back. Adding a member again changes nothing. When two members
+// add the same person at once, one of them gets
+// repositories.ErrConcurrentModification, and trying again works. Someone
+// who isn't a member gets ErrNotFound, like Get.
+func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	added, err := unit.Users().ByID(ctx, userID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return nil, ErrUnknownPerson
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
+	if err == nil {
+		return added, nil
+	}
+
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return nil, err
+	}
+
+	membership, err := repositories.NewMembership(projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Memberships().Insert(membership)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("adding user %s to project %s: %w", userID, projectID, err)
+	}
+
+	return added, nil
 }

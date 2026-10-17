@@ -4,6 +4,7 @@ import {
   LoggedOut,
   NotAllowed,
   NotFound,
+  addMember,
   changeVisibility,
   createProject,
   fetchConfig,
@@ -13,6 +14,7 @@ import {
   fetchProjects,
   fetchPublicProjects,
   plantIdea,
+  searchPeople,
 } from "./api";
 
 function respondWith(status: number, body: unknown): void {
@@ -174,6 +176,84 @@ describe("changeVisibility", () => {
 
     // assert
     await expect(project).rejects.toThrow("503");
+  });
+});
+
+describe("searchPeople", () => {
+  it("sends the text and gives the people found", async () => {
+    // arrange
+    respondWith(200, [{ id: "u-2", name: "Ana Costa", email: "ana@school.org" }]);
+
+    // act
+    const found = await searchPeople("an-access-token", "p-1", "ana & co");
+
+    // assert
+    expect(found).toEqual({ people: [{ id: "u-2", name: "Ana Costa", email: "ana@school.org" }] });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/people?search=ana+%26+co", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("gives frogly's reason when the search can't be used", async () => {
+    // arrange
+    respondWith(400, { status: 400, detail: "type part of a name or an email" });
+
+    // act
+    const found = await searchPeople("an-access-token", "p-1", " ");
+
+    // assert
+    expect(found).toEqual({ problem: "type part of a name or an email" });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const found = searchPeople("an-access-token", "p-1", "ana");
+
+    // assert
+    await expect(found).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("addMember", () => {
+  it("sends the person and gives them back", async () => {
+    // arrange
+    respondWith(200, { id: "u-2", name: "Ana Costa", email: "ana@school.org" });
+
+    // act
+    const added = await addMember("an-access-token", "p-1", "u-2");
+
+    // assert
+    expect(added).toEqual({ id: "u-2", name: "Ana Costa", email: "ana@school.org" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/members", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "u-2" }),
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const added = addMember("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(added).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't add them", async () => {
+    // arrange
+    respondWith(400, { status: 400, detail: "nobody with that ID uses frogly" });
+
+    // act
+    const added = addMember("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(added).rejects.toThrow("400");
   });
 });
 

@@ -28,7 +28,7 @@ const (
 
 func checkVisibility(visibility Visibility) error {
 	if visibility != VisibilityPublic && visibility != VisibilityPrivate {
-		return invalid("a project is public or private")
+		return Invalid("a project is public or private")
 	}
 
 	return nil
@@ -41,10 +41,10 @@ func NewProject(name string, visibility Visibility) (*Project, error) {
 
 	switch {
 	case name == "":
-		return nil, invalid("a project needs a name")
+		return nil, Invalid("a project needs a name")
 
 	case !validName(name):
-		return nil, invalid("a project's name has at most %d characters", MaxName)
+		return nil, Invalid("a project's name has at most %d characters", MaxName)
 	}
 
 	err := checkVisibility(visibility)

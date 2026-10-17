@@ -22,7 +22,7 @@ type User struct {
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
 	if !validName(name) {
-		return nil, invalid("a user needs a name of 1 to %d characters", MaxName)
+		return nil, Invalid("a user needs a name of 1 to %d characters", MaxName)
 	}
 
 	return &User{
@@ -100,6 +100,11 @@ func (user *User) Refresh(name string, email string) bool {
 type UserRepository interface {
 	// ByID returns ErrNotFound when no user has the ID.
 	ByID(ctx context.Context, id uuid.UUID) (*User, error)
+	// SearchNonMembers gives up to limit users who aren't members of the
+	// project and whose name or email contains text. Case doesn't matter,
+	// at least for ASCII letters. They're sorted by name byte by byte, then
+	// by ID. A limit below 1 is an error.
+	SearchNonMembers(ctx context.Context, projectID uuid.UUID, text string, limit int) ([]*User, error)
 	Insert(user *User)
 	Update(user *User)
 }

@@ -17,7 +17,10 @@ type InvalidError struct {
 	reason string
 }
 
-func invalid(format string, args ...any) error {
+// Invalid refuses what frogly can't use, with a reason a person can act
+// on. Checks outside the models use it too, like for a search without any
+// text.
+func Invalid(format string, args ...any) error {
 	return &InvalidError{reason: fmt.Sprintf(format, args...)}
 }
 

@@ -47,7 +47,11 @@ func (s *base) save(unit db.Context) {
 }
 
 func (s *base) savedUser(name string) *repositories.User {
-	user, err := repositories.NewUser(name, name+"@frogly.local")
+	return s.savedUserWith(name, name+"@frogly.local")
+}
+
+func (s *base) savedUserWith(name string, email string) *repositories.User {
+	user, err := repositories.NewUser(name, email)
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()
@@ -75,16 +79,16 @@ func (s *base) savedIdentity(user *repositories.User) *repositories.Identity {
 	return identity
 }
 
-// savedProject saves a private project with owner as its only member.
-func (s *base) savedProject(name string, owner *repositories.User) *repositories.Project {
-	return s.savedProjectWith(name, owner, repositories.VisibilityPrivate)
+// savedProject saves a private project with creator as its only member.
+func (s *base) savedProject(name string, creator *repositories.User) *repositories.Project {
+	return s.savedProjectWith(name, creator, repositories.VisibilityPrivate)
 }
 
-func (s *base) savedProjectWith(name string, owner *repositories.User, visibility repositories.Visibility) *repositories.Project {
+func (s *base) savedProjectWith(name string, creator *repositories.User, visibility repositories.Visibility) *repositories.Project {
 	project, err := repositories.NewProject(name, visibility)
 	s.Require().NoError(err)
 
-	membership, err := repositories.NewMembership(project.ID(), owner.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(project.ID(), creator.ID())
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()
@@ -96,7 +100,7 @@ func (s *base) savedProjectWith(name string, owner *repositories.User, visibilit
 }
 
 func (s *base) savedMember(project *repositories.Project, user *repositories.User) {
-	membership, err := repositories.NewMembership(project.ID(), user.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(project.ID(), user.ID())
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()

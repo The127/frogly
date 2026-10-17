@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -806,4 +807,138 @@ func TestAChangeThatLostARaceIsAConflict(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, response.Code)
 	assert.JSONEq(t, `{"type": "about:blank", "title": "Conflict", "status": 409}`, response.Body.String())
 	assert.NotContains(t, log.String(), `"level":"ERROR"`)
+}
+
+func searchPeople(t *testing.T, handler http.Handler, token string, projectID string, text string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return get(t, handler, "/api/projects/"+projectID+"/people?search="+url.QueryEscape(text), http.Header{"Authorization": {"Bearer " + token}})
+}
+
+func addMember(t *testing.T, handler http.Handler, token string, projectID string, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	header := http.Header{"Content-Type": {"application/json"}, "Authorization": {"Bearer " + token}}
+
+	return requestWithBody(t, handler, http.MethodPost, "/api/projects/"+projectID+"/members", header, strings.NewReader(body))
+}
+
+// anaID logs Ana in once, which is how frogly gets to know her
+func anaID(t *testing.T, handler http.Handler, projectID string) string {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + otherToken}}).Code)
+
+	var found []struct {
+		ID string `json:"id"`
+	}
+
+	require.NoError(t, json.Unmarshal(searchPeople(t, handler, validToken, projectID, "ana").Body.Bytes(), &found))
+	require.Len(t, found, 1)
+
+	return found[0].ID
+}
+
+func TestAMemberFindsSomeoneWhoLoggedIn(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	id := anaID(t, handler, projectID)
+
+	// act
+	response := searchPeople(t, handler, validToken, projectID, "AN")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[{"id": "`+id+`", "name": "Ana", "email": ""}]`, response.Body.String())
+}
+
+func TestASearchLeavesOutWhoeverSearches(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	id := anaID(t, handler, projectID)
+
+	// act, a matches both Karo and Ana
+	response := searchPeople(t, handler, validToken, projectID, "a")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[{"id": "`+id+`", "name": "Ana", "email": ""}]`, response.Body.String())
+}
+
+func TestASearchFindingNobodyIsAnEmptyList(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	// act
+	response := searchPeople(t, handler, validToken, projectID, "nobody")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[]`, response.Body.String())
+}
+
+func TestAnEmptySearchIsABadRequest(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	// act
+	response := searchPeople(t, handler, validToken, projectID, " ")
+
+	// assert
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), "type part of a name or an email")
+}
+
+func TestAMemberAddsSomeoneWhoLoggedIn(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	id := anaID(t, handler, projectID)
+
+	// act
+	response := addMember(t, handler, validToken, projectID, `{"userId": "`+id+`"}`)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"id": "`+id+`", "name": "Ana", "email": ""}`, response.Body.String())
+
+	listed := projects(t, handler, http.MethodGet, otherToken, "")
+	assert.Contains(t, listed.Body.String(), projectID)
+}
+
+func TestAddingSomeoneFroglyDoesntKnowIsABadRequest(t *testing.T) {
+	for _, userID := range []string{"01a14180-d957-7cc5-af29-7f1fe18d89bb", "ana"} {
+		t.Run(userID, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+			projectID := createdProject(t, handler)
+
+			// act
+			response := addMember(t, handler, validToken, projectID, `{"userId": "`+userID+`"}`)
+
+			// assert
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assert.Contains(t, response.Body.String(), "nobody with that ID uses frogly")
+		})
+	}
+}
+
+func TestSomeoneOutsideTheProjectNeitherSearchesNorAdds(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProjectWith(t, handler, "public")
+	id := anaID(t, handler, projectID)
+
+	// act
+	searched := searchPeople(t, handler, otherToken, projectID, "karo")
+	added := addMember(t, handler, otherToken, projectID, `{"userId": "`+id+`"}`)
+
+	// assert
+	assert.Equal(t, http.StatusNotFound, searched.Code)
+	assert.Equal(t, http.StatusNotFound, added.Code)
+	assert.JSONEq(t, `[]`, projects(t, handler, http.MethodGet, otherToken, "").Body.String())
 }
