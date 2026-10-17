@@ -79,7 +79,8 @@ async function authorized(path: string, accessToken: string, init: RequestInit =
 }
 
 // null means frogly refused the token, so the person has to log in again.
-// Any other failure is frogly's problem, not the person's.
+// NotAllowed means the login has no frogly role. Any other failure is
+// frogly's problem, not the person's.
 export async function fetchMe(accessToken: string): Promise<Me | null> {
   let response: Response;
   try {

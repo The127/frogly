@@ -21,6 +21,8 @@
     const loaded = await loadGarden(login.accessToken, projectId);
     if (loaded.kind === "loggedOut") {
       login.onLoggedOut();
+    } else if (loaded.kind === "notAllowed") {
+      login.onNotAllowed();
     } else {
       garden = loaded;
     }
@@ -54,6 +56,9 @@
         break;
       case "loggedOut":
         login.onLoggedOut();
+        break;
+      case "notAllowed":
+        login.onNotAllowed();
     }
   }
 </script>

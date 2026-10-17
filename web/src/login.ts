@@ -7,6 +7,8 @@ export interface Login {
   // asked for on every call, since the token renews in the background
   accessToken: () => Promise<string>;
   onLoggedOut: () => void;
+  // the login works, but frogly's role was taken away
+  onNotAllowed: () => void;
 }
 
 export const [getLogin, setLogin] = createContext<Login>();

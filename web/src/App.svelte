@@ -31,6 +31,9 @@
     },
     accessToken,
     onLoggedOut: loggedOut,
+    onNotAllowed() {
+      session = { kind: "notAllowed" };
+    },
   });
 
   onMount(async () => {

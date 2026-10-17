@@ -1,8 +1,12 @@
-import { type Created, LoggedOut, type Project, createProject, fetchProjects } from "./api";
+import { type Created, LoggedOut, NotAllowed, type Project, createProject, fetchProjects } from "./api";
 
 type AccessToken = () => Promise<string>;
 
-export type Loaded = { kind: "listed"; projects: Project[] } | { kind: "failed" } | { kind: "loggedOut" };
+export type Loaded =
+  | { kind: "listed"; projects: Project[] }
+  | { kind: "failed" }
+  | { kind: "loggedOut" }
+  | { kind: "notAllowed" };
 
 export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   try {
@@ -10,6 +14,10 @@ export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   } catch (error) {
     if (error instanceof LoggedOut) {
       return { kind: "loggedOut" };
+    }
+
+    if (error instanceof NotAllowed) {
+      return { kind: "notAllowed" };
     }
 
     console.error(error);
@@ -25,7 +33,8 @@ export type Added =
   | { kind: "savedButNotListed" }
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
-  | { kind: "loggedOut" };
+  | { kind: "loggedOut" }
+  | { kind: "notAllowed" };
 
 export async function addProject(accessToken: AccessToken, name: string): Promise<Added> {
   let created: Created;
@@ -35,6 +44,10 @@ export async function addProject(accessToken: AccessToken, name: string): Promis
   } catch (error) {
     if (error instanceof LoggedOut) {
       return { kind: "loggedOut" };
+    }
+
+    if (error instanceof NotAllowed) {
+      return { kind: "notAllowed" };
     }
 
     console.error(error);
@@ -51,7 +64,8 @@ export async function addProject(accessToken: AccessToken, name: string): Promis
     case "listed":
       return { kind: "saved", projects: loaded.projects };
     case "loggedOut":
-      return { kind: "loggedOut" };
+    case "notAllowed":
+      return { kind: loaded.kind };
     case "failed":
       return { kind: "savedButNotListed" };
   }

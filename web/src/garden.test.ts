@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type Idea, LoggedOut, NotFound, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
+import { type Idea, LoggedOut, NotAllowed, NotFound, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
 import { addIdea, loadGarden, plantedOn } from "./garden";
 
 vi.mock("./api", async (actual) => ({
@@ -90,6 +90,17 @@ describe("loadGarden", () => {
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
   });
+
+  it("says the login lost frogly's role", async () => {
+    // arrange
+    vi.mocked(fetchProject).mockRejectedValue(new NotAllowed());
+
+    // act
+    const outcome = await loadGarden(token, "p-1");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAllowed" });
+  });
 });
 
 describe("addIdea", () => {
@@ -120,6 +131,7 @@ describe("addIdea", () => {
     { name: "planting failed", error: new Error("frogly answered 500"), kind: "notSaved" },
     { name: "the project is gone", error: new NotFound(), kind: "notFound" },
     { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
   ])("says so when $name", async ({ error, kind }) => {
     // arrange
     vi.mocked(plantIdea).mockRejectedValue(error);

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, type Project, createProject, fetchProjects } from "./api";
+import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects } from "./api";
 import { addProject, loadProjects } from "./projects";
 
 vi.mock("./api", async (actual) => ({
@@ -74,6 +74,17 @@ describe("addProject", () => {
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
   });
+
+  it("notices that the login lost frogly's role", async () => {
+    // arrange
+    vi.mocked(createProject).mockRejectedValue(new NotAllowed());
+
+    // act
+    const outcome = await addProject(token, "Garden");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAllowed" });
+  });
 });
 
 describe("loadProjects", () => {
@@ -97,6 +108,17 @@ describe("loadProjects", () => {
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
+  });
+
+  it("notices that the login lost frogly's role", async () => {
+    // arrange
+    vi.mocked(fetchProjects).mockRejectedValue(new NotAllowed());
+
+    // act
+    const outcome = await loadProjects(token);
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAllowed" });
   });
 
   it("says when the list can't be loaded", async () => {
