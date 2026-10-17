@@ -144,7 +144,8 @@ func (repository *ProjectRepository) ExecuteInsert(ctx context.Context, tx *sql.
 	return written(err, "inserting project "+project.ID().String())
 }
 
-// ExecuteUpdate writes the project as its next version.
+// ExecuteUpdate writes the whole project as the version after the one it
+// was loaded at. The schema refuses it when the row changed since.
 func (repository *ProjectRepository) ExecuteUpdate(ctx context.Context, tx *sql.Tx, project *repositories.Project) error {
 	update := sqlbuilder.Update("projects")
 	update.Set(
