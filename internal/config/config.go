@@ -102,7 +102,7 @@ type OIDC struct {
 // Roles says which of the issuer's roles mean what in frogly. Issuers put
 // roles into different claims, so the claim is a setting too. It has to be
 // a top-level claim with a list of strings. A nested one like Keycloak's
-// realm_access.roles doesn't work yet. frogly reads the roles from the
+// realm_access.roles doesn't work. frogly reads the roles from the
 // access token, so a role taken away stops working once the person's
 // current token expires.
 type Roles struct {
