@@ -1,4 +1,4 @@
-import { type Created, LoggedOut, NotAllowed, type Project, createProject, fetchProjects } from "./api";
+import { type Created, type Project, createProject, fetchProjects, sessionEnded } from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -12,12 +12,9 @@ export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   try {
     return { kind: "listed", projects: await fetchProjects(await accessToken()) };
   } catch (error) {
-    if (error instanceof LoggedOut) {
-      return { kind: "loggedOut" };
-    }
-
-    if (error instanceof NotAllowed) {
-      return { kind: "notAllowed" };
+    const ended = sessionEnded(error);
+    if (ended) {
+      return ended;
     }
 
     console.error(error);
@@ -42,12 +39,9 @@ export async function addProject(accessToken: AccessToken, name: string): Promis
   try {
     created = await createProject(await accessToken(), name);
   } catch (error) {
-    if (error instanceof LoggedOut) {
-      return { kind: "loggedOut" };
-    }
-
-    if (error instanceof NotAllowed) {
-      return { kind: "notAllowed" };
+    const ended = sessionEnded(error);
+    if (ended) {
+      return ended;
     }
 
     console.error(error);

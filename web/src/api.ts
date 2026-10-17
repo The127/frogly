@@ -41,6 +41,20 @@ export class NotAllowed extends Error {
   }
 }
 
+// sessionEnded says how a call ended the person's session, or undefined
+// when it didn't.
+export function sessionEnded(error: unknown): { kind: "loggedOut" } | { kind: "notAllowed" } | undefined {
+  if (error instanceof LoggedOut) {
+    return { kind: "loggedOut" };
+  }
+
+  if (error instanceof NotAllowed) {
+    return { kind: "notAllowed" };
+  }
+
+  return undefined;
+}
+
 // NotFound means the project doesn't exist or the person isn't a member of
 // it. frogly doesn't say which.
 export class NotFound extends Error {

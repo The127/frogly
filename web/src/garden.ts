@@ -1,4 +1,4 @@
-import { type Idea, LoggedOut, NotAllowed, NotFound, type Planted, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
+import { type Idea, NotFound, type Planted, type Project, fetchGarden, fetchProject, plantIdea, sessionEnded } from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -46,12 +46,9 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
 function failure(
   error: unknown,
 ): { kind: "notFound" } | { kind: "failed" } | { kind: "loggedOut" } | { kind: "notAllowed" } {
-  if (error instanceof LoggedOut) {
-    return { kind: "loggedOut" };
-  }
-
-  if (error instanceof NotAllowed) {
-    return { kind: "notAllowed" };
+  const ended = sessionEnded(error);
+  if (ended) {
+    return ended;
   }
 
   if (error instanceof NotFound) {
