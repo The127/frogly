@@ -75,7 +75,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 
 	// act
 	user := repositories.NewUserFromDB(base, "", "not an email")
-	project := repositories.NewProjectFromDB(base, "", "")
+	project := repositories.NewProjectFromDB(base, "", "secret")
 	identity := repositories.NewIdentityFromDB(base, uuid.Nil, "", "")
 
 	// assert
@@ -83,6 +83,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 	assert.Equal(t, 3, user.Version())
 	assert.Equal(t, "not an email", user.Email())
 	assert.Empty(t, project.Name())
+	assert.Equal(t, repositories.Visibility("secret"), project.Visibility())
 	assert.Empty(t, identity.Issuer())
 }
 
