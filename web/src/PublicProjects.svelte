@@ -26,7 +26,7 @@
     }
   }
 
-  onMount(async () => {
+  async function load() {
     const loaded = await loadPublicProjects(accessToken);
     switch (loaded.kind) {
       case "listed":
@@ -38,7 +38,9 @@
       default:
         handledElsewhere(loaded);
     }
-  });
+  }
+
+  onMount(load);
 
   async function join(project: PublicProject) {
     if (busy) {
@@ -61,8 +63,10 @@
         joinProblem = `frogly couldn't join ${project.name}. Try again in a moment.`;
         break;
       case "notFound":
-        projects = projects?.filter((listed) => listed.id !== project.id);
         joinProblem = `${project.name} can't be joined any more.`;
+        // a 404 can mean closed, private or gone, and only the list knows
+        // which of them still shows
+        await load();
         break;
       default:
         handledElsewhere(outcome);
