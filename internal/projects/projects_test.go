@@ -606,4 +606,46 @@ func TestAJoinThatLostARaceToTheSamePersonStillJoins(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 	assert.Equal(t, fair.ID(), joined.ID())
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Len(t, listed, 1)
+}
+
+// closingUnit closes the project through another unit of work right
+// before its own save, like a member closing it while someone joins.
+type closingUnit struct {
+	db.Context
+
+	database  db.Database
+	creator   *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit closingUnit) SaveChanges(ctx context.Context) error {
+	_, err := projects.ChangeJoining(ctx, unit.database.NewContext(), unit.creator, unit.projectID, repositories.JoiningClosed)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestAJoinWhileAMemberClosesTheProjectDoesntGetIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	unit := closingUnit{Context: database.NewContext(), database: database, creator: karo, projectID: fair.ID()}
+
+	// act
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
 }
