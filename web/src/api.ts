@@ -64,6 +64,23 @@ export function sessionEnded(error: unknown): SessionEnded | undefined {
   return undefined;
 }
 
+// failure says how a call about one project failed, so its page can say
+// what to do about it.
+export function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
+  const ended = sessionEnded(error);
+  if (ended) {
+    return ended;
+  }
+
+  if (error instanceof NotFound) {
+    return { kind: "notFound" };
+  }
+
+  console.error(error);
+
+  return { kind: "failed" };
+}
+
 // NotFound means the project doesn't exist or the person isn't a member of
 // it. frogly doesn't say which.
 export class NotFound extends Error {

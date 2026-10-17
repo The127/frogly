@@ -1,4 +1,4 @@
-import { NotFound, type Project, type SessionEnded, type Visibility, changeVisibility, fetchProject, sessionEnded } from "./api";
+import { type Project, type SessionEnded, type Visibility, changeVisibility, failure, fetchProject } from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -22,19 +22,4 @@ export async function switchVisibility(accessToken: AccessToken, projectId: stri
 
     return failed.kind === "failed" ? { kind: "notChanged" } : failed;
   }
-}
-
-function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
-  const ended = sessionEnded(error);
-  if (ended) {
-    return ended;
-  }
-
-  if (error instanceof NotFound) {
-    return { kind: "notFound" };
-  }
-
-  console.error(error);
-
-  return { kind: "failed" };
 }
