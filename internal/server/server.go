@@ -297,6 +297,14 @@ func answerError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 
+	// another request saved the same row first, which happens when two
+	// people change one thing at once, and trying again works
+	if errors.Is(err, repositories.ErrConcurrentModification) {
+		writeProblem(w, http.StatusConflict)
+
+		return
+	}
+
 	fail(w, r, "the request failed", err)
 }
 

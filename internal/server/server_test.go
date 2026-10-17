@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/the127/frogly/internal/config"
 	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/db/sqlite/sqlitetest"
+	"github.com/the127/frogly/internal/repositories"
 	"github.com/the127/frogly/internal/server"
 )
 
@@ -72,13 +74,20 @@ func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 func newServerWithDatabase(t *testing.T, log *bytes.Buffer) (http.Handler, db.Database) {
 	t.Helper()
 
+	return newServerWithUnits(t, log, func(unit db.Context) db.Context { return unit })
+}
+
+// newServerWithUnits lets a test change the unit of work each request gets
+func newServerWithUnits(t *testing.T, log *bytes.Buffer, wrap func(db.Context) db.Context) (http.Handler, db.Database) {
+	t.Helper()
+
 	database := sqlitetest.Open(t)
 	dependencies := ioc.NewDependencyCollection()
 	ioc.RegisterSingleton(dependencies, func(*ioc.DependencyProvider) db.Database {
 		return database
 	})
 	ioc.RegisterScoped(dependencies, func(services *ioc.DependencyProvider) db.Context {
-		return ioc.GetDependency[db.Database](services).NewContext()
+		return wrap(ioc.GetDependency[db.Database](services).NewContext())
 	})
 
 	return server.New(
@@ -764,4 +773,37 @@ func TestYourOwnPublicProjectIsntAmongTheOthers(t *testing.T) {
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.JSONEq(t, `[]`, response.Body.String())
+}
+
+// racedUnit saves like a unit of work that lost to another request
+type racedUnit struct {
+	db.Context
+}
+
+func (racedUnit) SaveChanges(context.Context) error {
+	return fmt.Errorf("saving: %w", repositories.ErrConcurrentModification)
+}
+
+func TestAChangeThatLostARaceIsAConflict(t *testing.T) {
+	// arrange
+	var log bytes.Buffer
+	raced := false
+	handler, _ := newServerWithUnits(t, &log, func(unit db.Context) db.Context {
+		if raced {
+			return racedUnit{unit}
+		}
+
+		return unit
+	})
+	projectID := createdProject(t, handler)
+	raced = true
+	log.Reset()
+
+	// act
+	response := changeVisibility(t, handler, validToken, projectID, `{"visibility": "public"}`)
+
+	// assert
+	assert.Equal(t, http.StatusConflict, response.Code)
+	assert.JSONEq(t, `{"type": "about:blank", "title": "Conflict", "status": 409}`, response.Body.String())
+	assert.NotContains(t, log.String(), `"level":"ERROR"`)
 }
