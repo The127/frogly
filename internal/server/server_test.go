@@ -412,9 +412,11 @@ func TestAPersonWithoutFroglysRoleIsntStored(t *testing.T) {
 	handler, database := newServerWithDatabase(t, &bytes.Buffer{})
 
 	// act
-	get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + noRoleToken}})
+	response := get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + noRoleToken}})
 
 	// assert
+	assert.Equal(t, http.StatusForbidden, response.Code)
+
 	identity, err := database.NewContext().Identities().ByLogin(t.Context(), "http://issuer.example", "lea-id")
 	require.NoError(t, err)
 	assert.Nil(t, identity)
