@@ -196,7 +196,7 @@
       {#if people.length === 0}
         <p class="quiet">Nobody found who could join.</p>
       {:else}
-        <ul class="people">
+        <ul class="rows">
           {#each people as person (person.id)}
             <li>
               <span>{person.name} <span class="meta">{person.email}</span></span>

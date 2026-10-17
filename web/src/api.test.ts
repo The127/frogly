@@ -13,6 +13,7 @@ import {
   fetchProject,
   fetchProjects,
   fetchPublicProjects,
+  joinProject,
   plantIdea,
   sayMeToo,
   searchPeople,
@@ -298,16 +299,56 @@ describe("addMember", () => {
   });
 });
 
+describe("joinProject", () => {
+  it("joins and gives the project", async () => {
+    // arrange
+    const fair = { id: "p-2", name: "Summer fair", visibility: "public", joining: "open" };
+    respondWith(200, fair);
+
+    // act
+    const joined = await joinProject("an-access-token", "p-2");
+
+    // assert
+    expect(joined).toEqual(fair);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-2/join", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project can't be joined", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const joined = joinProject("an-access-token", "p-2");
+
+    // assert
+    await expect(joined).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const joined = joinProject("an-access-token", "p-2");
+
+    // assert
+    await expect(joined).rejects.toThrow("503");
+  });
+});
+
 describe("fetchPublicProjects", () => {
   it("gives the public projects of others", async () => {
     // arrange
-    respondWith(200, [{ id: "p-2", name: "Summer fair" }]);
+    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open" }]);
 
     // act
     const projects = await fetchPublicProjects("an-access-token");
 
     // assert
-    expect(projects).toEqual([{ id: "p-2", name: "Summer fair" }]);
+    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open" }]);
     expect(fetch).toHaveBeenCalledWith("/api/projects/public", {
       headers: { Authorization: "Bearer an-access-token" },
     });

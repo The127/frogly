@@ -7,7 +7,9 @@ import {
   type Visibility,
   createProject,
   fetchProjects,
+  failure,
   fetchPublicProjects,
+  joinProject,
   sessionEnded,
 } from "./api";
 
@@ -78,6 +80,19 @@ export async function loadPublicProjects(accessToken: AccessToken): Promise<Publ
     console.error(error);
 
     return { kind: "failed" };
+  }
+}
+
+export type Joined = { kind: "joined"; project: Project } | { kind: "notJoined" } | { kind: "notFound" } | SessionEnded;
+
+// notFound means the project is closed, private or gone by now
+export async function joinPublicProject(accessToken: AccessToken, projectId: string): Promise<Joined> {
+  try {
+    return { kind: "joined", project: await joinProject(await accessToken(), projectId) };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notJoined" } : failed;
   }
 }
 

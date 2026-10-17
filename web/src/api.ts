@@ -22,6 +22,7 @@ export interface Project {
 export interface PublicProject {
   id: string;
   name: string;
+  joining: Joining;
 }
 
 // Person is someone who has logged in to frogly.
@@ -233,6 +234,19 @@ export async function sayMeToo(accessToken: string, projectId: string, ideaId: s
   }
 
   return (await response.json()) as Idea;
+}
+
+export async function joinProject(accessToken: string, projectId: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/join`, accessToken, { method: "POST" });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to join a project`);
+  }
+
+  return (await response.json()) as Project;
 }
 
 export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {

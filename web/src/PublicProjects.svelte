@@ -1,14 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { PublicProject } from "./api";
+  import type { PublicProject, SessionEnded } from "./api";
   import { getLogin } from "./login";
-  import { loadPublicProjects } from "./projects";
+  import { joinPublicProject, loadPublicProjects } from "./projects";
+  import { navigate } from "./router";
 
   const { accessToken, onLoggedOut, onNotAllowed } = getLogin();
 
   let projects = $state<PublicProject[] | undefined>();
   let listFailed = $state(false);
+  let joining = $state(false);
+  let joinProblem = $state("");
+
+  function handledElsewhere(outcome: SessionEnded) {
+    if (outcome.kind === "loggedOut") {
+      onLoggedOut();
+    } else {
+      onNotAllowed();
+    }
+  }
 
   onMount(async () => {
     const loaded = await loadPublicProjects(accessToken);
@@ -19,13 +30,37 @@
       case "failed":
         listFailed = true;
         break;
-      case "loggedOut":
-        onLoggedOut();
-        break;
-      case "notAllowed":
-        onNotAllowed();
+      default:
+        handledElsewhere(loaded);
     }
   });
+
+  async function join(project: PublicProject) {
+    if (joining) {
+      return;
+    }
+
+    joining = true;
+    joinProblem = "";
+
+    const outcome = await joinPublicProject(accessToken, project.id);
+    joining = false;
+
+    switch (outcome.kind) {
+      case "joined":
+        void navigate("/projects/:id", { params: { id: outcome.project.id } });
+        break;
+      case "notJoined":
+        joinProblem = `frogly couldn't join ${project.name}. Try again in a moment.`;
+        break;
+      case "notFound":
+        projects = projects?.filter((listed) => listed.id !== project.id);
+        joinProblem = `${project.name} can't be joined any more.`;
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
 </script>
 
 <section aria-labelledby="public-label">
@@ -38,11 +73,20 @@
   {:else if projects.length === 0}
     <p class="quiet">Nobody else has a public project yet.</p>
   {:else}
-    <!-- names only, a garden opens to its members -->
-    <ul class="projects">
+    <!-- not links, a garden opens to its members -->
+    <ul class="rows">
       {#each projects as project (project.id)}
-        <li>{project.name}</li>
+        <li>
+          <span>{project.name}</span>
+          {#if project.joining === "open"}
+            <button class="btn" onclick={() => join(project)} aria-disabled={joining}>
+              join <span class="hidden">{project.name}</span>
+            </button>
+          {/if}
+        </li>
       {/each}
     </ul>
   {/if}
+  <!-- always there, so screen readers announce the text when it changes -->
+  <p class="problem" role="alert">{joinProblem}</p>
 </section>

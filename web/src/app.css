@@ -174,13 +174,13 @@ a {
   margin: 4px 0 0;
 }
 
-.people {
+.rows {
   list-style: none;
   padding: 0;
   margin: 12px 0 0;
 }
 
-.people li {
+.rows li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -189,7 +189,7 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
-.people .meta {
+.rows .meta {
   color: var(--ink-2);
   font-size: 14px;
 }
