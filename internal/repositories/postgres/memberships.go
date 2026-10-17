@@ -32,13 +32,19 @@ func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *s
 	what := "inserting membership " + membership.ID().String()
 
 	if membership.OnlyIfOpen() {
-		// 'public' and 'open' are fixed filters, not input, so writing them
-		// in can't change what the statement does
-		joining := sqlbuilder.Build(
-			"insert into memberships (id, version, project_id, user_id) "+
-				"select $?, 1, $?, $? from projects "+
-				"where id = $? and visibility = 'public' and joining = 'open'",
-			membership.ID(), membership.ProjectID(), membership.UserID(), membership.ProjectID(),
+		joining := sqlbuilder.InsertInto("memberships").Cols("id", "version", "project_id", "user_id")
+
+		// the row comes from the project only while it's open, so a closed,
+		// private or missing project writes nothing
+		project := joining.Select()
+		project.Select(project.Var(membership.ID()), "1", project.Var(membership.ProjectID()), project.Var(membership.UserID()))
+		project.From("projects")
+		project.Where(
+			project.Equal("id", membership.ProjectID()),
+			// 'public' and 'open' are fixed filters, not input, so writing
+			// them in can't change what the statement does
+			"visibility = 'public'",
+			"joining = 'open'",
 		)
 
 		query, args := joining.BuildWithFlavor(sqlbuilder.PostgreSQL)
