@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProject, fetchProjects, plantIdea } from "./api";
+import { LoggedOut, NotAllowed, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProject, fetchProjects, plantIdea } from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -63,6 +63,17 @@ describe("fetchMe", () => {
     expect(me).toBeNull();
   });
 
+  it("fails as not allowed when the login has no frogly role", async () => {
+    // arrange
+    respondWith(403, { status: 403 });
+
+    // act
+    const me = fetchMe("a-token-without-the-role");
+
+    // assert
+    await expect(me).rejects.toThrow(NotAllowed);
+  });
+
   it("fails when the server can't check the token", async () => {
     // arrange
     respondWith(503, { status: 503 });
@@ -88,6 +99,17 @@ describe("fetchProjects", () => {
     expect(fetch).toHaveBeenCalledWith("/api/projects", {
       headers: { Authorization: "Bearer an-access-token" },
     });
+  });
+
+  it("fails as not allowed when the login has no frogly role", async () => {
+    // arrange
+    respondWith(403, { status: 403 });
+
+    // act
+    const projects = fetchProjects("a-token-without-the-role");
+
+    // assert
+    await expect(projects).rejects.toThrow(NotAllowed);
   });
 
   it("fails when frogly can't answer", async () => {

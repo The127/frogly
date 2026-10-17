@@ -70,6 +70,10 @@
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}
     <Router />
+  {:else if session.kind === "notAllowed"}
+    <h1>This account can't use frogly.</h1>
+    <p class="quiet">Ask whoever runs frogly to let you in, or log in with another account.</p>
+    <button class="btn" onclick={() => login?.signoutRedirect()}>log out</button>
   {:else}
     <h1>A quiet place for your team's work.</h1>
     {#if session.loginFailed}

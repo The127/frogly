@@ -1,9 +1,10 @@
-import type { Me } from "./api";
+import { type Me, NotAllowed } from "./api";
 import { callbackPath } from "./auth";
 
 export type Session =
   | { kind: "loggedOut"; loginFailed?: boolean }
-  | { kind: "loggedIn"; name: string };
+  | { kind: "loggedIn"; name: string }
+  | { kind: "notAllowed" };
 
 // The parts of oidc-client-ts's User and UserManager this module needs, so
 // the tests don't need a browser.
@@ -47,7 +48,18 @@ export async function resume(
     return { kind: "loggedOut" };
   }
 
-  const me = await fetchMe(user.access_token);
+  let me: Me | null;
+  try {
+    me = await fetchMe(user.access_token);
+  } catch (error) {
+    // the login stays, logging out of the issuer needs it
+    if (error instanceof NotAllowed) {
+      return { kind: "notAllowed" };
+    }
+
+    throw error;
+  }
+
   if (me === null) {
     await login.removeUser();
 

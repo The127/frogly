@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { Me } from "./api";
+import { type Me, NotAllowed } from "./api";
 import { type Login, type StoredUser, resume } from "./session";
 
 function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null): Login {
@@ -89,6 +89,21 @@ describe("resume", () => {
     // assert
     expect(login.removeUser).toHaveBeenCalledOnce();
     expect(session).toEqual({ kind: "loggedOut" });
+  });
+
+  it("keeps a login that may not use frogly, so the person can log out", async () => {
+    // arrange
+    const login = fakeLogin(fresh);
+    const fetchMe = async () => {
+      throw new NotAllowed();
+    };
+
+    // act
+    const session = await resume(login, "/", fetchMe);
+
+    // assert
+    expect(login.removeUser).not.toHaveBeenCalled();
+    expect(session).toEqual({ kind: "notAllowed" });
   });
 
   it("offers the login again when Keyline's answer can't be used", async () => {
