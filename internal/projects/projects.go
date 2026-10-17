@@ -30,10 +30,11 @@ const searchLimit = 10
 // anything, and the database never gets a pattern that large.
 const maxSearch = 320
 
-// Create makes a project called name with creator as its only member. A name
-// or visibility frogly can't use gives a *repositories.InvalidError.
-func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
-	project, err := repositories.NewProject(name, visibility)
+// Create makes a project called name with creator as its only member. A
+// name, visibility or way to join frogly can't use gives a
+// *repositories.InvalidError.
+func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility, joining repositories.Joining) (*repositories.Project, error) {
+	project, err := repositories.NewProject(name, visibility, joining)
 	if err != nil {
 		return nil, err
 	}

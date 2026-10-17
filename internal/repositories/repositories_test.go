@@ -14,7 +14,7 @@ import (
 
 func TestANewModelHasAnIDButNoVersion(t *testing.T) {
 	// act
-	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 	// assert
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 
 	// act
 	user := repositories.NewUserFromDB(base, "", "not an email")
-	project := repositories.NewProjectFromDB(base, "", "secret")
+	project := repositories.NewProjectFromDB(base, "", "secret", "maybe")
 	identity := repositories.NewIdentityFromDB(base, uuid.Nil, "", "")
 
 	// assert
@@ -83,6 +83,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 	assert.Equal(t, "not an email", user.Email())
 	assert.Empty(t, project.Name())
 	assert.Equal(t, repositories.Visibility("secret"), project.Visibility())
+	assert.Equal(t, repositories.Joining("maybe"), project.Joining())
 	assert.Empty(t, identity.Issuer())
 }
 
@@ -154,7 +155,7 @@ func TestNewIdentityNeedsAnIssuerAndASubject(t *testing.T) {
 
 func TestNewProjectTakesATrimmedName(t *testing.T) {
 	// act
-	project, err := repositories.NewProject("  Garden  ", repositories.VisibilityPrivate)
+	project, err := repositories.NewProject("  Garden  ", repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 	// assert
 	require.NoError(t, err)
@@ -173,7 +174,7 @@ func TestNewProjectRefusesNamesItCantUse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// act
-			_, err := repositories.NewProject(test.projectName, repositories.VisibilityPrivate)
+			_, err := repositories.NewProject(test.projectName, repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))
@@ -185,7 +186,7 @@ func TestNewProjectTakesItsVisibility(t *testing.T) {
 	for _, visibility := range []repositories.Visibility{repositories.VisibilityPublic, repositories.VisibilityPrivate} {
 		t.Run(string(visibility), func(t *testing.T) {
 			// act
-			project, err := repositories.NewProject("Garden", visibility)
+			project, err := repositories.NewProject("Garden", visibility, repositories.JoiningClosed)
 
 			// assert
 			require.NoError(t, err)
@@ -198,7 +199,7 @@ func TestNewProjectRefusesAVisibilityItDoesntKnow(t *testing.T) {
 	for _, visibility := range []repositories.Visibility{"", "secret"} {
 		t.Run(string(visibility), func(t *testing.T) {
 			// act
-			_, err := repositories.NewProject("Garden", visibility)
+			_, err := repositories.NewProject("Garden", visibility, repositories.JoiningClosed)
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))
@@ -208,7 +209,7 @@ func TestNewProjectRefusesAVisibilityItDoesntKnow(t *testing.T) {
 
 func TestAProjectChangesItsVisibility(t *testing.T) {
 	// arrange
-	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -221,7 +222,7 @@ func TestAProjectChangesItsVisibility(t *testing.T) {
 
 func TestAProjectKeepsItsVisibilityForOneItDoesntKnow(t *testing.T) {
 	// arrange
-	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -405,6 +406,89 @@ func TestNewMeTooNeedsAnIdeaAndAUser(t *testing.T) {
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestNewProjectTakesHowPeopleJoinAPublicProject(t *testing.T) {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+		t.Run(string(joining), func(t *testing.T) {
+			// act
+			project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, joining)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, joining, project.Joining())
+		})
+	}
+}
+
+func TestAPrivateProjectStartsClosed(t *testing.T) {
+	// act
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, "")
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, repositories.JoiningClosed, project.Joining())
+}
+
+func TestNewProjectRefusesAJoiningItCantUse(t *testing.T) {
+	tests := []struct {
+		name       string
+		visibility repositories.Visibility
+		joining    repositories.Joining
+	}{
+		{name: "a public project without", visibility: repositories.VisibilityPublic, joining: ""},
+		{name: "an unknown one", visibility: repositories.VisibilityPublic, joining: "maybe"},
+		{name: "an open private project", visibility: repositories.VisibilityPrivate, joining: repositories.JoiningOpen},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewProject("Garden", test.visibility, test.joining)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestAPublicProjectChangesHowPeopleJoin(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
+	require.NoError(t, err)
+
+	// act
+	err = project.ChangeJoining(repositories.JoiningOpen)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, repositories.JoiningOpen, project.Joining())
+}
+
+func TestAProjectKeepsHowPeopleJoinForAChangeItRefuses(t *testing.T) {
+	tests := []struct {
+		name       string
+		visibility repositories.Visibility
+		joining    repositories.Joining
+	}{
+		{name: "an unknown one", visibility: repositories.VisibilityPublic, joining: "maybe"},
+		{name: "opening a private project", visibility: repositories.VisibilityPrivate, joining: repositories.JoiningOpen},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			project, err := repositories.NewProject("Garden", test.visibility, repositories.JoiningClosed)
+			require.NoError(t, err)
+
+			// act
+			err = project.ChangeJoining(test.joining)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+			assert.Equal(t, repositories.JoiningClosed, project.Joining())
 		})
 	}
 }

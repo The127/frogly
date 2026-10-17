@@ -81,7 +81,7 @@ func createProject(r *http.Request, caller caller) (int, any, error) {
 		return 0, nil, err
 	}
 
-	project, err := projects.Create(r.Context(), caller.unit, caller.user, body.Name, body.Visibility)
+	project, err := projects.Create(r.Context(), caller.unit, caller.user, body.Name, body.Visibility, repositories.JoiningClosed)
 	if err != nil {
 		return 0, nil, err
 	}
