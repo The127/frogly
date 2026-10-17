@@ -111,7 +111,7 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 		return nil, repositories.Invalid("type part of a name or an email")
 
 	case utf8.RuneCountInString(text) > maxSearch:
-		return nil, repositories.Invalid(fmt.Sprintf("a search has at most %d characters", maxSearch))
+		return nil, repositories.Invalid("a search has at most %d characters", maxSearch)
 	}
 
 	return unit.Users().SearchNonMembers(ctx, projectID, text, searchLimit)

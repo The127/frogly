@@ -30,19 +30,19 @@ func NewIdea(projectID uuid.UUID, planterID uuid.UUID, text string) (*Idea, erro
 
 	switch {
 	case projectID == uuid.Nil || planterID == uuid.Nil:
-		return nil, invalid("an idea needs a project and someone who plants it")
+		return nil, Invalid("an idea needs a project and someone who plants it")
 
 	case text == "":
-		return nil, invalid("an idea needs a text")
+		return nil, Invalid("an idea needs a text")
 
 	case !utf8.ValidString(text):
-		return nil, invalid("an idea's text isn't valid UTF-8")
+		return nil, Invalid("an idea's text isn't valid UTF-8")
 
 	case strings.IndexFunc(text, breaksTheLine) >= 0:
-		return nil, invalid("an idea is one line of text")
+		return nil, Invalid("an idea is one line of text")
 
 	case utf8.RuneCountInString(text) > MaxIdeaText:
-		return nil, invalid("an idea has at most %d characters", MaxIdeaText)
+		return nil, Invalid("an idea has at most %d characters", MaxIdeaText)
 	}
 
 	return &Idea{

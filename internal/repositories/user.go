@@ -22,7 +22,7 @@ type User struct {
 func NewUser(name string, email string) (*User, error) {
 	name = strings.TrimSpace(name)
 	if !validName(name) {
-		return nil, invalid("a user needs a name of 1 to %d characters", MaxName)
+		return nil, Invalid("a user needs a name of 1 to %d characters", MaxName)
 	}
 
 	return &User{

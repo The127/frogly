@@ -16,7 +16,7 @@ type Membership struct {
 // NewMembership creates a membership that was never saved.
 func NewMembership(projectID uuid.UUID, userID uuid.UUID) (*Membership, error) {
 	if projectID == uuid.Nil || userID == uuid.Nil {
-		return nil, invalid("a membership needs a project and a user")
+		return nil, Invalid("a membership needs a project and a user")
 	}
 
 	return &Membership{
