@@ -19,10 +19,13 @@
 
   let searchText = $state("");
   let people = $state<Person[] | undefined>();
-  let searching = $state(false);
-  let adding = $state(false);
+  // one flag for searching and adding, so a search that finishes late can't
+  // bring back someone just added
+  let busy = $state(false);
   let peopleProblem = $state("");
+  let addProblem = $state("");
   let added = $state("");
+  let searchField = $state<HTMLInputElement>();
 
   onMount(async () => {
     const loaded = await loadSettings(login.accessToken, projectId);
@@ -63,17 +66,20 @@
         login.onNotAllowed();
     }
   }
+
   async function search(event: SubmitEvent) {
     event.preventDefault();
-    if (searching) {
+    if (busy) {
       return;
     }
 
-    searching = true;
+    busy = true;
     peopleProblem = "";
+    addProblem = "";
+    added = "";
 
     const found = await findPeople(login.accessToken, projectId, searchText);
-    searching = false;
+    busy = false;
 
     switch (found.kind) {
       case "found":
@@ -97,23 +103,26 @@
   }
 
   async function add(person: Person) {
-    if (adding) {
+    if (busy) {
       return;
     }
 
-    adding = true;
-    peopleProblem = "";
+    busy = true;
+    addProblem = "";
+    added = "";
 
     const outcome = await addPerson(login.accessToken, projectId, person.id);
-    adding = false;
+    busy = false;
 
     switch (outcome.kind) {
       case "added":
         people = people?.filter((found) => found.id !== person.id);
         added = `${outcome.person.name} is a member now.`;
+        // the button that had the focus is gone with the person
+        searchField?.focus();
         break;
       case "notAdded":
-        peopleProblem = `frogly couldn't add ${person.name}. Try again in a moment.`;
+        addProblem = `frogly couldn't add ${person.name}. Try again in a moment.`;
         break;
       case "notFound":
         settings = { kind: "notFound" };
@@ -165,10 +174,11 @@
       <input
         class="plant"
         id="people-search"
+        bind:this={searchField}
         bind:value={searchText}
         placeholder="find someone by name or email…"
-        readonly={searching}
-        aria-busy={searching}
+        readonly={busy}
+        aria-busy={busy}
         aria-invalid={peopleProblem ? "true" : undefined}
         aria-describedby="people-problem"
       />
@@ -176,9 +186,13 @@
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" id="people-problem" role="alert">{peopleProblem}</p>
 
+    <!-- polite, so a screen reader hears what the search found -->
+    <p class="hidden" aria-live="polite">
+      {people === undefined ? "" : `${people.length} ${people.length === 1 ? "person" : "people"} found`}
+    </p>
     {#if people !== undefined}
       {#if people.length === 0}
-        <p class="quiet">Nobody found who isn't a member already.</p>
+        <p class="quiet">Nobody found who could join.</p>
       {:else}
         <ul class="people">
           {#each people as person (person.id)}
@@ -190,6 +204,8 @@
         </ul>
       {/if}
     {/if}
+    <!-- always there, so screen readers announce the text when it changes -->
+    <p class="problem" role="alert">{addProblem}</p>
     <p class="quiet" aria-live="polite">{added}</p>
   </section>
 {/if}
