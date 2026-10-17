@@ -10,5 +10,6 @@ export { Router } from "sv-router";
 export const { p, route } = createRouter({
   "/": () => import("./Home.svelte"),
   "/projects/:id": () => import("./GardenPage.svelte"),
+  "/projects/:id/settings": () => import("./SettingsPage.svelte"),
   "*": () => import("./Lost.svelte"),
 });

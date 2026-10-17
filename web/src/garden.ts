@@ -4,8 +4,6 @@ import {
   type Planted,
   type Project,
   type SessionEnded,
-  type Visibility,
-  changeVisibility,
   fetchGarden,
   fetchProject,
   plantIdea,
@@ -51,18 +49,6 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
   }
 
   return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
-}
-
-export type VisibilitySwitched = { kind: "changed"; project: Project } | { kind: "notChanged" } | { kind: "notFound" } | SessionEnded;
-
-export async function switchVisibility(accessToken: AccessToken, projectId: string, visibility: Visibility): Promise<VisibilitySwitched> {
-  try {
-    return { kind: "changed", project: await changeVisibility(await accessToken(), projectId, visibility) };
-  } catch (error) {
-    const failed = failure(error);
-
-    return failed.kind === "failed" ? { kind: "notChanged" } : failed;
-  }
 }
 
 function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
