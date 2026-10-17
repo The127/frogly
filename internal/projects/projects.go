@@ -17,17 +17,17 @@ import (
 // of it. It doesn't say which, so nobody learns which projects exist.
 var ErrNotFound = errors.New("project not found")
 
-// Create makes a project called name with owner as its only member. A name
+// Create makes a project called name with creator as its only member. A name
 // or visibility frogly can't use gives a *repositories.InvalidError.
-func Create(ctx context.Context, unit db.Context, owner *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
+func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
 	project, err := repositories.NewProject(name, visibility)
 	if err != nil {
 		return nil, err
 	}
 
-	membership, err := repositories.NewMembership(project.ID(), owner.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(project.ID(), creator.ID())
 	if err != nil {
-		return nil, fmt.Errorf("making %s the owner: %w", owner.ID(), err)
+		return nil, fmt.Errorf("making %s a member: %w", creator.ID(), err)
 	}
 
 	unit.Projects().Insert(project)

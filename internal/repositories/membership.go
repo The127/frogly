@@ -4,37 +4,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// Role is what a member may do in a project.
-type Role string
-
-// RoleOwner is the role of whoever created the project.
-const RoleOwner Role = "owner"
-
-// Membership puts a user into a project with a role. A user is a member of
-// a project at most once.
+// Membership puts a user into a project. All members of a project are
+// equal. A user is a member of a project at most once.
 type Membership struct {
 	Base
 
 	projectID uuid.UUID
 	userID    uuid.UUID
-	role      Role
 }
 
 // NewMembership creates a membership that was never saved.
-func NewMembership(projectID uuid.UUID, userID uuid.UUID, role Role) (*Membership, error) {
+func NewMembership(projectID uuid.UUID, userID uuid.UUID) (*Membership, error) {
 	if projectID == uuid.Nil || userID == uuid.Nil {
 		return nil, invalid("a membership needs a project and a user")
-	}
-
-	if role != RoleOwner {
-		return nil, invalid("%q isn't a role", role)
 	}
 
 	return &Membership{
 		Base:      newBase(),
 		projectID: projectID,
 		userID:    userID,
-		role:      role,
 	}, nil
 }
 
@@ -46,11 +34,6 @@ func (membership *Membership) ProjectID() uuid.UUID {
 // UserID is the member.
 func (membership *Membership) UserID() uuid.UUID {
 	return membership.userID
-}
-
-// Role is what the member may do.
-func (membership *Membership) Role() Role {
-	return membership.role
 }
 
 // MembershipRepository saves memberships.

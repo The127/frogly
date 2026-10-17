@@ -54,18 +54,17 @@ func TestNewIdentityBelongsToItsUser(t *testing.T) {
 	assert.Equal(t, "karo-id", identity.Subject())
 }
 
-func TestNewMembershipMakesTheUserAnOwner(t *testing.T) {
+func TestNewMembershipPutsTheUserIntoTheProject(t *testing.T) {
 	// arrange
 	projectID, userID := uuid.New(), uuid.New()
 
 	// act
-	membership, err := repositories.NewMembership(projectID, userID, repositories.RoleOwner)
+	membership, err := repositories.NewMembership(projectID, userID)
 
 	// assert
 	require.NoError(t, err)
 	assert.Equal(t, projectID, membership.ProjectID())
 	assert.Equal(t, userID, membership.UserID())
-	assert.Equal(t, repositories.RoleOwner, membership.Role())
 }
 
 func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
@@ -238,17 +237,15 @@ func TestNewMembershipRefusesWhatItCantUse(t *testing.T) {
 		name      string
 		projectID uuid.UUID
 		userID    uuid.UUID
-		role      repositories.Role
 	}{
-		{name: "unknown role", projectID: uuid.New(), userID: uuid.New(), role: repositories.Role("admiral")},
-		{name: "no project", projectID: uuid.Nil, userID: uuid.New(), role: repositories.RoleOwner},
-		{name: "no user", projectID: uuid.New(), userID: uuid.Nil, role: repositories.RoleOwner},
+		{name: "no project", projectID: uuid.Nil, userID: uuid.New()},
+		{name: "no user", projectID: uuid.New(), userID: uuid.Nil},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// act
-			_, err := repositories.NewMembership(test.projectID, test.userID, test.role)
+			_, err := repositories.NewMembership(test.projectID, test.userID)
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))

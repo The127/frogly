@@ -28,8 +28,8 @@ func (repository *MembershipRepository) Insert(membership *repositories.Membersh
 // ExecuteInsert writes the membership as version 1.
 func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, membership *repositories.Membership) error {
 	insert := sqlbuilder.InsertInto("memberships").
-		Cols("id", "version", "project_id", "user_id", "role").
-		Values(membership.ID().String(), 1, membership.ProjectID().String(), membership.UserID().String(), string(membership.Role()))
+		Cols("id", "version", "project_id", "user_id").
+		Values(membership.ID().String(), 1, membership.ProjectID().String(), membership.UserID().String())
 
 	query, args := insert.BuildWithFlavor(sqlbuilder.SQLite)
 

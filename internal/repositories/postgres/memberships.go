@@ -28,8 +28,8 @@ func (repository *MembershipRepository) Insert(membership *repositories.Membersh
 // ExecuteInsert writes the membership as version 1.
 func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, membership *repositories.Membership) error {
 	insert := sqlbuilder.InsertInto("memberships").
-		Cols("id", "version", "project_id", "user_id", "role").
-		Values(membership.ID(), 1, membership.ProjectID(), membership.UserID(), string(membership.Role()))
+		Cols("id", "version", "project_id", "user_id").
+		Values(membership.ID(), 1, membership.ProjectID(), membership.UserID())
 
 	query, args := insert.BuildWithFlavor(sqlbuilder.PostgreSQL)
 

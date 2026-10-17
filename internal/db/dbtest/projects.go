@@ -104,7 +104,7 @@ func (s *projectsSuite) TestAUserIsAMemberOfAProjectOnlyOnce() {
 	// arrange
 	karo := s.savedUser("Karo")
 	garden := s.savedProject("Garden", karo)
-	again, err := repositories.NewMembership(garden.ID(), karo.ID(), repositories.RoleOwner)
+	again, err := repositories.NewMembership(garden.ID(), karo.ID())
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()
@@ -126,7 +126,7 @@ func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
 	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate)
 	s.Require().NoError(err)
 
-	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID(), repositories.RoleOwner)
+	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID())
 	s.Require().NoError(err)
 
 	unit := s.database.NewContext()

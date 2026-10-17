@@ -80,7 +80,7 @@ func TestANameFroglyCantUseCreatesNothing(t *testing.T) {
 	assert.Empty(t, listed)
 }
 
-func TestAProjectNeedsASavedOwner(t *testing.T) {
+func TestAProjectNeedsASavedCreator(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	stranger, err := repositories.NewUser("Stranger", "")
@@ -92,7 +92,7 @@ func TestAProjectNeedsASavedOwner(t *testing.T) {
 	// assert
 	require.Error(t, err)
 
-	// a missing owner is frogly's mistake, not something the client could fix
+	// a missing creator is frogly's mistake, not something the client could fix
 	_, invalid := errors.AsType[*repositories.InvalidError](err)
 	assert.False(t, invalid, "want a database error, got %v", err)
 }
