@@ -20,10 +20,14 @@ func toProjectJSON(project *repositories.Project) projectJSON {
 	return projectJSON{ID: project.ID().String(), Name: project.Name(), Visibility: string(project.Visibility())}
 }
 
-// publicProjectJSON is what someone outside a project sees of it
+// publicProjectJSON is what someone outside a project sees of it.
 type publicProjectJSON struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+}
+
+func toPublicProjectJSON(project *repositories.Project) publicProjectJSON {
+	return publicProjectJSON{ID: project.ID().String(), Name: project.Name()}
 }
 
 // projectID reads the project's ID from the path. An ID that can't be one
@@ -116,7 +120,7 @@ func listPublicProjects(r *http.Request, caller caller) (int, any, error) {
 
 	listed := make([]publicProjectJSON, 0, len(found))
 	for _, project := range found {
-		listed = append(listed, publicProjectJSON{ID: project.ID().String(), Name: project.Name()})
+		listed = append(listed, toPublicProjectJSON(project))
 	}
 
 	return http.StatusOK, listed, nil
