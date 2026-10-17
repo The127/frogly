@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, createProject, fetchConfig, fetchMe, fetchProjects } from "./api";
+import { LoggedOut, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProject, fetchProjects, plantIdea } from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -102,6 +102,55 @@ describe("fetchProjects", () => {
   });
 });
 
+describe("fetchProject", () => {
+  it("gives the project", async () => {
+    // arrange
+    respondWith(200, { id: "p-1", name: "Garden" });
+
+    // act
+    const project = await fetchProject("an-access-token", "p-1");
+
+    // assert
+    expect(project).toEqual({ id: "p-1", name: "Garden" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("throws NotFound for a project you can't see", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const project = fetchProject("an-access-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const project = fetchProject("an-access-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toThrow("500");
+  });
+
+  it("puts the project's ID into the path safely", async () => {
+    // arrange
+    respondWith(200, { id: "p-1", name: "Garden" });
+
+    // act
+    await fetchProject("an-access-token", "../me");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/..%2Fme", expect.anything());
+  });
+});
+
 describe("createProject", () => {
   it("sends the name and gives the new project", async () => {
     // arrange
@@ -154,6 +203,17 @@ describe("an ended login", () => {
     await expect(projects).rejects.toBeInstanceOf(LoggedOut);
   });
 
+  it("makes fetchProject throw LoggedOut", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const project = fetchProject("an-expired-token", "p-1");
+
+    // assert
+    await expect(project).rejects.toBeInstanceOf(LoggedOut);
+  });
+
   it("makes createProject throw LoggedOut", async () => {
     // arrange
     respondWith(401, { status: 401 });
@@ -176,5 +236,156 @@ describe("a refusal without a reason", () => {
 
     // assert
     expect(created).toEqual({ problem: "frogly can't use that name" });
+  });
+});
+
+const idea = {
+  id: "i-1",
+  text: "search by any word",
+  plantedBy: "Karo",
+  plantedAt: "2026-10-15T21:00:00.123456Z",
+};
+
+describe("fetchGarden", () => {
+  it("gives the project's ideas", async () => {
+    // arrange
+    respondWith(200, [idea]);
+
+    // act
+    const ideas = await fetchGarden("an-access-token", "p-1");
+
+    // assert
+    expect(ideas).toEqual([idea]);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/ideas", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("throws NotFound for a project you can't see", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const ideas = fetchGarden("an-access-token", "p-1");
+
+    // assert
+    await expect(ideas).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const ideas = fetchGarden("an-access-token", "p-1");
+
+    // assert
+    await expect(ideas).rejects.toThrow("500");
+  });
+
+  it("throws LoggedOut when the login ended", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const ideas = fetchGarden("an-expired-token", "p-1");
+
+    // assert
+    await expect(ideas).rejects.toBeInstanceOf(LoggedOut);
+  });
+
+  it("puts the project's ID into the path safely", async () => {
+    // arrange
+    respondWith(200, []);
+
+    // act
+    await fetchGarden("an-access-token", "../me");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/..%2Fme/ideas", expect.anything());
+  });
+});
+
+describe("plantIdea", () => {
+  it("sends the text and gives the new idea", async () => {
+    // arrange
+    respondWith(201, idea);
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "search by any word");
+
+    // assert
+    expect(planted).toEqual({ idea });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/ideas", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "search by any word" }),
+    });
+  });
+
+  it("gives frogly's reason when the text can't be used", async () => {
+    // arrange
+    respondWith(400, { status: 400, detail: "an idea needs a text" });
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "  ");
+
+    // assert
+    expect(planted).toEqual({ problem: "an idea needs a text" });
+  });
+
+  it("throws NotFound for a project you can't see", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const planted = plantIdea("an-access-token", "p-1", "an idea");
+
+    // assert
+    await expect(planted).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("throws LoggedOut when the login ended", async () => {
+    // arrange
+    respondWith(401, { status: 401 });
+
+    // act
+    const planted = plantIdea("an-expired-token", "p-1", "an idea");
+
+    // assert
+    await expect(planted).rejects.toBeInstanceOf(LoggedOut);
+  });
+
+  it("says how long an idea may be when the text is far too long", async () => {
+    // arrange
+    respondWith(413, { status: 413 });
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "蛙".repeat(5000));
+
+    // assert
+    expect(planted).toEqual({ problem: "an idea has at most 500 characters" });
+  });
+
+  it("still gives a reason when frogly's refusal has none", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
+
+    // act
+    const planted = await plantIdea("an-access-token", "p-1", "an idea");
+
+    // assert
+    expect(planted).toEqual({ problem: "frogly can't use that idea" });
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(500, { status: 500 });
+
+    // act
+    const planted = plantIdea("an-access-token", "p-1", "an idea");
+
+    // assert
+    await expect(planted).rejects.toThrow("500");
   });
 });

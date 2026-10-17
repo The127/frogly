@@ -4,7 +4,8 @@
 
   import { LoggedOut, fetchConfig, fetchMe } from "./api";
   import { callbackPath, loginSettings } from "./auth";
-  import Projects from "./Projects.svelte";
+  import { setLogin } from "./login";
+  import { Router } from "./router";
   import { type Session, resume } from "./session";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
@@ -23,6 +24,14 @@
     await login?.removeUser();
     session = { kind: "loggedOut" };
   }
+
+  setLogin({
+    get name() {
+      return session.kind === "loggedIn" ? session.name : "";
+    },
+    accessToken,
+    onLoggedOut: loggedOut,
+  });
 
   onMount(async () => {
     try {
@@ -60,8 +69,7 @@
     <h1>frogly can't be reached right now.</h1>
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}
-    <h1>Hello, {session.name}</h1>
-    <Projects {accessToken} onLoggedOut={loggedOut} />
+    <Router />
   {:else}
     <h1>A quiet place for your team's work.</h1>
     {#if session.loginFailed}

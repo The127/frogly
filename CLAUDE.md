@@ -67,8 +67,12 @@ before, like "log in and see your name". One story is one pull request.
    into the code.
 7. When the story test passes, review the whole pull request twice. First
    run the `simplify` skill, which looks for code to reuse, simplify or
-   speed up. Then have a subagent on the Opus model review it for bugs. Fix
-   what they find, then mark the pull request ready.
+   speed up. Then have a subagent on the Opus model review all of the
+   story's code together, for bugs and for refactorings: how files and
+   tests are laid out, patterns that repeat across files, queries that
+   grow with the data, and code that doesn't fit the code around it. Don't
+   tell it which findings to leave out. Fix what they find, then mark the
+   pull request ready.
 
 Your own notes for this machine go in `CLAUDE.local.md`, which git ignores:
 

@@ -13,8 +13,8 @@ their own.
 
 ## Status
 
-frogly is at an early stage. So far you can log in, create projects and see the ones you're a member
-of.
+frogly is at an early stage. So far you can log in, create projects, and plant
+ideas in the garden of a project you're a member of.
 [Running frogly](CONTRIBUTING.md#running-frogly) says how to try it. The
 [vision](docs/vision.md) describes what frogly is going to be, and the
 [design demo](docs/design/) shows how it could look.

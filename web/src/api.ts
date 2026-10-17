@@ -12,12 +12,32 @@ export interface Project {
   name: string;
 }
 
+// frogly's limit for an idea, in characters
+export const maxIdeaLength = 500;
+
+export interface Idea {
+  id: string;
+  text: string;
+  plantedBy: string;
+  // an RFC 3339 time in UTC
+  plantedAt: string;
+}
+
 // LoggedOut means the login ended, and trying again won't help until the
 // person logs in again.
 export class LoggedOut extends Error {
   constructor() {
     super("the login ended");
     this.name = "LoggedOut";
+  }
+}
+
+// NotFound means the project doesn't exist or the person isn't a member of
+// it. frogly doesn't say which.
+export class NotFound extends Error {
+  constructor() {
+    super("the project isn't there");
+    this.name = "NotFound";
   }
 }
 
@@ -74,6 +94,19 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   return (await response.json()) as Project[];
 }
 
+export async function fetchProject(accessToken: string, projectId: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}`, accessToken);
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for a project`);
+  }
+
+  return (await response.json()) as Project;
+}
+
 // Either the new project, or frogly's reason for refusing the name, which
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
@@ -85,9 +118,7 @@ export async function createProject(accessToken: string, name: string): Promise<
     body: JSON.stringify({ name }),
   });
   if (response.status === 400) {
-    const problem = (await response.json().catch(() => ({}))) as { detail?: string };
-
-    return { problem: problem.detail ?? "frogly can't use that name" };
+    return { problem: await refusal(response, "frogly can't use that name") };
   }
 
   if (!response.ok) {
@@ -95,4 +126,58 @@ export async function createProject(accessToken: string, name: string): Promise<
   }
 
   return { project: (await response.json()) as Project };
+}
+
+// the reason in frogly's problem, or fallback when it has none
+async function refusal(response: Response, fallback: string): Promise<string> {
+  const problem = (await response.json().catch(() => ({}))) as { detail?: string };
+
+  return problem.detail ?? fallback;
+}
+
+function gardenPath(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/ideas`;
+}
+
+export async function fetchGarden(accessToken: string, projectId: string): Promise<Idea[]> {
+  const response = await authorized(gardenPath(projectId), accessToken);
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for a garden`);
+  }
+
+  return (await response.json()) as Idea[];
+}
+
+// Either the new idea, or frogly's reason for refusing the text, which the
+// person can act on. Any other failure is frogly's problem.
+export type Planted = { idea: Idea } | { problem: string };
+
+export async function plantIdea(accessToken: string, projectId: string, text: string): Promise<Planted> {
+  const response = await authorized(gardenPath(projectId), accessToken, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (response.status === 400) {
+    return { problem: await refusal(response, "frogly can't use that idea") };
+  }
+
+  // frogly stops reading a body far longer than an idea may be
+  if (response.status === 413) {
+    return { problem: `an idea has at most ${maxIdeaLength} characters` };
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to plant an idea`);
+  }
+
+  return { idea: (await response.json()) as Idea };
 }

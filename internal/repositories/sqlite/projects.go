@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -59,6 +60,27 @@ func (repository *ProjectRepository) ListForMember(ctx context.Context, userID u
 	}
 
 	return projects, nil
+}
+
+// ByIDForMember loads the project if the user is a member of it, or
+// returns repositories.ErrNotFound.
+func (repository *ProjectRepository) ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*repositories.Project, error) {
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name").From("projects p")
+	selection.Join("memberships m", "m.project_id = p.id")
+	selection.Where(selection.Equal("p.id", projectID.String()), selection.Equal("m.user_id", userID.String()))
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.SQLite)
+
+	project, err := scanProject(repository.reader.QueryRowContext(ctx, query, args...))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("project %s for user %s: %w", projectID, userID, repositories.ErrNotFound)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("loading project %s for user %s: %w", projectID, userID, err)
+	}
+
+	return project, nil
 }
 
 func scanProject(row scanner) (*repositories.Project, error) {

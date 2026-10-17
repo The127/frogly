@@ -18,6 +18,7 @@
     "vitest": "5.0.4"
   },
   "dependencies": {
-    "oidc-client-ts": "3.5.0"
+    "oidc-client-ts": "3.5.0",
+    "sv-router": "0.19.0"
   }
 }

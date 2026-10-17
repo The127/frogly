@@ -18,6 +18,22 @@ HTTP 200
 [Asserts]
 jsonpath "$[?(@.id == '{{id}}')].name" == "Hurl garden"
 
+# and answers with it on its own
+GET {{frogly}}/api/projects/{{id}}
+Authorization: Bearer {{token}}
+HTTP 200
+[Asserts]
+header "Content-Type" == "application/json"
+jsonpath "$.id" == "{{id}}"
+jsonpath "$.name" == "Hurl garden"
+
+# a project that doesn't exist is not found
+GET {{frogly}}/api/projects/01a14180-d957-7cc5-af29-7f1fe18d89bb
+Authorization: Bearer {{token}}
+HTTP 404
+[Asserts]
+header "Content-Type" == "application/problem+json"
+
 # a name frogly can't use says what's wrong. The other refusals are
 # tested in internal/server, this checks the problem on the wire.
 POST {{frogly}}/api/projects

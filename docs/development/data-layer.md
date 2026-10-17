@@ -27,15 +27,17 @@ talks to.
   doesn't write the next one, so a change can't overwrite one that was
   saved in between. The adapter reports that as
   `repositories.ErrConcurrentModification`.
-- `internal/db/dbtest` is the contract every adapter meets. Both adapters
-  run it, Postgres with the `integration` tag.
+- `internal/db/dbtest` is the contract every adapter meets, one testify
+  suite per model. Both adapters run all of them with `dbtest.Run`,
+  Postgres with the `integration` tag.
 
 To add a model:
 
 1. First, add the model and its repository interface to
    `internal/repositories`, with tests for its constructor.
-2. Then add the repository to `db.Context`, and the contract's tests for it
-   to `internal/db/dbtest`.
+2. Then add the repository to `db.Context`. Add the contract's tests for it
+   in a file of its own in `internal/db/dbtest`, as a suite that embeds
+   `base`, and start that suite in `dbtest.Run`.
 3. Add a migration and the repository to each adapter, until both pass
    the contract. A model that can be updated needs the version trigger in
    both migrations: in Postgres, a trigger that executes the existing

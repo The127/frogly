@@ -23,6 +23,7 @@ import (
 	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/logging"
 	"github.com/the127/frogly/internal/people"
+	"github.com/the127/frogly/internal/projects"
 	"github.com/the127/frogly/internal/repositories"
 )
 
@@ -49,6 +50,9 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	}))
 	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
 	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
+	mux.Handle("GET /api/projects/{id}", authenticated(verifier, services, getProject))
+	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, services, listGarden))
+	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, services, plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -258,6 +262,12 @@ func answerError(w http.ResponseWriter, r *http.Request, err error) {
 
 	if errors.Is(err, errBadBody) {
 		writeProblemDetail(w, http.StatusBadRequest, errBadBody.Error())
+
+		return
+	}
+
+	if errors.Is(err, projects.ErrNotFound) {
+		writeProblem(w, http.StatusNotFound)
 
 		return
 	}

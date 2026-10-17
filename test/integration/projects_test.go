@@ -47,15 +47,21 @@ func projectsOf(ctx context.Context, token string) []project {
 	return projects
 }
 
+func createProject(ctx context.Context, token string, name string) project {
+	response := call(ctx, http.MethodPost, "/api/projects", token, map[string]string{"name": name})
+	Expect(response).To(HaveHTTPStatus(http.StatusCreated))
+
+	var created project
+	Expect(json.NewDecoder(response.Body).Decode(&created)).To(Succeed())
+
+	return created
+}
+
 var _ = Describe("creating a project", func() {
 	It("shows the project in your list and nobody else's", func(ctx SpecContext) {
 		name := "Garden " + time.Now().Format(time.RFC3339Nano)
 
-		response := call(ctx, http.MethodPost, "/api/projects", accessToken, map[string]string{"name": name})
-		Expect(response).To(HaveHTTPStatus(http.StatusCreated))
-
-		var created project
-		Expect(json.NewDecoder(response.Body).Decode(&created)).To(Succeed())
+		created := createProject(ctx, accessToken, name)
 		Expect(created.ID).NotTo(BeEmpty())
 		Expect(created.Name).To(Equal(name))
 

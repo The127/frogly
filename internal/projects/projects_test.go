@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -94,4 +95,49 @@ func TestAProjectNeedsASavedOwner(t *testing.T) {
 	// a missing owner is frogly's mistake, not something the client could fix
 	_, invalid := errors.AsType[*repositories.InvalidError](err)
 	assert.False(t, invalid, "want a database error, got %v", err)
+}
+
+func TestAMemberGetsTheProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	require.NoError(t, err)
+
+	// act
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, created.ID(), project.ID())
+	assert.Equal(t, "Garden", project.Name())
+}
+
+func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+	}{
+		{name: "not a member", projectID: created.ID()},
+		{name: "no such project", projectID: uuid.Must(uuid.NewV7())},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := projects.Get(t.Context(), database.NewContext(), ana, test.projectID)
+
+			// assert
+			require.ErrorIs(t, err, projects.ErrNotFound)
+		})
+	}
 }

@@ -13,7 +13,6 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // the driver the test talks to Postgres with
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 
 	"github.com/the127/frogly/internal/db"
 	"github.com/the127/frogly/internal/db/dbtest"
@@ -24,20 +23,18 @@ import (
 const defaultURL = "postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable" //nolint:gosec // the public password of the local dev database
 
 func TestPostgresMeetsTheContract(t *testing.T) {
-	suite.Run(t, &dbtest.Suite{
-		Open: func(t *testing.T) db.Database {
-			t.Helper()
+	dbtest.Run(t, func(t *testing.T) db.Database {
+		t.Helper()
 
-			database, err := postgres.Open(freshDatabase(t))
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, database.Close())
-			})
+		database, err := postgres.Open(freshDatabase(t))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, database.Close())
+		})
 
-			require.NoError(t, database.Migrate(t.Context()))
+		require.NoError(t, database.Migrate(t.Context()))
 
-			return database
-		},
+		return database
 	})
 }
 

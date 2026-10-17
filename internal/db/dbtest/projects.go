@@ -1,0 +1,141 @@
+package dbtest
+
+import (
+	"github.com/google/uuid"
+
+	"github.com/the127/frogly/internal/repositories"
+)
+
+// projectsSuite checks projects and their memberships: who sees which
+// project, and in which order.
+type projectsSuite struct {
+	base
+}
+
+// TestProjectsAreListedForTheirMembersOnly checks that a user's list holds their
+// projects only, sorted by name byte by byte.
+func (s *projectsSuite) TestProjectsAreListedForTheirMembersOnly() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("garden", karo)
+	board := s.savedProject("Board", karo)
+	s.savedProject("Kitchen", ana)
+
+	// act
+	projects, err := s.database.NewContext().Projects().ListForMember(s.T().Context(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(projects, 2)
+	s.Equal(board.ID(), projects[0].ID(), "upper case sorts before lower case")
+	s.Equal("Board", projects[0].Name())
+	s.Equal(1, projects[0].Version())
+	s.Equal(garden.ID(), projects[1].ID())
+}
+
+// TestProjectsWithTheSameNameAreListedByID checks that projects with the same name
+// come in the order of their IDs.
+func (s *projectsSuite) TestProjectsWithTheSameNameAreListedByID() {
+	// arrange
+	karo := s.savedUser("Karo")
+	first := s.savedProject("Garden", karo)
+	second := s.savedProject("Garden", karo)
+
+	// act
+	projects, err := s.database.NewContext().Projects().ListForMember(s.T().Context(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(projects, 2)
+	s.Equal(first.ID(), projects[0].ID(), "version 7 IDs grow with time")
+	s.Equal(second.ID(), projects[1].ID())
+}
+
+// TestAProjectIsFoundForItsMembers checks that a member finds the project
+// by its ID.
+func (s *projectsSuite) TestAProjectIsFoundForItsMembers() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+
+	// act
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(garden.ID(), found.ID())
+	s.Equal(1, found.Version())
+	s.Equal("Garden", found.Name())
+}
+
+// TestAProjectIsntFoundForOthers checks that someone who isn't a member
+// gets the same answer as for a project that doesn't exist.
+func (s *projectsSuite) TestAProjectIsntFoundForOthers() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+	// a member of another project, so a check of only one of the two IDs
+	// would find something
+	s.savedProject("Kitchen", ana)
+
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		userID    uuid.UUID
+	}{
+		{name: "not a member", projectID: garden.ID(), userID: ana.ID()},
+		{name: "no such project", projectID: uuid.Must(uuid.NewV7()), userID: karo.ID()},
+	}
+
+	for _, test := range tests {
+		s.Run(test.name, func() {
+			// act
+			_, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), test.projectID, test.userID)
+
+			// assert
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+		})
+	}
+}
+
+// TestAUserIsAMemberOfAProjectOnlyOnce checks that a second membership of the same
+// user in the same project fails.
+func (s *projectsSuite) TestAUserIsAMemberOfAProjectOnlyOnce() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	again, err := repositories.NewMembership(garden.ID(), karo.ID(), repositories.RoleOwner)
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(again)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestAMembershipNeedsAnExistingProject checks that a membership can't
+// point to a project the database doesn't have, and that this isn't
+// mistaken for a race.
+func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
+	// arrange
+	karo := s.savedUser("Karo")
+	nowhere, err := repositories.NewProject("Nowhere")
+	s.Require().NoError(err)
+
+	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID(), repositories.RoleOwner)
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(membership)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+}

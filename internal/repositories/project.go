@@ -47,5 +47,9 @@ type ProjectRepository interface {
 	// name byte by byte, so upper case comes first, then by ID. Both
 	// databases sort the same way.
 	ListForMember(ctx context.Context, userID uuid.UUID) ([]*Project, error)
+	// ByIDForMember returns the project if the user is a member of it, and
+	// ErrNotFound if it doesn't exist or the user isn't a member, so a
+	// caller can't tell the two apart.
+	ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*Project, error)
 	Insert(project *Project)
 }
