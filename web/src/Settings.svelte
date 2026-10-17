@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Person, Project } from "./api";
+  import type { Person, Project, SessionEnded } from "./api";
   import { getLogin } from "./login";
   import { p } from "./router";
   import { addPerson, findPeople, loadSettings, switchVisibility } from "./settings";
@@ -26,6 +26,9 @@
   let addProblem = $state("");
   let added = $state("");
   let searchField = $state<HTMLInputElement>();
+  const foundText = $derived(
+    people === undefined ? "" : `${people.length} ${people.length === 1 ? "person" : "people"} found`,
+  );
 
   onMount(async () => {
     const loaded = await loadSettings(login.accessToken, projectId);
@@ -38,24 +41,10 @@
     }
   });
 
-  async function toggleVisibility() {
-    if (switching || settings.kind !== "loaded") {
-      return;
-    }
-
-    switching = true;
-    problem = "";
-
-    const switched = await switchVisibility(login.accessToken, projectId, isPublic ? "private" : "public");
-    switching = false;
-
-    switch (switched.kind) {
-      case "changed":
-        settings = { kind: "loaded", project: switched.project };
-        break;
-      case "notChanged":
-        problem = "frogly couldn't change who sees the project. Try again in a moment.";
-        break;
+  // what every action does when the project is gone or the session ended,
+  // so each one only handles its own outcomes
+  function handledElsewhere(outcome: { kind: "notFound" } | SessionEnded) {
+    switch (outcome.kind) {
       case "notFound":
         settings = { kind: "notFound" };
         break;
@@ -64,6 +53,29 @@
         break;
       case "notAllowed":
         login.onNotAllowed();
+    }
+  }
+
+  async function toggleVisibility() {
+    if (switching || settings.kind !== "loaded") {
+      return;
+    }
+
+    switching = true;
+    problem = "";
+
+    const outcome = await switchVisibility(login.accessToken, projectId, isPublic ? "private" : "public");
+    switching = false;
+
+    switch (outcome.kind) {
+      case "changed":
+        settings = { kind: "loaded", project: outcome.project };
+        break;
+      case "notChanged":
+        problem = "frogly couldn't change who sees the project. Try again in a moment.";
+        break;
+      default:
+        handledElsewhere(outcome);
     }
   }
 
@@ -78,27 +90,21 @@
     addProblem = "";
     added = "";
 
-    const found = await findPeople(login.accessToken, projectId, searchText);
+    const outcome = await findPeople(login.accessToken, projectId, searchText);
     busy = false;
 
-    switch (found.kind) {
+    switch (outcome.kind) {
       case "found":
-        people = found.people;
+        people = outcome.people;
         break;
       case "refused":
-        peopleProblem = found.problem;
+        peopleProblem = outcome.problem;
         break;
       case "failed":
         peopleProblem = "frogly couldn't search right now. Try again in a moment.";
         break;
-      case "notFound":
-        settings = { kind: "notFound" };
-        break;
-      case "loggedOut":
-        login.onLoggedOut();
-        break;
-      case "notAllowed":
-        login.onNotAllowed();
+      default:
+        handledElsewhere(outcome);
     }
   }
 
@@ -124,14 +130,8 @@
       case "notAdded":
         addProblem = `frogly couldn't add ${person.name}. Try again in a moment.`;
         break;
-      case "notFound":
-        settings = { kind: "notFound" };
-        break;
-      case "loggedOut":
-        login.onLoggedOut();
-        break;
-      case "notAllowed":
-        login.onNotAllowed();
+      default:
+        handledElsewhere(outcome);
     }
   }
 </script>
@@ -188,7 +188,7 @@
 
     <!-- polite, so a screen reader hears what the search found -->
     <p class="hidden" aria-live="polite">
-      {people === undefined ? "" : `${people.length} ${people.length === 1 ? "person" : "people"} found`}
+      {foundText}
     </p>
     {#if people !== undefined}
       {#if people.length === 0}
