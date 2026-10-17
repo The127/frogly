@@ -89,6 +89,8 @@
     peopleProblem = "";
     addProblem = "";
     added = "";
+    // empties the count, so the same number found again is announced again
+    people = undefined;
 
     const outcome = await findPeople(login.accessToken, projectId, searchText);
     busy = false;
@@ -198,7 +200,7 @@
           {#each people as person (person.id)}
             <li>
               <span>{person.name} <span class="meta">{person.email}</span></span>
-              <button class="btn" onclick={() => add(person)}>add <span class="hidden">{person.name}</span></button>
+              <button class="btn" onclick={() => add(person)} aria-disabled={busy}>add <span class="hidden">{person.name}</span></button>
             </li>
           {/each}
         </ul>
