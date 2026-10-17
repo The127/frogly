@@ -9,14 +9,16 @@ import {
   fetchGarden,
   fetchProject,
   plantIdea,
+  sayMeToo,
 } from "./api";
-import { addIdea, loadGarden, plantedOn } from "./garden";
+import { addIdea, loadGarden, meToo, peopleBehind, plantedOn } from "./garden";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   fetchGarden: vi.fn(),
   fetchProject: vi.fn(),
   plantIdea: vi.fn(),
+  sayMeToo: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -24,7 +26,7 @@ beforeEach(() => {
 });
 
 const project: Project = { id: "p-1", name: "Garden", visibility: "private" };
-const idea: Idea = { id: "i-1", text: "search by any word", plantedBy: "Karo", plantedAt: "2026-10-15T21:00:00Z" };
+const idea: Idea = { id: "i-1", text: "search by any word", plantedBy: "Karo", plantedAt: "2026-10-15T21:00:00Z", people: 1 };
 const token = async () => "an-access-token";
 
 describe("loadGarden", () => {
@@ -150,6 +152,49 @@ describe("addIdea", () => {
 
     // assert
     expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("meToo", () => {
+  it("gives the idea with its new number of people", async () => {
+    // arrange
+    vi.mocked(sayMeToo).mockResolvedValue({ ...idea, people: 2 });
+
+    // act
+    const outcome = await meToo(token, "p-1", "i-1");
+
+    // assert
+    expect(outcome).toEqual({ kind: "said", idea: { ...idea, people: 2 } });
+    expect(sayMeToo).toHaveBeenCalledWith("an-access-token", "p-1", "i-1");
+  });
+
+  it.each([
+    { name: "it failed", error: new Error("frogly answered 500"), kind: "notSaid" },
+    { name: "the idea is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(sayMeToo).mockRejectedValue(error);
+
+    // act
+    const outcome = await meToo(token, "p-1", "i-1");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("peopleBehind", () => {
+  it.each([
+    { people: 1, text: "1 person" },
+    { people: 2, text: "2 people" },
+  ])("says $text", ({ people, text }) => {
+    // act
+    const said = peopleBehind(people);
+
+    // assert
+    expect(said).toBe(text);
   });
 });
 

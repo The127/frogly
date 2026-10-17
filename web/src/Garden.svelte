@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
 
   import { type Idea, type Project, maxIdeaLength } from "./api";
-  import { addIdea, loadGarden, plantedOn } from "./garden";
+  import { addIdea, loadGarden, meToo, peopleBehind, plantedOn } from "./garden";
   import { getLogin } from "./login";
   import { p } from "./router";
 
@@ -16,6 +16,8 @@
   let text = $state("");
   let problem = $state("");
   let saving = $state(false);
+  let sayingMeToo = $state(false);
+  let meTooProblem = $state("");
 
   onMount(async () => {
     const loaded = await loadGarden(login.accessToken, projectId);
@@ -27,6 +29,37 @@
       garden = loaded;
     }
   });
+
+  async function sayMeTooTo(idea: Idea) {
+    if (sayingMeToo || garden.kind !== "listed") {
+      return;
+    }
+
+    sayingMeToo = true;
+    meTooProblem = "";
+
+    const outcome = await meToo(login.accessToken, projectId, idea.id);
+    sayingMeToo = false;
+
+    switch (outcome.kind) {
+      case "said":
+        if (garden.kind === "listed") {
+          garden = { ...garden, ideas: garden.ideas.map((listed) => (listed.id === idea.id ? outcome.idea : listed)) };
+        }
+        break;
+      case "notSaid":
+        meTooProblem = "frogly couldn't say me too. Try again in a moment.";
+        break;
+      case "notFound":
+        garden = { kind: "notFound" };
+        break;
+      case "loggedOut":
+        login.onLoggedOut();
+        break;
+      case "notAllowed":
+        login.onNotAllowed();
+    }
+  }
 
   async function plant(event: SubmitEvent) {
     event.preventDefault();
@@ -106,11 +139,18 @@
       <ul class="ideas">
         {#each garden.ideas as idea (idea.id)}
           <li>
-            {idea.text}
-            <span class="meta">{idea.plantedBy} · {plantedOn(idea.plantedAt)}</span>
+            <span>
+              {idea.text}
+              <span class="meta">{idea.plantedBy} · {plantedOn(idea.plantedAt)} · {peopleBehind(idea.people)}</span>
+            </span>
+            <button class="btn" onclick={() => sayMeTooTo(idea)} aria-disabled={sayingMeToo}>
+              me too <span class="hidden">for {idea.text}</span>
+            </button>
           </li>
         {/each}
       </ul>
     {/if}
+    <!-- always there, so screen readers announce the text when it changes -->
+    <p class="problem" role="alert">{meTooProblem}</p>
   </section>
 {/if}
