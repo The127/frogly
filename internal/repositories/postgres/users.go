@@ -14,6 +14,8 @@ import (
 	"github.com/the127/frogly/internal/repositories"
 )
 
+var errBadLimit = errors.New("bad limit")
+
 // UserRepository loads users from Postgres.
 type UserRepository struct {
 	reader  Reader
@@ -111,8 +113,6 @@ func (repository *UserRepository) SearchNonMembers(ctx context.Context, projectI
 
 	return users, nil
 }
-
-var errBadLimit = errors.New("bad limit")
 
 // escapeLike makes %, _ and the escape character itself stand for
 // themselves, so a search can't match more than it says.

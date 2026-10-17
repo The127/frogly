@@ -350,6 +350,10 @@ func TestAddingAMemberAgainChangesNothing(t *testing.T) {
 
 		// assert
 		require.NoError(t, err, "adding %s", who.Name())
+
+		listed, err := projects.ListFor(t.Context(), database.NewContext(), who)
+		require.NoError(t, err)
+		assert.Len(t, listed, 1, "%s is a member once", who.Name())
 	}
 }
 
@@ -369,6 +373,23 @@ func TestSomeoneOutsideAProjectAddsNobody(t *testing.T) {
 
 	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
 	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+func TestSomeoneOutsideAProjectLearnsNothingFromWhatTheySend(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	_, searched := projects.FindPeople(t.Context(), database.NewContext(), ana, garden.ID(), "   ")
+	_, added := projects.AddMember(t.Context(), database.NewContext(), ana, garden.ID(), uuid.Must(uuid.NewV7()))
+
+	// assert
+	require.ErrorIs(t, searched, projects.ErrNotFound, "an empty search")
+	require.ErrorIs(t, added, projects.ErrNotFound, "an unknown ID")
 }
 
 func TestNobodyWithTheIDIsAdded(t *testing.T) {

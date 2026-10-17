@@ -108,8 +108,10 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 }
 
 // AddMember lets a member add someone who has logged in to frogly, and
-// gives them back. Adding a member again changes nothing. Someone who
-// isn't a member gets ErrNotFound, like Get.
+// gives them back. Adding a member again changes nothing. When two members
+// add the same person at once, one of them gets
+// repositories.ErrConcurrentModification, and trying again works. Someone
+// who isn't a member gets ErrNotFound, like Get.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
 	_, err := Get(ctx, unit, user, projectID)
 	if err != nil {
