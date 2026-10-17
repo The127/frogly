@@ -13,6 +13,7 @@
   let settings = $state<{ kind: "loading" } | { kind: "loaded"; project: Project } | { kind: "notFound" } | { kind: "failed" }>({
     kind: "loading",
   });
+  const isPublic = $derived(settings.kind === "loaded" && settings.project.visibility === "public");
   let switching = $state(false);
   let problem = $state("");
 
@@ -35,8 +36,7 @@
     switching = true;
     problem = "";
 
-    const other = settings.project.visibility === "public" ? "private" : "public";
-    const switched = await switchVisibility(login.accessToken, projectId, other);
+    const switched = await switchVisibility(login.accessToken, projectId, isPublic ? "private" : "public");
     switching = false;
 
     switch (switched.kind) {
@@ -78,10 +78,10 @@
     <p class="quiet visibility">
       <!-- polite, so a screen reader says the new state once the change is saved -->
       <span aria-live="polite">
-        {settings.project.visibility === "public" ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
+        {isPublic ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
       </span>
       <button class="btn" onclick={toggleVisibility}>
-        make it {settings.project.visibility === "public" ? "private" : "public"}
+        make it {isPublic ? "private" : "public"}
       </button>
     </p>
     <!-- always there, so screen readers announce the text when it changes -->
