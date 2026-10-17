@@ -170,6 +170,26 @@ a {
   margin: 4px 0 0;
 }
 
+.people {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+
+.people li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.people .meta {
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
 .visibility {
   display: flex;
   flex-wrap: wrap;
