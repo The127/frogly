@@ -52,8 +52,7 @@ before, like "log in and see your name". One story is one pull request.
    and nothing else: who wants to do what, and why. For example, "As the
    person who runs frogly, I want only people with a frogly role in our
    login to get in, so that I decide who uses it." Leave out how it works,
-   open questions and "Done when". Nobody knows them before the work
-   starts. The pull request closes the issue.
+   open questions and "Done when". The pull request closes the issue.
 2. Work test first, from the outside in. The first commit is a failing
    integration test for the whole story. Then small cycles of a failing
    test, the code that makes it pass and a cleanup make the story test
