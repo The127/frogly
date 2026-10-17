@@ -27,6 +27,10 @@ func join(ctx context.Context, token string, projectID string) *http.Response {
 	return call(ctx, http.MethodPost, "/api/projects/"+projectID+"/join", token, nil)
 }
 
+func changeJoining(ctx context.Context, token string, projectID string, joining string) *http.Response {
+	return call(ctx, http.MethodPut, "/api/projects/"+projectID+"/joining", token, map[string]string{"joining": joining})
+}
+
 var _ = Describe("joining a public project", func() {
 	Context("that is open", func() {
 		It("shows it as open to someone outside it", func(ctx SpecContext) {
@@ -52,7 +56,30 @@ var _ = Describe("joining a public project", func() {
 			Expect(join(ctx, otherAccessToken, fair.ID)).To(HaveHTTPStatus(http.StatusOK))
 
 			Expect(join(ctx, otherAccessToken, fair.ID)).To(HaveHTTPStatus(http.StatusOK))
-			Expect(projectsOf(ctx, otherAccessToken)).To(ContainElement(HaveField("ID", fair.ID)))
+
+			var joined []project
+			for _, listed := range projectsOf(ctx, otherAccessToken) {
+				if listed.ID == fair.ID {
+					joined = append(joined, listed)
+				}
+			}
+
+			Expect(joined).To(HaveLen(1))
+		}, SpecTimeout(10*time.Second))
+
+		It("can't be joined any more once it's private", func(ctx SpecContext) {
+			fair := createPublicProject(ctx, accessToken, "Summer fair", "open")
+			Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
+
+			Expect(join(ctx, otherAccessToken, fair.ID)).To(HaveHTTPStatus(http.StatusNotFound))
+			Expect(projectsOf(ctx, otherAccessToken)).NotTo(ContainElement(HaveField("ID", fair.ID)))
+		}, SpecTimeout(10*time.Second))
+
+		It("can't be joined any more once a member closes it", func(ctx SpecContext) {
+			fair := createPublicProject(ctx, accessToken, "Summer fair", "open")
+			Expect(changeJoining(ctx, accessToken, fair.ID, "closed")).To(HaveHTTPStatus(http.StatusOK))
+
+			Expect(join(ctx, otherAccessToken, fair.ID)).To(HaveHTTPStatus(http.StatusNotFound))
 		}, SpecTimeout(10*time.Second))
 	})
 
@@ -80,10 +107,20 @@ var _ = Describe("joining a public project", func() {
 
 	It("lets you in once a member opens it", func(ctx SpecContext) {
 		board := createPublicProject(ctx, accessToken, "Board", "closed")
+		Expect(join(ctx, otherAccessToken, board.ID)).To(HaveHTTPStatus(http.StatusNotFound))
 
-		opened := call(ctx, http.MethodPut, "/api/projects/"+board.ID+"/joining", accessToken, map[string]string{"joining": "open"})
-		Expect(opened).To(HaveHTTPStatus(http.StatusOK))
+		Expect(changeJoining(ctx, accessToken, board.ID, "open")).To(HaveHTTPStatus(http.StatusOK))
 
 		Expect(join(ctx, otherAccessToken, board.ID)).To(HaveHTTPStatus(http.StatusOK))
+	}, SpecTimeout(10*time.Second))
+
+	It("can't be opened by someone outside the project", func(ctx SpecContext) {
+		board := createPublicProject(ctx, accessToken, "Board", "closed")
+
+		Expect(changeJoining(ctx, otherAccessToken, board.ID, "open")).To(HaveHTTPStatus(http.StatusNotFound))
+		Expect(join(ctx, otherAccessToken, board.ID)).To(HaveHTTPStatus(http.StatusNotFound))
+
+		// the same change by a member works, so the 404 above isn't a missing route
+		Expect(changeJoining(ctx, accessToken, board.ID, "open")).To(HaveHTTPStatus(http.StatusOK))
 	}, SpecTimeout(10*time.Second))
 })
