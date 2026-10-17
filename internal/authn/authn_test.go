@@ -107,6 +107,12 @@ func (issuer *fakeIssuer) sign(t *testing.T, key jose.SigningKey, typ jose.Conte
 func newVerifier(t *testing.T, issuer *fakeIssuer) *authn.Verifier {
 	t.Helper()
 
+	return newVerifierReading(t, issuer, roleClaim)
+}
+
+func newVerifierReading(t *testing.T, issuer *fakeIssuer, roleClaim string) *authn.Verifier {
+	t.Helper()
+
 	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID, roleClaim)
 	require.NoError(t, err)
 
@@ -166,11 +172,12 @@ func TestVerifyGivesTheRoles(t *testing.T) {
 			claims: map[string]any{roleClaim: []string{"frogly:frogly-user", "frogly:admin"}},
 			want:   []string{"frogly:frogly-user", "frogly:admin"},
 		},
+		{name: "an empty list", claims: map[string]any{roleClaim: []string{}}, want: []string{}},
 		{name: "no claim", claims: nil, want: nil},
 		{name: "another claim", claims: map[string]any{"groups": []string{"frogly:frogly-user"}}, want: nil},
-		// guessing what another shape means could let someone in
 		{name: "a single string", claims: map[string]any{roleClaim: "frogly:frogly-user"}, want: nil},
-		{name: "a list with something else", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", 1}}, want: nil},
+		{name: "a list with a number", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", 1}}, want: nil},
+		{name: "a list with null", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", nil}}, want: nil},
 	}
 
 	for _, test := range tests {
@@ -188,6 +195,23 @@ func TestVerifyGivesTheRoles(t *testing.T) {
 			assert.Equal(t, test.want, person.Roles)
 		})
 	}
+}
+
+func TestVerifyReadsTheRolesFromTheClaimItIsGiven(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifierReading(t, issuer, "groups")
+	token := issuer.token(t, map[string]any{
+		"groups": []string{"frogly-users"},
+		"roles":  []string{"frogly:frogly-user"},
+	})
+
+	// act
+	person, err := verifier.Verify(t.Context(), token)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"frogly-users"}, person.Roles)
 }
 
 func TestVerifyRefusesTokensFroglyDoesntTrust(t *testing.T) {

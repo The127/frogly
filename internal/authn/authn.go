@@ -149,14 +149,26 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 	}, nil
 }
 
-// rolesIn takes nothing from a claim that isn't a list of strings, since
-// guessing what another shape means could let someone in.
+// A claim of any other shape than a list of strings gives no roles.
+// Guessing what it means could let someone in.
 func rolesIn(claim json.RawMessage) []string {
-	var roles []string
+	// json turns a null in a list of strings into "", so each element is
+	// checked on its own
+	var elements []any
 
-	err := json.Unmarshal(claim, &roles)
+	err := json.Unmarshal(claim, &elements)
 	if err != nil {
 		return nil
+	}
+
+	roles := make([]string, 0, len(elements))
+	for _, element := range elements {
+		role, ok := element.(string)
+		if !ok {
+			return nil
+		}
+
+		roles = append(roles, role)
 	}
 
 	return roles
