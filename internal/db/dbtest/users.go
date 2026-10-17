@@ -1,6 +1,8 @@
 package dbtest
 
 import (
+	"strconv"
+
 	"github.com/the127/frogly/internal/repositories"
 )
 
@@ -152,12 +154,14 @@ func (s *usersSuite) TestASearchNeedsALimit() {
 	s.savedUser("Ana")
 
 	for _, limit := range []int{0, -1} {
-		// act
-		found, err := s.database.NewContext().Users().SearchNonMembers(s.T().Context(), garden.ID(), "", limit)
+		s.Run(strconv.Itoa(limit), func() {
+			// act
+			found, err := s.database.NewContext().Users().SearchNonMembers(s.T().Context(), garden.ID(), "", limit)
 
-		// assert
-		s.Require().Error(err)
-		s.Empty(found)
+			// assert
+			s.Require().Error(err)
+			s.Empty(found)
+		})
 	}
 }
 
