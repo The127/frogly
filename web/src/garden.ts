@@ -50,7 +50,6 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
   return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
 }
 
-
 // The day an idea was planted, as the person reads dates. The locale and
 // time zone are the browser's unless a test sets them.
 export function plantedOn(plantedAt: string, locale?: string, timeZone?: string): string {
