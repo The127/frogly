@@ -325,3 +325,27 @@ func (s *projectsSuite) TestAProjectIsFoundByIDForAnyone() {
 	s.Equal(repositories.JoiningOpen, found.Joining())
 	s.Require().ErrorIs(missing, repositories.ErrNotFound)
 }
+
+// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
+// what the model never builds, a private project anyone could join.
+func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
+	// arrange
+	karo := s.savedUser("Karo")
+	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
+	s.Require().NoError(err)
+
+	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
+	membership, err := repositories.NewMembership(open.ID(), karo.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Projects().Insert(open)
+	unit.Memberships().Insert(membership)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+}
