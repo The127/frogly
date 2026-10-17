@@ -643,9 +643,55 @@ func TestAJoinWhileAMemberClosesTheProjectDoesntGetIn(t *testing.T) {
 	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
 
 	// assert
-	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+	require.ErrorIs(t, err, projects.ErrNotFound)
 
 	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+}
+
+// othersJoiningUnit lets someone else join through another unit of work
+// right before its own save, once.
+type othersJoiningUnit struct {
+	db.Context
+
+	database  db.Database
+	other     *repositories.User
+	projectID uuid.UUID
+	done      *bool
+}
+
+func (unit othersJoiningUnit) SaveChanges(ctx context.Context) error {
+	if !*unit.done {
+		*unit.done = true
+
+		_, err := projects.Join(ctx, unit.database.NewContext(), unit.other, unit.projectID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestTwoPeopleJoiningAtOnceBothGetIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	tomas := savedUser(t, database, "Tomás")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	unit := othersJoiningUnit{Context: database.NewContext(), database: database, other: tomas, projectID: fair.ID(), done: new(bool)}
+
+	// act
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	for _, who := range []*repositories.User{ana, tomas} {
+		listed, err := projects.ListFor(t.Context(), database.NewContext(), who)
+		require.NoError(t, err)
+		assert.Len(t, listed, 1, who.Name())
+	}
 }

@@ -165,14 +165,32 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 	return added, nil
 }
 
+// joinAttempts gives a join that lost a race, like two people joining at
+// once, a few fresh tries before it gives up.
+const joinAttempts = 3
+
 // Join makes user a member of a public project that is open, and gives the
 // project back. Joining a project you're a member of changes nothing, and
-// so does joining twice at the same moment. A member closing the project
-// at the moment someone joins gives repositories.ErrConcurrentModification,
-// and trying again gives ErrNotFound. A project that doesn't exist,
-// isn't public or isn't open gives ErrNotFound, so nobody learns which
-// closed or private projects exist.
+// so does joining at the same moment as someone else. A project that
+// doesn't exist, isn't public or isn't open gives ErrNotFound, so nobody
+// learns which closed or private projects exist. That holds as well when
+// a member closes the project at the moment someone joins.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
+	var err error
+
+	for range joinAttempts {
+		var project *repositories.Project
+
+		project, err = joinOnce(ctx, unit, user, projectID)
+		if !errors.Is(err, repositories.ErrConcurrentModification) {
+			return project, err
+		}
+	}
+
+	return nil, err
+}
+
+func joinOnce(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if err == nil {
 		return member, nil
@@ -192,7 +210,7 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 	}
 
 	if project.Visibility() != repositories.VisibilityPublic || project.Joining() != repositories.JoiningOpen {
-		return nil, fmt.Errorf("project %s isn't open to join: %w", projectID, ErrNotFound)
+		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
 	}
 
 	membership, err := repositories.NewMembership(projectID, user.ID())
@@ -206,23 +224,12 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 	unit.Projects().Update(project)
 
 	err = unit.SaveChanges(ctx)
-	if err == nil {
-		return project, nil
-	}
-
-	if !errors.Is(err, repositories.ErrConcurrentModification) {
+	if err != nil {
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// a race either with the same person joining from elsewhere, who is a
-	// member now, or with a change to the project, which trying again
-	// checks anew
-	joined, memberErr := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
-	if memberErr == nil {
-		return joined, nil
-	}
-
-	return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
+	// loaded again for the version the update gave it
+	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 }
 
 // ChangeJoining lets a member open a public project to join or close it.
