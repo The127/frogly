@@ -43,7 +43,7 @@ const (
 func checkJoining(visibility Visibility, joining Joining) error {
 	switch {
 	case joining != JoiningOpen && joining != JoiningClosed:
-		return Invalid("a public project is open to join or closed")
+		return Invalid("a project is open to join or closed")
 
 	case joining == JoiningOpen && visibility != VisibilityPublic:
 		return Invalid("only a public project can be open to join")
@@ -107,7 +107,7 @@ func (project *Project) Visibility() Visibility {
 }
 
 // Joining says whether people outside the project can join it themselves.
-// It only counts while the project is public.
+// A private project is always closed.
 func (project *Project) Joining() Joining {
 	return project.joining
 }
@@ -125,6 +125,8 @@ func (project *Project) ChangeJoining(joining Joining) error {
 }
 
 // ChangeVisibility keeps the old visibility when it refuses the new one.
+// Making a project private closes it, and it stays closed when it's made
+// public again, so nobody gets in without a member opening it.
 func (project *Project) ChangeVisibility(visibility Visibility) error {
 	err := checkVisibility(visibility)
 	if err != nil {
@@ -132,6 +134,9 @@ func (project *Project) ChangeVisibility(visibility Visibility) error {
 	}
 
 	project.visibility = visibility
+	if visibility == VisibilityPrivate {
+		project.joining = JoiningClosed
+	}
 
 	return nil
 }

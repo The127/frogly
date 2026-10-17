@@ -467,28 +467,43 @@ func TestAPublicProjectChangesHowPeopleJoin(t *testing.T) {
 	assert.Equal(t, repositories.JoiningOpen, project.Joining())
 }
 
-func TestAProjectKeepsHowPeopleJoinForAChangeItRefuses(t *testing.T) {
-	tests := []struct {
-		name       string
-		visibility repositories.Visibility
-		joining    repositories.Joining
-	}{
-		{name: "an unknown one", visibility: repositories.VisibilityPublic, joining: "maybe"},
-		{name: "opening a private project", visibility: repositories.VisibilityPrivate, joining: repositories.JoiningOpen},
-	}
+func TestAProjectKeepsHowPeopleJoinForAnUnknownSetting(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, repositories.JoiningOpen)
+	require.NoError(t, err)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// arrange
-			project, err := repositories.NewProject("Garden", test.visibility, repositories.JoiningClosed)
-			require.NoError(t, err)
+	// act
+	err = project.ChangeJoining("maybe")
 
-			// act
-			err = project.ChangeJoining(test.joining)
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+	assert.Equal(t, repositories.JoiningOpen, project.Joining())
+}
 
-			// assert
-			require.ErrorAs(t, err, new(*repositories.InvalidError))
-			assert.Equal(t, repositories.JoiningClosed, project.Joining())
-		})
-	}
+func TestAPrivateProjectCantBeOpened(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, "")
+	require.NoError(t, err)
+
+	// act
+	opened := project.ChangeJoining(repositories.JoiningOpen)
+	closed := project.ChangeJoining(repositories.JoiningClosed)
+
+	// assert
+	require.ErrorAs(t, opened, new(*repositories.InvalidError))
+	require.NoError(t, closed)
+	assert.Equal(t, repositories.JoiningClosed, project.Joining())
+}
+
+func TestMakingAnOpenProjectPrivateClosesIt(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, repositories.JoiningOpen)
+	require.NoError(t, err)
+
+	// act
+	require.NoError(t, project.ChangeVisibility(repositories.VisibilityPrivate))
+	require.NoError(t, project.ChangeVisibility(repositories.VisibilityPublic))
+
+	// assert
+	assert.Equal(t, repositories.JoiningClosed, project.Joining(), "public again, but nobody opened it")
 }
