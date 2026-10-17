@@ -84,25 +84,6 @@ func (repository *ProjectRepository) list(ctx context.Context, selection *sqlbui
 	return projects, nil
 }
 
-// ByID loads the project, or returns repositories.ErrNotFound.
-func (repository *ProjectRepository) ByID(ctx context.Context, projectID uuid.UUID) (*repositories.Project, error) {
-	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining").From("projects p")
-	selection.Where(selection.Equal("p.id", projectID.String()))
-
-	query, args := selection.BuildWithFlavor(sqlbuilder.SQLite)
-
-	project, err := scanProject(repository.reader.QueryRowContext(ctx, query, args...))
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("project %s: %w", projectID, repositories.ErrNotFound)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("loading project %s: %w", projectID, err)
-	}
-
-	return project, nil
-}
-
 // ByIDForMember loads the project if the user is a member of it, or
 // returns repositories.ErrNotFound.
 func (repository *ProjectRepository) ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*repositories.Project, error) {

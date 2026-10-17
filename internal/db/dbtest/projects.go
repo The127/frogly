@@ -306,50 +306,6 @@ func (s *projectsSuite) TestAChangedJoiningIsSaved() {
 	s.Equal(repositories.JoiningOpen, found.Joining())
 }
 
-// TestAProjectIsFoundByIDForAnyone checks that ByID loads a project
-// without a membership, and answers not found for an ID no project has.
-func (s *projectsSuite) TestAProjectIsFoundByIDForAnyone() {
-	// arrange
-	fair := s.savedProjectJoining("Summer fair", s.savedUser("Karo"), repositories.VisibilityPublic, repositories.JoiningOpen)
-	projects := s.database.NewContext().Projects()
-
-	// act
-	found, err := projects.ByID(s.T().Context(), fair.ID())
-	_, missing := projects.ByID(s.T().Context(), uuid.Must(uuid.NewV7()))
-
-	// assert
-	s.Require().NoError(err)
-	s.Equal(fair.ID(), found.ID())
-	s.Equal("Summer fair", found.Name())
-	s.Equal(repositories.VisibilityPublic, found.Visibility())
-	s.Equal(repositories.JoiningOpen, found.Joining())
-	s.Require().ErrorIs(missing, repositories.ErrNotFound)
-}
-
-// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
-// what the model never builds, a private project anyone could join.
-func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
-	// arrange
-	karo := s.savedUser("Karo")
-	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
-	s.Require().NoError(err)
-
-	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
-	membership, err := repositories.NewMembership(open.ID(), karo.ID())
-	s.Require().NoError(err)
-
-	unit := s.database.NewContext()
-	unit.Projects().Insert(open)
-	unit.Memberships().Insert(membership)
-
-	// act
-	err = unit.SaveChanges(s.T().Context())
-
-	// assert
-	s.Require().Error(err)
-	s.NotErrorIs(err, repositories.ErrConcurrentModification)
-}
-
 func (s *projectsSuite) joining(project *repositories.Project, user *repositories.User) error {
 	membership, err := repositories.NewJoiningMembership(project.ID(), user.ID())
 	s.Require().NoError(err)
@@ -420,4 +376,28 @@ func (s *projectsSuite) TestJoiningTwiceIsARace() {
 
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
+// what the model never builds, a private project anyone could join.
+func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
+	// arrange
+	karo := s.savedUser("Karo")
+	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
+	s.Require().NoError(err)
+
+	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
+	membership, err := repositories.NewMembership(open.ID(), karo.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Projects().Insert(open)
+	unit.Memberships().Insert(membership)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
 }

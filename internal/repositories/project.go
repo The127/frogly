@@ -151,9 +151,6 @@ type ProjectRepository interface {
 	// ErrNotFound if it doesn't exist or the user isn't a member, so a
 	// caller can't tell the two apart.
 	ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*Project, error)
-	// ByID returns the project whoever asks, or ErrNotFound. A caller
-	// decides what the asker may see of it.
-	ByID(ctx context.Context, projectID uuid.UUID) (*Project, error)
 	// ListPublicForNonMember lists the public projects the user isn't a
 	// member of, in the same order as ListForMember.
 	ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]*Project, error)

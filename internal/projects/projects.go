@@ -165,70 +165,38 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 	return added, nil
 }
 
-// joinAttempts gives a join that lost a race, like two people joining at
-// once, a few fresh tries before it gives up.
-const joinAttempts = 3
-
 // Join makes user a member of a public project that is open, and gives the
 // project back. Joining a project you're a member of changes nothing, and
-// so does joining at the same moment as someone else. A project that
-// doesn't exist, isn't public or isn't open gives ErrNotFound, so nobody
-// learns which closed or private projects exist. That holds as well when
-// a member closes the project at the moment someone joins.
+// so does joining twice at the same moment. A project that doesn't exist,
+// isn't public or isn't open gives ErrNotFound, so nobody learns which
+// closed or private projects exist. The database decides that as it saves
+// the membership, so a member closing the project at the same moment
+// can't be outrun.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
-	var err error
-
-	for range joinAttempts {
-		var project *repositories.Project
-
-		project, err = joinOnce(ctx, unit, user, projectID)
-		if !errors.Is(err, repositories.ErrConcurrentModification) {
-			return project, err
-		}
-	}
-
-	return nil, err
-}
-
-func joinOnce(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
-	if err == nil {
-		return member, nil
-	}
-
 	if !errors.Is(err, repositories.ErrNotFound) {
-		return nil, err
+		return member, err
 	}
 
-	project, err := unit.Projects().ByID(ctx, projectID)
-	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if project.Visibility() != repositories.VisibilityPublic || project.Joining() != repositories.JoiningOpen {
-		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
-	}
-
-	membership, err := repositories.NewMembership(projectID, user.ID())
+	membership, err := repositories.NewJoiningMembership(projectID, user.ID())
 	if err != nil {
 		return nil, err
 	}
 
 	unit.Memberships().Insert(membership)
-	// written unchanged, so its version check refuses the join when a
-	// member closed the project or made it private in between
-	unit.Projects().Update(project)
 
 	err = unit.SaveChanges(ctx)
-	if err != nil {
+
+	switch {
+	case errors.Is(err, repositories.ErrNotFound):
+		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
+
+	// the same person joined from elsewhere in between, which the unique
+	// membership refuses as a race, and they're a member either way
+	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// loaded again for the version the update gave it
 	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 }
 
