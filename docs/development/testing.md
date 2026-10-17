@@ -58,7 +58,13 @@ var _ = Describe("seeing your name", func() {
 A test logs in as one of two service users, `frogly-tests` and
 `frogly-tests-2`, with the keys in `dev/keyline/test-service-user.pem` and
 `dev/keyline/test-service-user-2.pem`. There are two, so a test can check
-what one person can't see of another's. The files carry the `integration`
+what one person can't see of another's. A third, `frogly-tests-no-role`
+with `dev/keyline/test-service-user-no-role.pem`, has no frogly role in
+Keyline, so frogly turns it away.
+
+Keyline reads `dev/keyline/config.yaml` only on its first start. If you
+change the config, delete Keyline's data once with
+`docker volume rm frogly-keyline-data`, while it doesn't run. The files carry the `integration`
 build tag, so `go test ./...` leaves them out.
 
 Tests in `internal/` that need a running service, like the Postgres
