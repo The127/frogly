@@ -110,8 +110,11 @@
 {:else}
   <h1>{garden.project.name}</h1>
   <p class="quiet visibility">
-    {garden.project.visibility === "public" ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
-    <button class="btn" onclick={toggleVisibility} aria-busy={switching}>
+    <!-- polite, so a screen reader says the new state once the change is saved -->
+    <span aria-live="polite">
+      {garden.project.visibility === "public" ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
+    </span>
+    <button class="btn" onclick={toggleVisibility}>
       make it {garden.project.visibility === "public" ? "private" : "public"}
     </button>
   </p>
