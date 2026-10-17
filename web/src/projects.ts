@@ -1,12 +1,11 @@
-import { type Created, type Project, createProject, fetchProjects, sessionEnded } from "./api";
+import { type Created, type Project, type SessionEnded, createProject, fetchProjects, sessionEnded } from "./api";
 
 type AccessToken = () => Promise<string>;
 
 export type Loaded =
   | { kind: "listed"; projects: Project[] }
   | { kind: "failed" }
-  | { kind: "loggedOut" }
-  | { kind: "notAllowed" };
+  | SessionEnded;
 
 export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   try {
@@ -30,8 +29,7 @@ export type Added =
   | { kind: "savedButNotListed" }
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
-  | { kind: "loggedOut" }
-  | { kind: "notAllowed" };
+  | SessionEnded;
 
 export async function addProject(accessToken: AccessToken, name: string): Promise<Added> {
   let created: Created;
