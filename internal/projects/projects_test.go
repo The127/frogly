@@ -27,7 +27,7 @@ func savedUser(t *testing.T, database db.Database, name string) *repositories.Us
 	return user
 }
 
-func TestACreatedProjectIsListedForItsOwner(t *testing.T) {
+func TestACreatedProjectIsListedForItsCreator(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
