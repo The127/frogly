@@ -75,9 +75,13 @@ func (s *base) savedIdentity(user *repositories.User) *repositories.Identity {
 	return identity
 }
 
-// savedProject saves the project with owner as its only member.
+// savedProject saves a private project with owner as its only member.
 func (s *base) savedProject(name string, owner *repositories.User) *repositories.Project {
-	project, err := repositories.NewProject(name, repositories.VisibilityPrivate)
+	return s.savedProjectWith(name, owner, repositories.VisibilityPrivate)
+}
+
+func (s *base) savedProjectWith(name string, owner *repositories.User, visibility repositories.Visibility) *repositories.Project {
+	project, err := repositories.NewProject(name, visibility)
 	s.Require().NoError(err)
 
 	membership, err := repositories.NewMembership(project.ID(), owner.ID(), repositories.RoleOwner)
