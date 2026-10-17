@@ -133,15 +133,32 @@ func (s *usersSuite) TestMembersArentFound() {
 	garden := s.savedProject("Garden", karo)
 	s.savedMember(garden, ana)
 	// a member of another project only, who mustn't be left out
-	kitchen := s.savedProject("Kitchen", s.savedUser("Anabel"))
-	s.Require().NotNil(kitchen)
+	s.savedProject("Kitchen", s.savedUser("Anabel"))
+	s.savedUser("Tomás")
 
 	// act
-	found, err := s.database.NewContext().Users().SearchNonMembers(s.T().Context(), garden.ID(), "a", 10)
+	found, err := s.database.NewContext().Users().SearchNonMembers(s.T().Context(), garden.ID(), "ana", 10)
 
 	// assert
 	s.Require().NoError(err)
 	s.Equal([]string{"Anabel"}, names(found))
+}
+
+// TestASearchNeedsALimit checks that a limit below 1 is refused, not taken
+// as no limit.
+func (s *usersSuite) TestASearchNeedsALimit() {
+	// arrange
+	garden := s.savedProject("Garden", s.savedUser("Karo"))
+	s.savedUser("Ana")
+
+	for _, limit := range []int{0, -1} {
+		// act
+		found, err := s.database.NewContext().Users().SearchNonMembers(s.T().Context(), garden.ID(), "", limit)
+
+		// assert
+		s.Require().Error(err)
+		s.Empty(found)
+	}
 }
 
 // TestPeopleAreFoundByNameUpToTheLimit checks the order and the limit.
@@ -167,6 +184,7 @@ func (s *usersSuite) TestWildcardsInTheSearchAreJustCharacters() {
 	garden := s.savedProject("Garden", s.savedUser("Karo"))
 	s.savedUserWith("Ana", "ana@school.org")
 	s.savedUserWith("100% Lea", "lea@school.org")
+	s.savedUserWith(`back\slash`, "back@school.org")
 
 	for _, test := range []struct {
 		text string
@@ -174,6 +192,8 @@ func (s *usersSuite) TestWildcardsInTheSearchAreJustCharacters() {
 	}{
 		{text: "%", want: []string{"100% Lea"}},
 		{text: "_", want: []string{}},
+		{text: `\`, want: []string{`back\slash`}},
+		{text: `\%`, want: []string{}},
 	} {
 		s.Run(test.text, func() {
 			// act

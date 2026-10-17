@@ -53,6 +53,12 @@ func (repository *UserRepository) ByID(ctx context.Context, id uuid.UUID) (*repo
 
 // SearchNonMembers finds the users to add to a project. ilike ignores case.
 func (repository *UserRepository) SearchNonMembers(ctx context.Context, projectID uuid.UUID, text string, limit int) ([]*repositories.User, error) {
+	// go-sqlbuilder leaves the limit out when it's negative, which would
+	// give every user
+	if limit < 1 {
+		return nil, fmt.Errorf("%w: a search needs a limit of at least 1, not %d", errBadLimit, limit)
+	}
+
 	membership := sqlbuilder.Select("1").From("memberships m")
 	membership.Where("m.user_id = u.id", membership.Equal("m.project_id", projectID))
 
@@ -105,6 +111,8 @@ func (repository *UserRepository) SearchNonMembers(ctx context.Context, projectI
 
 	return users, nil
 }
+
+var errBadLimit = errors.New("bad limit")
 
 // escapeLike makes %, _ and the escape character itself stand for
 // themselves, so a search can't match more than it says.
