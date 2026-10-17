@@ -105,7 +105,8 @@ type Roles struct {
 	// Claim names the claim in the access token that lists a person's
 	// roles.
 	Claim string `koanf:"claim"`
-	// User is the role that lets someone use frogly.
+	// User is the role that lets someone use frogly, exactly as the issuer
+	// writes it into the claim, like frogly:frogly-user for Keyline.
 	User string `koanf:"user"`
 }
 

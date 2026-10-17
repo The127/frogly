@@ -144,7 +144,7 @@ func TestErrorsNameMissingOrEmptyRequiredVariables(t *testing.T) {
 	}{
 		{
 			name:     "missing issuer",
-			environ:  []string{"FROGLY_OIDC__CLIENT_ID=frogly"},
+			environ:  without("FROGLY_OIDC__ISSUER"),
 			variable: "FROGLY_OIDC__ISSUER",
 		},
 		{
@@ -154,12 +154,17 @@ func TestErrorsNameMissingOrEmptyRequiredVariables(t *testing.T) {
 		},
 		{
 			name:     "missing client ID",
-			environ:  []string{"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly"},
+			environ:  without("FROGLY_OIDC__CLIENT_ID"),
 			variable: "FROGLY_OIDC__CLIENT_ID",
 		},
 		{
 			name:     "missing roles claim",
 			environ:  without("FROGLY_OIDC__ROLES__CLAIM"),
+			variable: "FROGLY_OIDC__ROLES__CLAIM",
+		},
+		{
+			name:     "empty roles claim",
+			environ:  append(without("FROGLY_OIDC__ROLES__CLAIM"), "FROGLY_OIDC__ROLES__CLAIM="),
 			variable: "FROGLY_OIDC__ROLES__CLAIM",
 		},
 		{
