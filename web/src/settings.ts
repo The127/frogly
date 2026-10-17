@@ -1,9 +1,11 @@
 import {
+  type Joining,
   type Person,
   type Project,
   type SessionEnded,
   type Visibility,
   addMember,
+  changeJoining,
   changeVisibility,
   failure,
   fetchProject,
@@ -22,11 +24,19 @@ export async function loadSettings(accessToken: AccessToken, projectId: string):
   }
 }
 
-export type VisibilitySwitched = { kind: "changed"; project: Project } | { kind: "notChanged" } | { kind: "notFound" } | SessionEnded;
+export type SettingChanged = { kind: "changed"; project: Project } | { kind: "notChanged" } | { kind: "notFound" } | SessionEnded;
 
-export async function switchVisibility(accessToken: AccessToken, projectId: string, visibility: Visibility): Promise<VisibilitySwitched> {
+export async function switchVisibility(accessToken: AccessToken, projectId: string, visibility: Visibility): Promise<SettingChanged> {
+  return changeSetting(async () => changeVisibility(await accessToken(), projectId, visibility));
+}
+
+export async function switchJoining(accessToken: AccessToken, projectId: string, joining: Joining): Promise<SettingChanged> {
+  return changeSetting(async () => changeJoining(await accessToken(), projectId, joining));
+}
+
+async function changeSetting(change: () => Promise<Project>): Promise<SettingChanged> {
   try {
-    return { kind: "changed", project: await changeVisibility(await accessToken(), projectId, visibility) };
+    return { kind: "changed", project: await change() };
   } catch (error) {
     const failed = failure(error);
 

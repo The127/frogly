@@ -30,10 +30,11 @@ const searchLimit = 10
 // anything, and the database never gets a pattern that large.
 const maxSearch = 320
 
-// Create makes a project called name with creator as its only member. A name
-// or visibility frogly can't use gives a *repositories.InvalidError.
-func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
-	project, err := repositories.NewProject(name, visibility)
+// Create makes a project called name with creator as its only member. A
+// name, visibility or way to join frogly can't use gives a
+// *repositories.InvalidError.
+func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility, joining repositories.Joining) (*repositories.Project, error) {
+	project, err := repositories.NewProject(name, visibility, joining)
 	if err != nil {
 		return nil, err
 	}
@@ -162,4 +163,62 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 	}
 
 	return added, nil
+}
+
+// Join makes user a member of a public project that is open, and gives the
+// project back. Joining a project you're a member of changes nothing, and
+// so does joining twice at the same moment. A project that doesn't exist,
+// isn't public or isn't open gives ErrNotFound, so nobody learns which
+// closed or private projects exist. The database decides that as it saves
+// the membership, so a member closing the project at the same moment
+// can't be outrun.
+func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
+	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return member, err
+	}
+
+	membership, err := repositories.NewJoiningMembership(projectID, user.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Memberships().Insert(membership)
+
+	err = unit.SaveChanges(ctx)
+
+	switch {
+	case errors.Is(err, repositories.ErrNotFound):
+		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
+
+	// the same person joined from elsewhere in between, which the unique
+	// membership refuses as a race, and they're a member either way
+	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
+		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
+	}
+
+	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
+}
+
+// ChangeJoining lets a member open a public project to join or close it.
+// It gives ErrNotFound to someone who isn't a member, like Get.
+func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, joining repositories.Joining) (*repositories.Project, error) {
+	project, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = project.ChangeJoining(joining)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Projects().Update(project)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("saving how people join project %s: %w", projectID, err)
+	}
+
+	return project, nil
 }

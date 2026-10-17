@@ -1,16 +1,32 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
 
-  import type { PublicProject } from "./api";
+  import type { PublicProject, SessionEnded } from "./api";
   import { getLogin } from "./login";
-  import { loadPublicProjects } from "./projects";
+  import { joinPublicProject, loadPublicProjects } from "./projects";
+  import { navigate } from "./router";
 
   const { accessToken, onLoggedOut, onNotAllowed } = getLogin();
 
   let projects = $state<PublicProject[] | undefined>();
   let listFailed = $state(false);
+  let busy = $state(false);
+  let joinProblem = $state("");
+  // a join can finish after the person moved on, and mustn't pull them back
+  let gone = false;
+  onDestroy(() => {
+    gone = true;
+  });
 
-  onMount(async () => {
+  function handledElsewhere(outcome: SessionEnded) {
+    if (outcome.kind === "loggedOut") {
+      onLoggedOut();
+    } else {
+      onNotAllowed();
+    }
+  }
+
+  async function load() {
     const loaded = await loadPublicProjects(accessToken);
     switch (loaded.kind) {
       case "listed":
@@ -19,13 +35,43 @@
       case "failed":
         listFailed = true;
         break;
-      case "loggedOut":
-        onLoggedOut();
-        break;
-      case "notAllowed":
-        onNotAllowed();
+      default:
+        handledElsewhere(loaded);
     }
-  });
+  }
+
+  onMount(load);
+
+  async function join(project: PublicProject) {
+    if (busy) {
+      return;
+    }
+
+    busy = true;
+    joinProblem = "";
+
+    const outcome = await joinPublicProject(accessToken, project.id);
+    busy = false;
+
+    switch (outcome.kind) {
+      case "joined":
+        if (!gone) {
+          void navigate("/projects/:id", { params: { id: outcome.project.id } });
+        }
+        break;
+      case "notJoined":
+        joinProblem = `frogly couldn't join ${project.name}. Try again in a moment.`;
+        break;
+      case "notFound":
+        joinProblem = `${project.name} can't be joined any more.`;
+        // a 404 can mean closed, private or gone, and only the list knows
+        // which of them still shows
+        await load();
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
 </script>
 
 <section aria-labelledby="public-label">
@@ -38,11 +84,22 @@
   {:else if projects.length === 0}
     <p class="quiet">Nobody else has a public project yet.</p>
   {:else}
-    <!-- names only, a garden opens to its members -->
-    <ul class="projects">
+    <!-- not links, a garden opens to its members -->
+    <ul class="rows">
       {#each projects as project (project.id)}
-        <li>{project.name}</li>
+        <li>
+          <span>{project.name}</span>
+          {#if project.joining === "open"}
+            <button class="btn" onclick={() => join(project)} aria-disabled={busy}>
+              join <span class="hidden">{project.name}</span>
+            </button>
+          {:else}
+            <span class="meta">a member adds people</span>
+          {/if}
+        </li>
       {/each}
     </ul>
   {/if}
+  <!-- always there, so screen readers announce the text when it changes -->
+  <p class="problem" role="alert">{joinProblem}</p>
 </section>

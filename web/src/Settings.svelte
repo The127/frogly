@@ -4,7 +4,7 @@
   import type { Person, Project, SessionEnded } from "./api";
   import { getLogin } from "./login";
   import { p } from "./router";
-  import { addPerson, findPeople, loadSettings, switchVisibility } from "./settings";
+  import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
 
   let { projectId }: { projectId: string } = $props();
 
@@ -14,8 +14,10 @@
     kind: "loading",
   });
   const isPublic = $derived(settings.kind === "loaded" && settings.project.visibility === "public");
+  const isOpen = $derived(settings.kind === "loaded" && settings.project.joining === "open");
   let switching = $state(false);
   let problem = $state("");
+  let joiningProblem = $state("");
 
   let searchText = $state("");
   let people = $state<Person[] | undefined>();
@@ -63,6 +65,7 @@
 
     switching = true;
     problem = "";
+    joiningProblem = "";
 
     const outcome = await switchVisibility(login.accessToken, projectId, isPublic ? "private" : "public");
     switching = false;
@@ -73,6 +76,30 @@
         break;
       case "notChanged":
         problem = "frogly couldn't change who sees the project. Try again in a moment.";
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
+
+  async function toggleJoining() {
+    if (switching || settings.kind !== "loaded") {
+      return;
+    }
+
+    switching = true;
+    problem = "";
+    joiningProblem = "";
+
+    const outcome = await switchJoining(login.accessToken, projectId, isOpen ? "closed" : "open");
+    switching = false;
+
+    switch (outcome.kind) {
+      case "changed":
+        settings = { kind: "loaded", project: outcome.project };
+        break;
+      case "notChanged":
+        joiningProblem = "frogly couldn't change who can join the project. Try again in a moment.";
         break;
       default:
         handledElsewhere(outcome);
@@ -160,13 +187,30 @@
       <span aria-live="polite">
         {isPublic ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
       </span>
-      <button class="btn" onclick={toggleVisibility}>
+      <button class="btn" onclick={toggleVisibility} aria-disabled={switching}>
         make it {isPublic ? "private" : "public"}
       </button>
     </p>
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" role="alert">{problem}</p>
   </section>
+
+  {#if isPublic}
+    <section aria-labelledby="joining-label">
+      <p class="label" id="joining-label">who can join</p>
+      <p class="quiet visibility">
+        <!-- polite, so a screen reader says the new state once the change is saved -->
+        <span aria-live="polite">
+          {isOpen ? "Anyone who uses frogly can join right away." : "Only people a member adds."}
+        </span>
+        <button class="btn" onclick={toggleJoining} aria-disabled={switching}>
+          {isOpen ? "close it" : "let anyone join"}
+        </button>
+      </p>
+      <!-- always there, so screen readers announce the text when it changes -->
+      <p class="problem" role="alert">{joiningProblem}</p>
+    </section>
+  {/if}
 
   <section aria-labelledby="people-label">
     <p class="label" id="people-label">add someone</p>
@@ -196,7 +240,7 @@
       {#if people.length === 0}
         <p class="quiet">Nobody found who could join.</p>
       {:else}
-        <ul class="people">
+        <ul class="rows">
           {#each people as person (person.id)}
             <li>
               <span>{person.name} <span class="meta">{person.email}</span></span>

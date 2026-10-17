@@ -27,7 +27,7 @@ func NewProjectRepository(reader Reader, tracker *change.Tracker) *ProjectReposi
 // ListForMember lists the user's projects. SQLite compares text byte by
 // byte unless told otherwise, which is the order the interface promises.
 func (repository *ProjectRepository) ListForMember(ctx context.Context, userID uuid.UUID) ([]*repositories.Project, error) {
-	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility").From("projects p")
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining").From("projects p")
 	selection.Join("memberships m", "m.project_id = p.id")
 	selection.Where(selection.Equal("m.user_id", userID.String()))
 	selection.OrderBy("p.name", "p.id")
@@ -41,7 +41,7 @@ func (repository *ProjectRepository) ListPublicForNonMember(ctx context.Context,
 	membership := sqlbuilder.Select("1").From("memberships m")
 	membership.Where("m.project_id = p.id", membership.Equal("m.user_id", userID.String()))
 
-	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility").From("projects p")
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining").From("projects p")
 	// a constant, not a parameter: the database only uses the partial
 	// index projects_public when it sees the value in the query
 	selection.Where(
@@ -87,7 +87,7 @@ func (repository *ProjectRepository) list(ctx context.Context, selection *sqlbui
 // ByIDForMember loads the project if the user is a member of it, or
 // returns repositories.ErrNotFound.
 func (repository *ProjectRepository) ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*repositories.Project, error) {
-	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility").From("projects p")
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining").From("projects p")
 	selection.Join("memberships m", "m.project_id = p.id")
 	selection.Where(selection.Equal("p.id", projectID.String()), selection.Equal("m.user_id", userID.String()))
 
@@ -111,14 +111,15 @@ func scanProject(row scanner) (*repositories.Project, error) {
 		version    int
 		name       string
 		visibility string
+		joining    string
 	)
 
-	err := row.Scan(&id, &version, &name, &visibility)
+	err := row.Scan(&id, &version, &name, &visibility, &joining)
 	if err != nil {
 		return nil, fmt.Errorf("reading a project: %w", err)
 	}
 
-	return repositories.NewProjectFromDB(repositories.NewBaseFromDB(id, version), name, repositories.Visibility(visibility)), nil
+	return repositories.NewProjectFromDB(repositories.NewBaseFromDB(id, version), name, repositories.Visibility(visibility), repositories.Joining(joining)), nil
 }
 
 // Insert records the project to be written.
@@ -134,8 +135,8 @@ func (repository *ProjectRepository) Update(project *repositories.Project) {
 // ExecuteInsert writes the project as version 1.
 func (repository *ProjectRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, project *repositories.Project) error {
 	insert := sqlbuilder.InsertInto("projects").
-		Cols("id", "version", "name", "visibility").
-		Values(project.ID().String(), 1, project.Name(), string(project.Visibility()))
+		Cols("id", "version", "name", "visibility", "joining").
+		Values(project.ID().String(), 1, project.Name(), string(project.Visibility()), string(project.Joining()))
 
 	query, args := insert.BuildWithFlavor(sqlbuilder.SQLite)
 
@@ -152,6 +153,7 @@ func (repository *ProjectRepository) ExecuteUpdate(ctx context.Context, tx *sql.
 		update.Assign("version", project.Version()+1),
 		update.Assign("name", project.Name()),
 		update.Assign("visibility", string(project.Visibility())),
+		update.Assign("joining", string(project.Joining())),
 	)
 	update.Where(update.Equal("id", project.ID().String()))
 

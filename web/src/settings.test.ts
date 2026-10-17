@@ -7,11 +7,12 @@ import {
   type Person,
   type Project,
   addMember,
+  changeJoining,
   changeVisibility,
   fetchProject,
   searchPeople,
 } from "./api";
-import { addPerson, findPeople, loadSettings, switchVisibility } from "./settings";
+import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -19,13 +20,14 @@ vi.mock("./api", async (actual) => ({
   fetchProject: vi.fn(),
   searchPeople: vi.fn(),
   addMember: vi.fn(),
+  changeJoining: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
-const project: Project = { id: "p-1", name: "Garden", visibility: "private" };
+const project: Project = { id: "p-1", name: "Garden", visibility: "private", joining: "closed" };
 const token = async () => "an-access-token";
 
 describe("loadSettings", () => {
@@ -155,6 +157,37 @@ describe("addPerson", () => {
 
     // act
     const outcome = await addPerson(token, "p-1", "u-2");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("switchJoining", () => {
+  it("gives the changed project", async () => {
+    // arrange
+    const open: Project = { ...project, visibility: "public", joining: "open" };
+    vi.mocked(changeJoining).mockResolvedValue(open);
+
+    // act
+    const outcome = await switchJoining(token, "p-1", "open");
+
+    // assert
+    expect(outcome).toEqual({ kind: "changed", project: open });
+    expect(changeJoining).toHaveBeenCalledWith("an-access-token", "p-1", "open");
+  });
+
+  it.each([
+    { name: "the change failed", error: new Error("frogly answered 500"), kind: "notChanged" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(changeJoining).mockRejectedValue(error);
+
+    // act
+    const outcome = await switchJoining(token, "p-1", "open");
 
     // assert
     expect(outcome).toEqual({ kind });

@@ -5,6 +5,7 @@ import {
   NotAllowed,
   NotFound,
   addMember,
+  changeJoining,
   changeVisibility,
   createProject,
   fetchConfig,
@@ -13,6 +14,7 @@ import {
   fetchProject,
   fetchProjects,
   fetchPublicProjects,
+  joinProject,
   plantIdea,
   sayMeToo,
   searchPeople,
@@ -298,16 +300,86 @@ describe("addMember", () => {
   });
 });
 
+describe("changeJoining", () => {
+  it("sends the setting and gives the changed project", async () => {
+    // arrange
+    const fair = { id: "p-1", name: "Summer fair", visibility: "public", joining: "open" };
+    respondWith(200, fair);
+
+    // act
+    const changed = await changeJoining("an-access-token", "p-1", "open");
+
+    // assert
+    expect(changed).toEqual(fair);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/joining", {
+      method: "PUT",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ joining: "open" }),
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const changed = changeJoining("an-access-token", "p-1", "open");
+
+    // assert
+    await expect(changed).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("joinProject", () => {
+  it("joins and gives the project", async () => {
+    // arrange
+    const fair = { id: "p-2", name: "Summer fair", visibility: "public", joining: "open" };
+    respondWith(200, fair);
+
+    // act
+    const joined = await joinProject("an-access-token", "p-2");
+
+    // assert
+    expect(joined).toEqual(fair);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-2/join", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project can't be joined", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const joined = joinProject("an-access-token", "p-2");
+
+    // assert
+    await expect(joined).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const joined = joinProject("an-access-token", "p-2");
+
+    // assert
+    await expect(joined).rejects.toThrow("503");
+  });
+});
+
 describe("fetchPublicProjects", () => {
   it("gives the public projects of others", async () => {
     // arrange
-    respondWith(200, [{ id: "p-2", name: "Summer fair" }]);
+    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open" }]);
 
     // act
     const projects = await fetchPublicProjects("an-access-token");
 
     // assert
-    expect(projects).toEqual([{ id: "p-2", name: "Summer fair" }]);
+    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open" }]);
     expect(fetch).toHaveBeenCalledWith("/api/projects/public", {
       headers: { Authorization: "Bearer an-access-token" },
     });
@@ -377,17 +449,17 @@ describe("fetchProject", () => {
 describe("createProject", () => {
   it("sends the name and visibility and gives the new project", async () => {
     // arrange
-    respondWith(201, { id: "p-1", name: "Garden", visibility: "public" });
+    respondWith(201, { id: "p-1", name: "Garden", visibility: "public", joining: "open" });
 
     // act
-    const created = await createProject("an-access-token", "Garden", "public");
+    const created = await createProject("an-access-token", "Garden", "public", "open");
 
     // assert
-    expect(created).toEqual({ project: { id: "p-1", name: "Garden", visibility: "public" } });
+    expect(created).toEqual({ project: { id: "p-1", name: "Garden", visibility: "public", joining: "open" } });
     expect(fetch).toHaveBeenCalledWith("/api/projects", {
       method: "POST",
       headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Garden", visibility: "public" }),
+      body: JSON.stringify({ name: "Garden", visibility: "public", joining: "open" }),
     });
   });
 
@@ -396,7 +468,7 @@ describe("createProject", () => {
     respondWith(400, { status: 400, detail: "a project is public or private" });
 
     // act
-    const created = await createProject("an-access-token", "Garden", undefined);
+    const created = await createProject("an-access-token", "Garden", undefined, undefined);
 
     // assert
     expect(created).toEqual({ problem: "a project is public or private" });
@@ -408,7 +480,7 @@ describe("createProject", () => {
     respondWith(400, { status: 400, detail: "a project needs a name" });
 
     // act
-    const created = await createProject("an-access-token", "  ", "private");
+    const created = await createProject("an-access-token", "  ", "private", undefined);
 
     // assert
     expect(created).toEqual({ problem: "a project needs a name" });
@@ -419,7 +491,7 @@ describe("createProject", () => {
     respondWith(500, { status: 500 });
 
     // act
-    const created = createProject("an-access-token", "Garden", "private");
+    const created = createProject("an-access-token", "Garden", "private", undefined);
 
     // assert
     await expect(created).rejects.toThrow("500");
@@ -454,7 +526,7 @@ describe("an ended login", () => {
     respondWith(401, { status: 401 });
 
     // act
-    const created = createProject("an-expired-token", "Garden", "private");
+    const created = createProject("an-expired-token", "Garden", "private", undefined);
 
     // assert
     await expect(created).rejects.toBeInstanceOf(LoggedOut);
@@ -467,7 +539,7 @@ describe("a refusal without a reason", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("not JSON", { status: 400 })));
 
     // act
-    const created = await createProject("an-access-token", "Garden", "private");
+    const created = await createProject("an-access-token", "Garden", "private", undefined);
 
     // assert
     expect(created).toEqual({ problem: "frogly can't create that project" });

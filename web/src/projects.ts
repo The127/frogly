@@ -1,12 +1,15 @@
 import {
   type Created,
+  type Joining,
   type Project,
   type PublicProject,
   type SessionEnded,
   type Visibility,
   createProject,
   fetchProjects,
+  failure,
   fetchPublicProjects,
+  joinProject,
   sessionEnded,
 } from "./api";
 
@@ -38,11 +41,18 @@ export type Added =
   | { kind: "notSaved" }
   | SessionEnded;
 
-export async function addProject(accessToken: AccessToken, name: string, visibility: Visibility | undefined): Promise<Added> {
+export async function addProject(
+  accessToken: AccessToken,
+  name: string,
+  visibility: Visibility | undefined,
+  joining: Joining | undefined,
+): Promise<Added> {
   let created: Created;
 
   try {
-    created = await createProject(await accessToken(), name, visibility);
+    // the form keeps a join choice after a switch to private, which frogly
+    // would refuse
+    created = await createProject(await accessToken(), name, visibility, visibility === "public" ? joining : undefined);
   } catch (error) {
     const ended = sessionEnded(error);
     if (ended) {
@@ -71,6 +81,19 @@ export async function loadPublicProjects(accessToken: AccessToken): Promise<Publ
     console.error(error);
 
     return { kind: "failed" };
+  }
+}
+
+export type Joined = { kind: "joined"; project: Project } | { kind: "notJoined" } | { kind: "notFound" } | SessionEnded;
+
+// notFound means the project is closed, private or gone by now
+export async function joinPublicProject(accessToken: AccessToken, projectId: string): Promise<Joined> {
+  try {
+    return { kind: "joined", project: await joinProject(await accessToken(), projectId) };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notJoined" } : failed;
   }
 }
 

@@ -17,6 +17,7 @@ type project struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	Visibility string `json:"visibility"`
+	Joining    string `json:"joining"`
 }
 
 func call(ctx context.Context, method string, path string, token string, body any) *http.Response {
@@ -48,8 +49,15 @@ func projectsOf(ctx context.Context, token string) []project {
 	return projects
 }
 
+// a public project starts closed here, so only the tests about joining
+// let anyone in
 func createProject(ctx context.Context, token string, name string, visibility string) project {
-	response := call(ctx, http.MethodPost, "/api/projects", token, map[string]string{"name": name, "visibility": visibility})
+	body := map[string]string{"name": name, "visibility": visibility}
+	if visibility == "public" {
+		body["joining"] = "closed"
+	}
+
+	response := call(ctx, http.MethodPost, "/api/projects", token, body)
 	Expect(response).To(HaveHTTPStatus(http.StatusCreated))
 
 	var created project

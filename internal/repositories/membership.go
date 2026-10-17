@@ -9,8 +9,9 @@ import (
 type Membership struct {
 	Base
 
-	projectID uuid.UUID
-	userID    uuid.UUID
+	projectID  uuid.UUID
+	userID     uuid.UUID
+	onlyIfOpen bool
 }
 
 // NewMembership creates a membership that was never saved.
@@ -24,6 +25,27 @@ func NewMembership(projectID uuid.UUID, userID uuid.UUID) (*Membership, error) {
 		projectID: projectID,
 		userID:    userID,
 	}, nil
+}
+
+// NewJoiningMembership creates the membership of someone who joins a
+// project themselves. The database only saves it while the project is
+// public and open, and refuses it with ErrNotFound otherwise, so a member
+// closing the project at the same moment can't be outrun.
+func NewJoiningMembership(projectID uuid.UUID, userID uuid.UUID) (*Membership, error) {
+	membership, err := NewMembership(projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	membership.onlyIfOpen = true
+
+	return membership, nil
+}
+
+// OnlyIfOpen says whether the membership needs the project to be open to
+// join when it's saved.
+func (membership *Membership) OnlyIfOpen() bool {
+	return membership.onlyIfOpen
 }
 
 // ProjectID is the project the user is a member of.

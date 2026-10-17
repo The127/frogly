@@ -22,7 +22,12 @@ func createdProject(t *testing.T, handler http.Handler) string {
 func createdProjectWith(t *testing.T, handler http.Handler, visibility string) string {
 	t.Helper()
 
-	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "`+visibility+`"}`)
+	joining := ""
+	if visibility == "public" {
+		joining = `, "joining": "closed"`
+	}
+
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "`+visibility+`"`+joining+`}`)
 	require.Equal(t, http.StatusCreated, created.Code)
 
 	var project struct {

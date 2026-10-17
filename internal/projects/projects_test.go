@@ -1,6 +1,7 @@
 package projects_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -34,7 +35,7 @@ func TestACreatedProjectIsListedForItsCreator(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 	// assert
 	require.NoError(t, err)
@@ -52,7 +53,7 @@ func TestAProjectIsNotListedForOthers(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
 
-	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -69,7 +70,7 @@ func TestANameFroglyCantUseCreatesNothing(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	_, err := projects.Create(t.Context(), database.NewContext(), karo, "  ", repositories.VisibilityPrivate)
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "  ", repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 	// assert
 	invalid, ok := errors.AsType[*repositories.InvalidError](err)
@@ -88,7 +89,7 @@ func TestAProjectNeedsASavedCreator(t *testing.T) {
 	require.NoError(t, err)
 
 	// act
-	_, err = projects.Create(t.Context(), database.NewContext(), stranger, "Garden", repositories.VisibilityPrivate)
+	_, err = projects.Create(t.Context(), database.NewContext(), stranger, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 
 	// assert
 	require.Error(t, err)
@@ -103,7 +104,7 @@ func TestAMemberGetsTheProject(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -121,7 +122,7 @@ func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
 
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -149,7 +150,7 @@ func TestACreatedProjectHasTheChosenVisibility(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
 
 	// assert
 	require.NoError(t, err)
@@ -165,7 +166,7 @@ func TestAVisibilityFroglyDoesntKnowCreatesNothing(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", "secret")
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", "secret", repositories.JoiningClosed)
 
 	// assert
 	require.ErrorAs(t, err, new(*repositories.InvalidError))
@@ -179,7 +180,7 @@ func TestAMemberChangesTheVisibility(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -199,7 +200,7 @@ func TestOnlyAMemberChangesTheVisibility(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -217,7 +218,7 @@ func TestAVisibilityFroglyDoesntKnowChangesNothing(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -236,7 +237,7 @@ func TestOthersPublicProjectsAreListed(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	fair, err := projects.Create(t.Context(), database.NewContext(), ana, "Summer fair", repositories.VisibilityPublic)
+	fair, err := projects.Create(t.Context(), database.NewContext(), ana, "Summer fair", repositories.VisibilityPublic, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -254,7 +255,7 @@ func TestAMemberFindsPeopleToAdd(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana Costa")
 	savedUser(t, database, "Tomás")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -274,7 +275,7 @@ func TestASearchGivesAtMostTenPeople(t *testing.T) {
 		savedUser(t, database, "Ana")
 	}
 
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -289,7 +290,7 @@ func TestAnEmptySearchFindsNobody(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -303,7 +304,7 @@ func TestASearchLongerThanAnyEmailIsRefused(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -318,7 +319,7 @@ func TestSomeoneOutsideAProjectFindsNobodyForIt(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -333,7 +334,7 @@ func TestAMemberAddsSomeone(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -353,7 +354,7 @@ func TestAddingAMemberAgainChangesNothing(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	_, err = projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
@@ -377,7 +378,7 @@ func TestSomeoneOutsideAProjectAddsNobody(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -395,7 +396,7 @@ func TestSomeoneOutsideAProjectLearnsNothingFromWhatTheySend(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -411,7 +412,7 @@ func TestNobodyWithTheIDIsAdded(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
-	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	// act
@@ -419,4 +420,278 @@ func TestNobodyWithTheIDIsAdded(t *testing.T) {
 
 	// assert
 	require.ErrorAs(t, err, new(*repositories.InvalidError))
+}
+
+func createdProject(t *testing.T, database db.Database, creator *repositories.User, visibility repositories.Visibility, joining repositories.Joining) *repositories.Project {
+	t.Helper()
+
+	project, err := projects.Create(t.Context(), database.NewContext(), creator, "Summer fair", visibility, joining)
+	require.NoError(t, err)
+
+	return project
+}
+
+func TestSomeoneJoinsAnOpenProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+
+	// act
+	joined, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, fair.ID(), joined.ID())
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, fair.ID(), listed[0].ID())
+}
+
+func TestJoiningAgainChangesNothing(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	_, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+	require.NoError(t, err)
+
+	for _, who := range []*repositories.User{ana, karo} {
+		// act
+		_, err := projects.Join(t.Context(), database.NewContext(), who, fair.ID())
+
+		// assert
+		require.NoError(t, err, who.Name())
+
+		listed, err := projects.ListFor(t.Context(), database.NewContext(), who)
+		require.NoError(t, err)
+		assert.Len(t, listed, 1, "%s is a member once", who.Name())
+	}
+}
+
+func TestAProjectThatIsntOpenCantBeJoined(t *testing.T) {
+	tests := []struct {
+		name       string
+		visibility repositories.Visibility
+		joining    repositories.Joining
+	}{
+		{name: "public and closed", visibility: repositories.VisibilityPublic, joining: repositories.JoiningClosed},
+		{name: "private", visibility: repositories.VisibilityPrivate, joining: ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			database := sqlitetest.Open(t)
+			karo := savedUser(t, database, "Karo")
+			ana := savedUser(t, database, "Ana")
+			project := createdProject(t, database, karo, test.visibility, test.joining)
+
+			// act
+			_, err := projects.Join(t.Context(), database.NewContext(), ana, project.ID())
+
+			// assert
+			require.ErrorIs(t, err, projects.ErrNotFound)
+
+			listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+			require.NoError(t, err)
+			assert.Empty(t, listed)
+		})
+	}
+}
+
+func TestAProjectThatDoesntExistCantBeJoined(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	ana := savedUser(t, database, "Ana")
+
+	// act
+	_, err := projects.Join(t.Context(), database.NewContext(), ana, uuid.Must(uuid.NewV7()))
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+func TestAMemberOpensAProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	board := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+
+	// act
+	changed, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, board.ID(), repositories.JoiningOpen)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, repositories.JoiningOpen, changed.Joining())
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, board.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.JoiningOpen, project.Joining())
+}
+
+func TestOnlyAMemberChangesHowPeopleJoin(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	board := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+
+	// act
+	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), ana, board.ID(), repositories.JoiningOpen)
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, board.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.JoiningClosed, project.Joining())
+}
+
+func TestAPrivateProjectCantBeOpened(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	secret := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	// act
+	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, secret.ID(), repositories.JoiningOpen)
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+}
+
+// racedUnit saves the same membership through another unit of work right
+// before its own save, like a second tab of the same person.
+type racedUnit struct {
+	db.Context
+
+	database  db.Database
+	projectID uuid.UUID
+	userID    uuid.UUID
+}
+
+func (unit racedUnit) SaveChanges(ctx context.Context) error {
+	membership, err := repositories.NewMembership(unit.projectID, unit.userID)
+	if err != nil {
+		return err
+	}
+
+	other := unit.database.NewContext()
+	other.Memberships().Insert(membership)
+
+	err = other.SaveChanges(ctx)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestAJoinThatLostARaceToTheSamePersonStillJoins(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	unit := racedUnit{Context: database.NewContext(), database: database, projectID: fair.ID(), userID: ana.ID()}
+
+	// act
+	joined, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, fair.ID(), joined.ID())
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Len(t, listed, 1)
+}
+
+// closingUnit closes the project through another unit of work right
+// before its own save, like a member closing it while someone joins.
+type closingUnit struct {
+	db.Context
+
+	database  db.Database
+	creator   *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit closingUnit) SaveChanges(ctx context.Context) error {
+	_, err := projects.ChangeJoining(ctx, unit.database.NewContext(), unit.creator, unit.projectID, repositories.JoiningClosed)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestAJoinWhileAMemberClosesTheProjectDoesntGetIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	unit := closingUnit{Context: database.NewContext(), database: database, creator: karo, projectID: fair.ID()}
+
+	// act
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+}
+
+// othersJoiningUnit lets someone else join through another unit of work
+// right before its own save, once.
+type othersJoiningUnit struct {
+	db.Context
+
+	database  db.Database
+	other     *repositories.User
+	projectID uuid.UUID
+	done      *bool
+}
+
+func (unit othersJoiningUnit) SaveChanges(ctx context.Context) error {
+	if !*unit.done {
+		*unit.done = true
+
+		_, err := projects.Join(ctx, unit.database.NewContext(), unit.other, unit.projectID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestTwoPeopleJoiningAtOnceBothGetIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	tomas := savedUser(t, database, "Tomás")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	unit := othersJoiningUnit{Context: database.NewContext(), database: database, other: tomas, projectID: fair.ID(), done: new(bool)}
+
+	// act
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	for _, who := range []*repositories.User{ana, tomas} {
+		listed, err := projects.ListFor(t.Context(), database.NewContext(), who)
+		require.NoError(t, err)
+		assert.Len(t, listed, 1, who.Name())
+	}
 }

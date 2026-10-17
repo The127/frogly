@@ -58,6 +58,8 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	mux.Handle("GET /api/projects/public", auth(listPublicProjects))
 	mux.Handle("GET /api/projects/{id}", auth(getProject))
 	mux.Handle("PUT /api/projects/{id}/visibility", auth(changeVisibility))
+	mux.Handle("PUT /api/projects/{id}/joining", auth(changeJoining))
+	mux.Handle("POST /api/projects/{id}/join", auth(joinProject))
 	mux.Handle("GET /api/projects/{id}/people", auth(findPeople))
 	mux.Handle("POST /api/projects/{id}/members", auth(addMember))
 	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))

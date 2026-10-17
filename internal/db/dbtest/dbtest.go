@@ -86,7 +86,11 @@ func (s *base) savedProject(name string, creator *repositories.User) *repositori
 }
 
 func (s *base) savedProjectWith(name string, creator *repositories.User, visibility repositories.Visibility) *repositories.Project {
-	project, err := repositories.NewProject(name, visibility)
+	return s.savedProjectJoining(name, creator, visibility, repositories.JoiningClosed)
+}
+
+func (s *base) savedProjectJoining(name string, creator *repositories.User, visibility repositories.Visibility, joining repositories.Joining) *repositories.Project {
+	project, err := repositories.NewProject(name, visibility, joining)
 	s.Require().NoError(err)
 
 	membership, err := repositories.NewMembership(project.ID(), creator.ID())

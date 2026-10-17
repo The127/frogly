@@ -1,6 +1,8 @@
 package dbtest
 
 import (
+	"slices"
+
 	"github.com/google/uuid"
 
 	"github.com/the127/frogly/internal/repositories"
@@ -123,7 +125,7 @@ func (s *projectsSuite) TestAUserIsAMemberOfAProjectOnlyOnce() {
 func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
 	// arrange
 	karo := s.savedUser("Karo")
-	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate)
+	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	s.Require().NoError(err)
 
 	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID())
@@ -253,4 +255,149 @@ func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
 	s.Require().NoError(err)
 	s.Require().Len(projects, 1)
 	s.Equal(others.ID(), projects[0].ID())
+}
+
+// TestAProjectKeepsHowPeopleJoin checks that a public project loads open
+// or closed, as it was saved, also in the list of public projects.
+func (s *projectsSuite) TestAProjectKeepsHowPeopleJoin() {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+		s.Run(string(joining), func() {
+			// arrange
+			karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+			fair := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, joining)
+
+			// act
+			found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), fair.ID(), karo.ID())
+			public, publicErr := s.database.NewContext().Projects().ListPublicForNonMember(s.T().Context(), ana.ID())
+
+			// assert
+			s.Require().NoError(err)
+			s.Require().NoError(publicErr)
+			s.Equal(joining, found.Joining())
+
+			// the subtests share the database, so the list holds the other's project too
+			listed := slices.IndexFunc(public, func(project *repositories.Project) bool { return project.ID() == fair.ID() })
+			s.Require().GreaterOrEqual(listed, 0)
+			s.Equal(joining, public[listed].Joining())
+		})
+	}
+}
+
+// TestAChangedJoiningIsSaved checks that an update writes the new setting.
+func (s *projectsSuite) TestAChangedJoiningIsSaved() {
+	// arrange
+	karo := s.savedUser("Karo")
+	saved := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+	fair, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), saved.ID(), karo.ID())
+	s.Require().NoError(err)
+	s.Require().NoError(fair.ChangeJoining(repositories.JoiningOpen))
+
+	unit := s.database.NewContext()
+	unit.Projects().Update(fair)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), fair.ID(), karo.ID())
+	s.Require().NoError(err)
+	s.Equal(repositories.JoiningOpen, found.Joining())
+}
+
+func (s *projectsSuite) joining(project *repositories.Project, user *repositories.User) error {
+	membership, err := repositories.NewJoiningMembership(project.ID(), user.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(membership)
+
+	return unit.SaveChanges(s.T().Context())
+}
+
+// TestSomeoneJoinsAnOpenProject checks that a joining membership is saved
+// for a public project that is open.
+func (s *projectsSuite) TestSomeoneJoinsAnOpenProject() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	fair := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+
+	// act
+	err := s.joining(fair, ana)
+
+	// assert
+	s.Require().NoError(err)
+
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), fair.ID(), ana.ID())
+	s.Require().NoError(err)
+	s.Equal(fair.ID(), found.ID())
+}
+
+// TestOnlyAnOpenProjectCanBeJoined checks that a joining membership for a
+// closed, private or missing project is refused as not found and saves
+// nothing, which the database decides as it writes.
+func (s *projectsSuite) TestOnlyAnOpenProjectCanBeJoined() {
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate, "")
+	s.Require().NoError(err)
+
+	for _, test := range []struct {
+		name    string
+		project *repositories.Project
+	}{
+		{name: "closed", project: s.savedProjectJoining("Board", karo, repositories.VisibilityPublic, repositories.JoiningClosed)},
+		{name: "private", project: s.savedProject("Secret", karo)},
+		{name: "missing", project: nowhere},
+	} {
+		s.Run(test.name, func() {
+			// act
+			err := s.joining(test.project, ana)
+
+			// assert
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+
+			_, err = s.database.NewContext().Projects().ByIDForMember(s.T().Context(), test.project.ID(), ana.ID())
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+		})
+	}
+}
+
+// TestJoiningTwiceIsARace checks that the same person joining again is
+// refused like a race, as their membership exists already.
+func (s *projectsSuite) TestJoiningTwiceIsARace() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	fair := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	s.Require().NoError(s.joining(fair, ana))
+
+	// act
+	err := s.joining(fair, ana)
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
+// what the model never builds, a private project anyone could join.
+func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
+	// arrange
+	karo := s.savedUser("Karo")
+	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
+	s.Require().NoError(err)
+
+	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
+	membership, err := repositories.NewMembership(open.ID(), karo.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Projects().Insert(open)
+	unit.Memberships().Insert(membership)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().Error(err)
+	s.NotErrorIs(err, repositories.ErrConcurrentModification)
 }

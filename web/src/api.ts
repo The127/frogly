@@ -9,16 +9,20 @@ export interface Me {
 
 export type Visibility = "public" | "private";
 
+export type Joining = "open" | "closed";
+
 export interface Project {
   id: string;
   name: string;
   visibility: Visibility;
+  joining: Joining;
 }
 
 // PublicProject is what someone outside a public project sees of it.
 export interface PublicProject {
   id: string;
   name: string;
+  joining: Joining;
 }
 
 // Person is someone who has logged in to frogly.
@@ -159,20 +163,7 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
 }
 
 export async function changeVisibility(accessToken: string, projectId: string, visibility: Visibility): Promise<Project> {
-  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/visibility`, accessToken, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ visibility }),
-  });
-  if (response.status === 404) {
-    throw new NotFound();
-  }
-
-  if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked to change a project's visibility`);
-  }
-
-  return (await response.json()) as Project;
+  return putSetting(accessToken, projectId, "visibility", { visibility }, "change a project's visibility");
 }
 
 // Either the people found, or frogly's reason for refusing the search,
@@ -232,6 +223,42 @@ export async function sayMeToo(accessToken: string, projectId: string, ideaId: s
   return (await response.json()) as Idea;
 }
 
+export async function changeJoining(accessToken: string, projectId: string, joining: Joining): Promise<Project> {
+  return putSetting(accessToken, projectId, "joining", { joining }, "change who can join a project");
+}
+
+// putSetting changes one setting of a project a member may change, and
+// gives the project back as it is now
+async function putSetting(accessToken: string, projectId: string, setting: string, body: object, what: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/${setting}`, accessToken, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to ${what}`);
+  }
+
+  return (await response.json()) as Project;
+}
+
+export async function joinProject(accessToken: string, projectId: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/join`, accessToken, { method: "POST" });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to join a project`);
+  }
+
+  return (await response.json()) as Project;
+}
+
 export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {
   const response = await authorized("/api/projects/public", accessToken);
   if (!response.ok) {
@@ -258,13 +285,18 @@ export async function fetchProject(accessToken: string, projectId: string): Prom
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
 
-// visibility is undefined until the person chooses, and frogly's answer
-// then says that a choice is missing
-export async function createProject(accessToken: string, name: string, visibility: Visibility | undefined): Promise<Created> {
+// visibility and joining are undefined until the person chooses, and
+// frogly's answer then says that a choice is missing
+export async function createProject(
+  accessToken: string,
+  name: string,
+  visibility: Visibility | undefined,
+  joining: Joining | undefined,
+): Promise<Created> {
   const response = await authorized("/api/projects", accessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, visibility }),
+    body: JSON.stringify({ name, visibility, joining }),
   });
   if (response.status === 400) {
     return { problem: await refusal(response, "frogly can't create that project") };

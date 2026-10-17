@@ -14,6 +14,7 @@ type Project struct {
 
 	name       string
 	visibility Visibility
+	joining    Joining
 }
 
 // Visibility says who besides its members sees a project.
@@ -26,6 +27,31 @@ const (
 	VisibilityPrivate Visibility = "private"
 )
 
+// Joining says whether people outside a public project can join it
+// themselves.
+type Joining string
+
+const (
+	// JoiningOpen lets anyone who may use frogly join right away.
+	JoiningOpen Joining = "open"
+	// JoiningClosed lets only a member add someone.
+	JoiningClosed Joining = "closed"
+)
+
+// checkJoining keeps a private project closed, since nobody outside can
+// see it to join.
+func checkJoining(visibility Visibility, joining Joining) error {
+	switch {
+	case joining != JoiningOpen && joining != JoiningClosed:
+		return Invalid("a project is open to join or closed")
+
+	case joining == JoiningOpen && visibility != VisibilityPublic:
+		return Invalid("only a public project can be open to join")
+	}
+
+	return nil
+}
+
 func checkVisibility(visibility Visibility) error {
 	if visibility != VisibilityPublic && visibility != VisibilityPrivate {
 		return Invalid("a project is public or private")
@@ -35,8 +61,9 @@ func checkVisibility(visibility Visibility) error {
 }
 
 // NewProject creates a project that was never saved. A project needs a
-// name of up to 100 characters.
-func NewProject(name string, visibility Visibility) (*Project, error) {
+// name of up to 100 characters. A public one needs to say how people join
+// it, and a private one without starts closed.
+func NewProject(name string, visibility Visibility, joining Joining) (*Project, error) {
 	name = strings.TrimSpace(name)
 
 	switch {
@@ -52,12 +79,21 @@ func NewProject(name string, visibility Visibility) (*Project, error) {
 		return nil, err
 	}
 
-	return &Project{Base: newBase(), name: name, visibility: visibility}, nil
+	if joining == "" && visibility == VisibilityPrivate {
+		joining = JoiningClosed
+	}
+
+	err = checkJoining(visibility, joining)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Project{Base: newBase(), name: name, visibility: visibility, joining: joining}, nil
 }
 
 // NewProjectFromDB rebuilds a project as loaded.
-func NewProjectFromDB(base Base, name string, visibility Visibility) *Project {
-	return &Project{Base: base, name: name, visibility: visibility}
+func NewProjectFromDB(base Base, name string, visibility Visibility, joining Joining) *Project {
+	return &Project{Base: base, name: name, visibility: visibility, joining: joining}
 }
 
 // Name is what the project is called.
@@ -70,7 +106,27 @@ func (project *Project) Visibility() Visibility {
 	return project.visibility
 }
 
+// Joining says whether people outside the project can join it themselves.
+// A private project is always closed.
+func (project *Project) Joining() Joining {
+	return project.joining
+}
+
+// ChangeJoining keeps the old setting when it refuses the new one.
+func (project *Project) ChangeJoining(joining Joining) error {
+	err := checkJoining(project.visibility, joining)
+	if err != nil {
+		return err
+	}
+
+	project.joining = joining
+
+	return nil
+}
+
 // ChangeVisibility keeps the old visibility when it refuses the new one.
+// Making a project private closes it, and it stays closed when it's made
+// public again, so nobody gets in without a member opening it.
 func (project *Project) ChangeVisibility(visibility Visibility) error {
 	err := checkVisibility(visibility)
 	if err != nil {
@@ -78,6 +134,9 @@ func (project *Project) ChangeVisibility(visibility Visibility) error {
 	}
 
 	project.visibility = visibility
+	if visibility == VisibilityPrivate {
+		project.joining = JoiningClosed
+	}
 
 	return nil
 }

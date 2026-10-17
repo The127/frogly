@@ -32,7 +32,7 @@ func savedUser(t *testing.T, database db.Database, name string) *repositories.Us
 func savedProject(t *testing.T, database db.Database, creator *repositories.User) *repositories.Project {
 	t.Helper()
 
-	project, err := projects.Create(t.Context(), database.NewContext(), creator, "Garden", repositories.VisibilityPrivate)
+	project, err := projects.Create(t.Context(), database.NewContext(), creator, "Garden", repositories.VisibilityPrivate, repositories.JoiningClosed)
 	require.NoError(t, err)
 
 	return project

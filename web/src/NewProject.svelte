@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Visibility } from "./api";
+  import type { Joining, Visibility } from "./api";
   import { getLogin } from "./login";
   import { addProject, nameFrom } from "./projects";
   import { navigate, p } from "./router";
@@ -9,6 +9,7 @@
   let name = $state(nameFrom(window.location.search));
   // nothing is chosen in advance, the person decides who sees a project
   let visibility = $state<Visibility | undefined>();
+  let joining = $state<Joining | undefined>();
   let problem = $state("");
   let saving = $state(false);
 
@@ -21,7 +22,7 @@
     saving = true;
     problem = "";
 
-    const added = await addProject(login.accessToken, name, visibility);
+    const added = await addProject(login.accessToken, name, visibility, joining);
     saving = false;
 
     switch (added.kind) {
@@ -67,6 +68,14 @@
     <label><input type="radio" name="visibility" value="private" bind:group={visibility} /> private, only its members see it</label>
     <label><input type="radio" name="visibility" value="public" bind:group={visibility} /> public, everyone in frogly sees its name</label>
   </fieldset>
+
+  {#if visibility === "public"}
+    <fieldset class="choice" aria-describedby="project-problem">
+      <legend class="label">who can join</legend>
+      <label><input type="radio" name="joining" value="open" bind:group={joining} /> anyone, right away</label>
+      <label><input type="radio" name="joining" value="closed" bind:group={joining} /> only people a member adds</label>
+    </fieldset>
+  {/if}
 
   <div class="acts">
     <button class="btn pond" type="submit">create</button>
