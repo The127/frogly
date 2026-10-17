@@ -81,6 +81,9 @@ var _ = Describe("saying me too to an idea", func() {
 
 			Expect(meToo(ctx, otherAccessToken, shared.ID, planted.ID)).To(HaveHTTPStatus(http.StatusNotFound))
 			Expect(gardenOf(ctx, accessToken, elsewhere.ID)).To(ConsistOf(HaveField("People", 1)))
+
+			// the idea in its own project works, so the 404 above isn't a missing route
+			Expect(meToo(ctx, accessToken, elsewhere.ID, planted.ID)).To(HaveHTTPStatus(http.StatusOK))
 		}, SpecTimeout(10*time.Second))
 	})
 
