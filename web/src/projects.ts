@@ -1,10 +1,12 @@
 import {
   type Created,
   type Project,
+  type PublicProject,
   type SessionEnded,
   type Visibility,
   createProject,
   fetchProjects,
+  fetchPublicProjects,
   sessionEnded,
 } from "./api";
 
@@ -68,5 +70,22 @@ export async function addProject(accessToken: AccessToken, name: string, visibil
       return { kind: loaded.kind };
     case "failed":
       return { kind: "savedButNotListed" };
+  }
+}
+
+export type PublicLoaded = { kind: "listed"; projects: PublicProject[] } | { kind: "failed" } | SessionEnded;
+
+export async function loadPublicProjects(accessToken: AccessToken): Promise<PublicLoaded> {
+  try {
+    return { kind: "listed", projects: await fetchPublicProjects(await accessToken()) };
+  } catch (error) {
+    const ended = sessionEnded(error);
+    if (ended) {
+      return ended;
+    }
+
+    console.error(error);
+
+    return { kind: "failed" };
   }
 }

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects } from "./api";
-import { addProject, loadProjects } from "./projects";
+import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects, fetchPublicProjects } from "./api";
+import { addProject, loadProjects, loadPublicProjects } from "./projects";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   createProject: vi.fn(),
   fetchProjects: vi.fn(),
+  fetchPublicProjects: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -143,5 +144,33 @@ describe("loadProjects", () => {
 
     // assert
     expect(outcome).toEqual({ kind: "failed" });
+  });
+});
+
+describe("loadPublicProjects", () => {
+  it("gives the public projects of others", async () => {
+    // arrange
+    vi.mocked(fetchPublicProjects).mockResolvedValue([{ id: "p-2", name: "Summer fair" }]);
+
+    // act
+    const outcome = await loadPublicProjects(token);
+
+    // assert
+    expect(outcome).toEqual({ kind: "listed", projects: [{ id: "p-2", name: "Summer fair" }] });
+  });
+
+  it.each([
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+    { name: "the list can't be loaded", error: new Error("frogly answered 503"), kind: "failed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(fetchPublicProjects).mockRejectedValue(error);
+
+    // act
+    const outcome = await loadPublicProjects(token);
+
+    // assert
+    expect(outcome).toEqual({ kind });
   });
 });

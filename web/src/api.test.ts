@@ -1,6 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotAllowed, NotFound, createProject, fetchConfig, fetchGarden, fetchMe, fetchProject, fetchProjects, plantIdea } from "./api";
+import {
+  LoggedOut,
+  NotAllowed,
+  NotFound,
+  createProject,
+  fetchConfig,
+  fetchGarden,
+  fetchMe,
+  fetchProject,
+  fetchProjects,
+  fetchPublicProjects,
+  plantIdea,
+} from "./api";
 
 function respondWith(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -118,6 +130,33 @@ describe("fetchProjects", () => {
 
     // act
     const projects = fetchProjects("an-access-token");
+
+    // assert
+    await expect(projects).rejects.toThrow("503");
+  });
+});
+
+describe("fetchPublicProjects", () => {
+  it("gives the public projects of others", async () => {
+    // arrange
+    respondWith(200, [{ id: "p-2", name: "Summer fair" }]);
+
+    // act
+    const projects = await fetchPublicProjects("an-access-token");
+
+    // assert
+    expect(projects).toEqual([{ id: "p-2", name: "Summer fair" }]);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/public", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const projects = fetchPublicProjects("an-access-token");
 
     // assert
     await expect(projects).rejects.toThrow("503");

@@ -15,6 +15,12 @@ export interface Project {
   visibility: Visibility;
 }
 
+// PublicProject is what someone outside a public project sees of it.
+export interface PublicProject {
+  id: string;
+  name: string;
+}
+
 // frogly's limit for an idea, in characters
 export const maxIdeaLength = 500;
 
@@ -124,6 +130,15 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   }
 
   return (await response.json()) as Project[];
+}
+
+export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {
+  const response = await authorized("/api/projects/public", accessToken);
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for the public projects`);
+  }
+
+  return (await response.json()) as PublicProject[];
 }
 
 export async function fetchProject(accessToken: string, projectId: string): Promise<Project> {
