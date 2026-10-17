@@ -10,7 +10,7 @@
 
   let projects = $state<PublicProject[] | undefined>();
   let listFailed = $state(false);
-  let joining = $state(false);
+  let busy = $state(false);
   let joinProblem = $state("");
   // a join can finish after the person moved on, and mustn't pull them back
   let gone = false;
@@ -41,15 +41,15 @@
   });
 
   async function join(project: PublicProject) {
-    if (joining) {
+    if (busy) {
       return;
     }
 
-    joining = true;
+    busy = true;
     joinProblem = "";
 
     const outcome = await joinPublicProject(accessToken, project.id);
-    joining = false;
+    busy = false;
 
     switch (outcome.kind) {
       case "joined":
@@ -86,7 +86,7 @@
         <li>
           <span>{project.name}</span>
           {#if project.joining === "open"}
-            <button class="btn" onclick={() => join(project)} aria-disabled={joining}>
+            <button class="btn" onclick={() => join(project)} aria-disabled={busy}>
               join <span class="hidden">{project.name}</span>
             </button>
           {:else}

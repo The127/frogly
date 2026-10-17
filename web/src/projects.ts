@@ -50,7 +50,8 @@ export async function addProject(
   let created: Created;
 
   try {
-    // only a public project can be joined, a private one starts closed
+    // the form keeps a join choice after a switch to private, which frogly
+    // would refuse
     created = await createProject(await accessToken(), name, visibility, visibility === "public" ? joining : undefined);
   } catch (error) {
     const ended = sessionEnded(error);
