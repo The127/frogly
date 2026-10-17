@@ -507,3 +507,15 @@ func TestMakingAnOpenProjectPrivateClosesIt(t *testing.T) {
 	// assert
 	assert.Equal(t, repositories.JoiningClosed, project.Joining(), "public again, but nobody opened it")
 }
+
+func TestNewJoiningMembershipOnlyCountsForAnOpenProject(t *testing.T) {
+	// act
+	joining, err := repositories.NewJoiningMembership(uuid.New(), uuid.New())
+	added, addedErr := repositories.NewMembership(uuid.New(), uuid.New())
+
+	// assert
+	require.NoError(t, err)
+	require.NoError(t, addedErr)
+	assert.True(t, joining.OnlyIfOpen())
+	assert.False(t, added.OnlyIfOpen())
+}

@@ -25,8 +25,33 @@ func (repository *MembershipRepository) Insert(membership *repositories.Membersh
 	repository.tracker.Add(change.NewEntry(change.Added, membership))
 }
 
-// ExecuteInsert writes the membership as version 1.
+// ExecuteInsert writes the membership as version 1. A joining membership
+// is only written while its project is open to join, checked in the same
+// statement, and gives repositories.ErrNotFound otherwise.
 func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, membership *repositories.Membership) error {
+	what := "inserting membership " + membership.ID().String()
+
+	if membership.OnlyIfOpen() {
+		// constants, not parameters, like the list of public projects
+		joining := sqlbuilder.Build(
+			"insert into memberships (id, version, project_id, user_id) "+
+				"select $?, 1, $?, $? from projects "+
+				"where id = $? and visibility = 'public' and joining = 'open'",
+			membership.ID().String(), membership.ProjectID().String(), membership.UserID().String(), membership.ProjectID().String(),
+		)
+
+		query, args := joining.BuildWithFlavor(sqlbuilder.SQLite)
+
+		result, err := tx.ExecContext(ctx, query, args...)
+
+		err = written(err, what)
+		if err != nil {
+			return err
+		}
+
+		return requireRow(result, "an open project "+membership.ProjectID().String()+" to join")
+	}
+
 	insert := sqlbuilder.InsertInto("memberships").
 		Cols("id", "version", "project_id", "user_id").
 		Values(membership.ID().String(), 1, membership.ProjectID().String(), membership.UserID().String())
@@ -35,5 +60,5 @@ func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *s
 
 	_, err := tx.ExecContext(ctx, query, args...)
 
-	return written(err, "inserting membership "+membership.ID().String())
+	return written(err, what)
 }

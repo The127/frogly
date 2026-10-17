@@ -349,3 +349,75 @@ func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
 	s.Require().Error(err)
 	s.NotErrorIs(err, repositories.ErrConcurrentModification)
 }
+
+func (s *projectsSuite) joining(project *repositories.Project, user *repositories.User) error {
+	membership, err := repositories.NewJoiningMembership(project.ID(), user.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(membership)
+
+	return unit.SaveChanges(s.T().Context())
+}
+
+// TestSomeoneJoinsAnOpenProject checks that a joining membership is saved
+// for a public project that is open.
+func (s *projectsSuite) TestSomeoneJoinsAnOpenProject() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	fair := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+
+	// act
+	err := s.joining(fair, ana)
+
+	// assert
+	s.Require().NoError(err)
+
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), fair.ID(), ana.ID())
+	s.Require().NoError(err)
+	s.Equal(fair.ID(), found.ID())
+}
+
+// TestOnlyAnOpenProjectCanBeJoined checks that a joining membership for a
+// closed, private or missing project is refused as not found and saves
+// nothing, which the database decides as it writes.
+func (s *projectsSuite) TestOnlyAnOpenProjectCanBeJoined() {
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate, "")
+	s.Require().NoError(err)
+
+	for _, test := range []struct {
+		name    string
+		project *repositories.Project
+	}{
+		{name: "closed", project: s.savedProjectJoining("Board", karo, repositories.VisibilityPublic, repositories.JoiningClosed)},
+		{name: "private", project: s.savedProject("Secret", karo)},
+		{name: "missing", project: nowhere},
+	} {
+		s.Run(test.name, func() {
+			// act
+			err := s.joining(test.project, ana)
+
+			// assert
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+
+			_, err = s.database.NewContext().Projects().ByIDForMember(s.T().Context(), test.project.ID(), ana.ID())
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+		})
+	}
+}
+
+// TestJoiningTwiceIsARace checks that the same person joining again is
+// refused like a race, as their membership exists already.
+func (s *projectsSuite) TestJoiningTwiceIsARace() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	fair := s.savedProjectJoining("Summer fair", karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+	s.Require().NoError(s.joining(fair, ana))
+
+	// act
+	err := s.joining(fair, ana)
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
+}
