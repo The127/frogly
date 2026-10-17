@@ -163,20 +163,7 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
 }
 
 export async function changeVisibility(accessToken: string, projectId: string, visibility: Visibility): Promise<Project> {
-  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/visibility`, accessToken, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ visibility }),
-  });
-  if (response.status === 404) {
-    throw new NotFound();
-  }
-
-  if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked to change a project's visibility`);
-  }
-
-  return (await response.json()) as Project;
+  return putSetting(accessToken, projectId, "visibility", { visibility }, "change a project's visibility");
 }
 
 // Either the people found, or frogly's reason for refusing the search,
@@ -237,17 +224,23 @@ export async function sayMeToo(accessToken: string, projectId: string, ideaId: s
 }
 
 export async function changeJoining(accessToken: string, projectId: string, joining: Joining): Promise<Project> {
-  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/joining`, accessToken, {
+  return putSetting(accessToken, projectId, "joining", { joining }, "change who can join a project");
+}
+
+// putSetting changes one setting of a project a member may change, and
+// gives the project back as it is now
+async function putSetting(accessToken: string, projectId: string, setting: string, body: object, what: string): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/${setting}`, accessToken, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ joining }),
+    body: JSON.stringify(body),
   });
   if (response.status === 404) {
     throw new NotFound();
   }
 
   if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked to change who can join a project`);
+    throw new Error(`frogly answered ${response.status} when asked to ${what}`);
   }
 
   return (await response.json()) as Project;

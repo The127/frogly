@@ -27,18 +27,16 @@ export async function loadSettings(accessToken: AccessToken, projectId: string):
 export type SettingChanged = { kind: "changed"; project: Project } | { kind: "notChanged" } | { kind: "notFound" } | SessionEnded;
 
 export async function switchVisibility(accessToken: AccessToken, projectId: string, visibility: Visibility): Promise<SettingChanged> {
-  try {
-    return { kind: "changed", project: await changeVisibility(await accessToken(), projectId, visibility) };
-  } catch (error) {
-    const failed = failure(error);
-
-    return failed.kind === "failed" ? { kind: "notChanged" } : failed;
-  }
+  return changeSetting(async () => changeVisibility(await accessToken(), projectId, visibility));
 }
 
 export async function switchJoining(accessToken: AccessToken, projectId: string, joining: Joining): Promise<SettingChanged> {
+  return changeSetting(async () => changeJoining(await accessToken(), projectId, joining));
+}
+
+async function changeSetting(change: () => Promise<Project>): Promise<SettingChanged> {
   try {
-    return { kind: "changed", project: await changeJoining(await accessToken(), projectId, joining) };
+    return { kind: "changed", project: await change() };
   } catch (error) {
     const failed = failure(error);
 
