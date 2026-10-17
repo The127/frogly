@@ -236,6 +236,23 @@ export async function sayMeToo(accessToken: string, projectId: string, ideaId: s
   return (await response.json()) as Idea;
 }
 
+export async function changeJoining(accessToken: string, projectId: string, joining: Joining): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/joining`, accessToken, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ joining }),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to change who can join a project`);
+  }
+
+  return (await response.json()) as Project;
+}
+
 export async function joinProject(accessToken: string, projectId: string): Promise<Project> {
   const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/join`, accessToken, { method: "POST" });
   if (response.status === 404) {

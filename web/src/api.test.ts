@@ -5,6 +5,7 @@ import {
   NotAllowed,
   NotFound,
   addMember,
+  changeJoining,
   changeVisibility,
   createProject,
   fetchConfig,
@@ -296,6 +297,36 @@ describe("addMember", () => {
 
     // assert
     await expect(added).rejects.toThrow("400");
+  });
+});
+
+describe("changeJoining", () => {
+  it("sends the setting and gives the changed project", async () => {
+    // arrange
+    const fair = { id: "p-1", name: "Summer fair", visibility: "public", joining: "open" };
+    respondWith(200, fair);
+
+    // act
+    const changed = await changeJoining("an-access-token", "p-1", "open");
+
+    // assert
+    expect(changed).toEqual(fair);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/joining", {
+      method: "PUT",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ joining: "open" }),
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const changed = changeJoining("an-access-token", "p-1", "open");
+
+    // assert
+    await expect(changed).rejects.toBeInstanceOf(NotFound);
   });
 });
 
