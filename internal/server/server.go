@@ -199,7 +199,13 @@ func authenticated(verifier Verifier, userRole string, services *ioc.DependencyP
 			return
 		}
 
+		// the frontend reads any 403 as a login without frogly's role, so
+		// this stays the only one
 		if !slices.Contains(person.Roles, userRole) {
+			// if the role setting doesn't match the issuer, everyone ends up
+			// here, and this line is how whoever runs frogly finds out
+			logging.FromContext(r.Context()).InfoContext(r.Context(), "turned away a person without frogly's role",
+				"issuer", person.Issuer, "subject", person.Subject)
 			writeProblem(w, http.StatusForbidden)
 
 			return

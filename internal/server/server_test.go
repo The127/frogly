@@ -407,6 +407,42 @@ func TestAPersonWithoutFroglysRoleIsForbidden(t *testing.T) {
 	}
 }
 
+func TestCreatingAProjectWithoutFroglysRoleIsForbidden(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+
+	// act
+	response := projects(t, handler, http.MethodPost, noRoleToken, `{"name": "Garden"}`)
+
+	// assert
+	assert.Equal(t, http.StatusForbidden, response.Code)
+}
+
+func TestAPersonTurnedAwayIsLogged(t *testing.T) {
+	// arrange
+	var log bytes.Buffer
+	handler := newServer(t, &log)
+
+	// act
+	get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + noRoleToken}})
+
+	// assert
+	type line struct {
+		Msg     string `json:"msg"`
+		Issuer  string `json:"issuer"`
+		Subject string `json:"subject"`
+	}
+
+	var lines []line
+	for _, raw := range bytes.Split(bytes.TrimSpace(log.Bytes()), []byte("\n")) {
+		var parsed line
+		require.NoError(t, json.Unmarshal(raw, &parsed))
+		lines = append(lines, parsed)
+	}
+
+	assert.Contains(t, lines, line{Msg: "turned away a person without frogly's role", Issuer: "http://issuer.example", Subject: "lea-id"})
+}
+
 func TestAPersonWithoutFroglysRoleIsntStored(t *testing.T) {
 	// arrange
 	handler, database := newServerWithDatabase(t, &bytes.Buffer{})
