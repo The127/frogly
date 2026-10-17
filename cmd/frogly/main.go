@@ -64,7 +64,7 @@ func run() error {
 	defer stop()
 
 	discoveryCtx, cancelDiscovery := context.WithTimeout(ctx, discoveryTimeout)
-	verifier, err := authn.NewVerifier(discoveryCtx, cfg.OIDC.Issuer, cfg.OIDC.ClientID)
+	verifier, err := authn.NewVerifier(discoveryCtx, cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDC.Roles.Claim)
 
 	cancelDiscovery()
 

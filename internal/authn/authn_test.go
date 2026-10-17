@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	clientID = "frogly"
-	subject  = "1d0c8b4e-0000-4000-8000-000000000000"
+	clientID  = "frogly"
+	subject   = "1d0c8b4e-0000-4000-8000-000000000000"
+	roleClaim = "roles"
 )
 
 type fakeIssuer struct {
@@ -106,7 +107,13 @@ func (issuer *fakeIssuer) sign(t *testing.T, key jose.SigningKey, typ jose.Conte
 func newVerifier(t *testing.T, issuer *fakeIssuer) *authn.Verifier {
 	t.Helper()
 
-	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID)
+	return newVerifierReading(t, issuer, roleClaim)
+}
+
+func newVerifierReading(t *testing.T, issuer *fakeIssuer, roleClaim string) *authn.Verifier {
+	t.Helper()
+
+	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID, roleClaim)
 	require.NoError(t, err)
 
 	return verifier
@@ -152,6 +159,59 @@ func TestVerifyGivesThePerson(t *testing.T) {
 			}, person)
 		})
 	}
+}
+
+func TestVerifyGivesTheRoles(t *testing.T) {
+	tests := []struct {
+		name   string
+		claims map[string]any
+		want   []string
+	}{
+		{
+			name:   "a list of roles",
+			claims: map[string]any{roleClaim: []string{"frogly:frogly-user", "frogly:admin"}},
+			want:   []string{"frogly:frogly-user", "frogly:admin"},
+		},
+		{name: "an empty list", claims: map[string]any{roleClaim: []string{}}, want: []string{}},
+		{name: "no claim", claims: nil, want: nil},
+		{name: "another claim", claims: map[string]any{"groups": []string{"frogly:frogly-user"}}, want: nil},
+		{name: "a single string", claims: map[string]any{roleClaim: "frogly:frogly-user"}, want: nil},
+		{name: "a list with a number", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", 1}}, want: nil},
+		{name: "a list with null", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", nil}}, want: nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			issuer := newIssuer(t)
+			verifier := newVerifier(t, issuer)
+			token := issuer.token(t, test.claims)
+
+			// act
+			person, err := verifier.Verify(t.Context(), token)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.want, person.Roles)
+		})
+	}
+}
+
+func TestVerifyReadsTheRolesFromTheClaimItIsGiven(t *testing.T) {
+	// arrange
+	issuer := newIssuer(t)
+	verifier := newVerifierReading(t, issuer, "groups")
+	token := issuer.token(t, map[string]any{
+		"groups": []string{"frogly-users"},
+		"roles":  []string{"frogly:frogly-user"},
+	})
+
+	// act
+	person, err := verifier.Verify(t.Context(), token)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, []string{"frogly-users"}, person.Roles)
 }
 
 func TestVerifyRefusesTokensFroglyDoesntTrust(t *testing.T) {

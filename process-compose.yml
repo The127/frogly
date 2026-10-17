@@ -82,6 +82,8 @@ processes:
       - FROGLY_SERVER__LISTEN_ADDRESS=127.0.0.1:8080
       - FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly
       - FROGLY_OIDC__CLIENT_ID=frogly
+      - FROGLY_OIDC__ROLES__CLAIM=roles
+      - FROGLY_OIDC__ROLES__USER=frogly:frogly-user
       - FROGLY_DATABASE__DRIVER=postgres
       - FROGLY_DATABASE__POSTGRES__URL=postgres://frogly:frogly@localhost:5432/frogly?sslmode=disable
     readiness_probe:

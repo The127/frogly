@@ -3,6 +3,7 @@ package config_test
 import (
 	"log/slog"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,10 +16,18 @@ import (
 var required = []string{
 	"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly",
 	"FROGLY_OIDC__CLIENT_ID=frogly",
+	"FROGLY_OIDC__ROLES__CLAIM=roles",
+	"FROGLY_OIDC__ROLES__USER=frogly:frogly-user",
 }
 
 func environment(variables ...string) []string {
 	return append(slices.Clone(required), variables...)
+}
+
+func without(variable string) []string {
+	return slices.DeleteFunc(slices.Clone(required), func(set string) bool {
+		return strings.HasPrefix(set, variable+"=")
+	})
 }
 
 func TestLoadsTheLogSettings(t *testing.T) {
@@ -122,6 +131,7 @@ func TestLoadsTheServerAndOIDCSettings(t *testing.T) {
 			assert.Equal(t, test.wantListenAddress, loaded.Server.ListenAddress)
 			assert.Equal(t, "http://localhost:8082/oidc/frogly", loaded.OIDC.Issuer)
 			assert.Equal(t, "frogly", loaded.OIDC.ClientID)
+			assert.Equal(t, config.Roles{Claim: "roles", User: "frogly:frogly-user"}, loaded.OIDC.Roles)
 		})
 	}
 }
@@ -134,7 +144,7 @@ func TestErrorsNameMissingOrEmptyRequiredVariables(t *testing.T) {
 	}{
 		{
 			name:     "missing issuer",
-			environ:  []string{"FROGLY_OIDC__CLIENT_ID=frogly"},
+			environ:  without("FROGLY_OIDC__ISSUER"),
 			variable: "FROGLY_OIDC__ISSUER",
 		},
 		{
@@ -144,8 +154,23 @@ func TestErrorsNameMissingOrEmptyRequiredVariables(t *testing.T) {
 		},
 		{
 			name:     "missing client ID",
-			environ:  []string{"FROGLY_OIDC__ISSUER=http://localhost:8082/oidc/frogly"},
+			environ:  without("FROGLY_OIDC__CLIENT_ID"),
 			variable: "FROGLY_OIDC__CLIENT_ID",
+		},
+		{
+			name:     "missing roles claim",
+			environ:  without("FROGLY_OIDC__ROLES__CLAIM"),
+			variable: "FROGLY_OIDC__ROLES__CLAIM",
+		},
+		{
+			name:     "empty roles claim",
+			environ:  append(without("FROGLY_OIDC__ROLES__CLAIM"), "FROGLY_OIDC__ROLES__CLAIM="),
+			variable: "FROGLY_OIDC__ROLES__CLAIM",
+		},
+		{
+			name:     "missing user role",
+			environ:  without("FROGLY_OIDC__ROLES__USER"),
+			variable: "FROGLY_OIDC__ROLES__USER",
 		},
 	}
 

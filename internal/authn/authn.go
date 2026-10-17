@@ -6,6 +6,7 @@ package authn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -41,17 +42,20 @@ type Person struct {
 	Name    string
 	// Email is empty when the token doesn't carry one.
 	Email string
+	// Roles are as the issuer wrote them.
+	Roles []string
 }
 
 // Verifier checks access tokens from one issuer, meant for one client.
 type Verifier struct {
-	verifier *oidc.IDTokenVerifier
+	verifier  *oidc.IDTokenVerifier
+	roleClaim string
 }
 
 // NewVerifier fetches the issuer's discovery document with ctx, so the
 // issuer has to be reachable when frogly starts. The issuer's keys are
 // fetched and cached later, on the first token, independent of ctx.
-func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier, error) {
+func NewVerifier(ctx context.Context, issuer string, clientID string, roleClaim string) (*Verifier, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("discovering the OIDC issuer %s: %w", issuer, err)
@@ -84,6 +88,7 @@ func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier
 				return time.Now().Add(-clockSkew)
 			},
 		}),
+		roleClaim: roleClaim,
 	}, nil
 }
 
@@ -125,12 +130,45 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 		name = claims.PreferredUsername
 	}
 
+	var all map[string]json.RawMessage
+
+	err = token.Claims(&all)
+	if err != nil {
+		return Person{}, fmt.Errorf("%w: reading the claims: %w", ErrUnauthenticated, err)
+	}
+
 	return Person{
 		Issuer:  token.Issuer,
 		Subject: token.Subject,
 		Name:    name,
 		Email:   claims.Email,
+		Roles:   rolesIn(all[verifier.roleClaim]),
 	}, nil
+}
+
+// A claim of any other shape than a list of strings gives no roles.
+// Guessing what it means could let someone in.
+func rolesIn(claim json.RawMessage) []string {
+	// json turns a null in a list of strings into "", so each element is
+	// checked on its own
+	var elements []any
+
+	err := json.Unmarshal(claim, &elements)
+	if err != nil {
+		return nil
+	}
+
+	roles := make([]string, 0, len(elements))
+	for _, element := range elements {
+		role, ok := element.(string)
+		if !ok {
+			return nil
+		}
+
+		roles = append(roles, role)
+	}
+
+	return roles
 }
 
 // checkType runs after the signature check, so the header it reads is the

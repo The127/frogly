@@ -6,7 +6,7 @@
   import { addProject, loadProjects } from "./projects";
   import { p } from "./router";
 
-  const { accessToken, onLoggedOut } = getLogin();
+  const { accessToken, onLoggedOut, onNotAllowed } = getLogin();
 
   let projects = $state<Project[] | undefined>();
   let listFailed = $state(false);
@@ -25,6 +25,9 @@
         break;
       case "loggedOut":
         onLoggedOut();
+        break;
+      case "notAllowed":
+        onNotAllowed();
     }
   });
 
@@ -58,6 +61,9 @@
         break;
       case "loggedOut":
         onLoggedOut();
+        break;
+      case "notAllowed":
+        onNotAllowed();
     }
   }
 </script>

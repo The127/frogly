@@ -31,6 +31,9 @@
     },
     accessToken,
     onLoggedOut: loggedOut,
+    onNotAllowed() {
+      session = { kind: "notAllowed" };
+    },
   });
 
   onMount(async () => {
@@ -40,7 +43,10 @@
 
       // automaticSilentRenew failed, maybe because the refresh token expired
       login.events.addSilentRenewError(() => {
-        session = { kind: "loggedOut" };
+        // the login page would hide why the person can't get in
+        if (session.kind !== "notAllowed") {
+          session = { kind: "loggedOut" };
+        }
       });
     } catch (error) {
       console.error(error);
@@ -70,6 +76,10 @@
     <p class="quiet">Try again in a moment.</p>
   {:else if session.kind === "loggedIn"}
     <Router />
+  {:else if session.kind === "notAllowed"}
+    <h1>This account can't use frogly.</h1>
+    <p class="quiet">Ask whoever runs frogly to let you in, or log in with another account.</p>
+    <button class="btn" onclick={() => login?.signoutRedirect()}>log out</button>
   {:else}
     <h1>A quiet place for your team's work.</h1>
     {#if session.loginFailed}

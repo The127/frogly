@@ -32,6 +32,9 @@ const (
 	renamedToken = "token-after-a-new-name" //nolint:gosec // a made-up token the fake verifier knows
 	outageToken  = "token-during-an-outage"
 	refusedToken = "forged"
+	noRoleToken  = "token-without-froglys-role"
+
+	userRole = "frogly:frogly-user"
 )
 
 type fakeVerifier struct{}
@@ -39,13 +42,16 @@ type fakeVerifier struct{}
 func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person, error) {
 	switch accessToken {
 	case validToken:
-		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karo"}, nil
+		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karo", Roles: []string{userRole}}, nil
 
 	case renamedToken:
-		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karolin"}, nil
+		return authn.Person{Issuer: "http://issuer.example", Subject: "karo-id", Name: "Karolin", Roles: []string{userRole}}, nil
 
 	case otherToken:
-		return authn.Person{Issuer: "http://issuer.example", Subject: "ana-id", Name: "Ana"}, nil
+		return authn.Person{Issuer: "http://issuer.example", Subject: "ana-id", Name: "Ana", Roles: []string{userRole}}, nil
+
+	case noRoleToken:
+		return authn.Person{Issuer: "http://issuer.example", Subject: "lea-id", Name: "Lea", Roles: []string{"frogly:admin"}}, nil
 
 	case outageToken:
 		return authn.Person{}, errors.New("fetching the issuer's keys: connection refused")
@@ -58,6 +64,14 @@ func (fakeVerifier) Verify(_ context.Context, accessToken string) (authn.Person,
 func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 	t.Helper()
 
+	handler, _ := newServerWithDatabase(t, log)
+
+	return handler
+}
+
+func newServerWithDatabase(t *testing.T, log *bytes.Buffer) (http.Handler, db.Database) {
+	t.Helper()
+
 	database := sqlitetest.Open(t)
 	dependencies := ioc.NewDependencyCollection()
 	ioc.RegisterSingleton(dependencies, func(*ioc.DependencyProvider) db.Database {
@@ -68,12 +82,16 @@ func newServer(t *testing.T, log *bytes.Buffer) http.Handler {
 	})
 
 	return server.New(
-		config.OIDC{Issuer: "http://issuer.example", ClientID: "frogly"},
+		config.OIDC{
+			Issuer:   "http://issuer.example",
+			ClientID: "frogly",
+			Roles:    config.Roles{Claim: "roles", User: userRole},
+		},
 		fakeVerifier{},
 		slog.New(slog.NewJSONHandler(log, nil)),
 		frontend,
 		dependencies.BuildProvider(),
-	)
+	), database
 }
 
 func projects(t *testing.T, handler http.Handler, method string, token string, body string) *httptest.ResponseRecorder {
@@ -369,6 +387,75 @@ func TestMeGreetsThePersonByName(t *testing.T) {
 			assert.JSONEq(t, `{"name": "Karo"}`, response.Body.String())
 		})
 	}
+}
+
+func TestAPersonWithoutFroglysRoleIsForbidden(t *testing.T) {
+	for _, path := range []string{"/api/me", "/api/projects"} {
+		t.Run(path, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+
+			// act
+			response := get(t, handler, path, http.Header{"Authorization": {"Bearer " + noRoleToken}})
+
+			// assert
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assert.Empty(t, response.Header().Get("WWW-Authenticate"))
+			assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+			assert.JSONEq(t, `{"type": "about:blank", "title": "Forbidden", "status": 403}`, response.Body.String())
+		})
+	}
+}
+
+func TestCreatingAProjectWithoutFroglysRoleIsForbidden(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+
+	// act
+	response := projects(t, handler, http.MethodPost, noRoleToken, `{"name": "Garden"}`)
+
+	// assert
+	assert.Equal(t, http.StatusForbidden, response.Code)
+}
+
+func TestAPersonTurnedAwayIsLogged(t *testing.T) {
+	// arrange
+	var log bytes.Buffer
+	handler := newServer(t, &log)
+
+	// act
+	get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + noRoleToken}})
+
+	// assert
+	type line struct {
+		Msg     string `json:"msg"`
+		Issuer  string `json:"issuer"`
+		Subject string `json:"subject"`
+	}
+
+	var lines []line
+	for _, raw := range bytes.Split(bytes.TrimSpace(log.Bytes()), []byte("\n")) {
+		var parsed line
+		require.NoError(t, json.Unmarshal(raw, &parsed))
+		lines = append(lines, parsed)
+	}
+
+	assert.Contains(t, lines, line{Msg: "turned away a person without frogly's role", Issuer: "http://issuer.example", Subject: "lea-id"})
+}
+
+func TestAPersonWithoutFroglysRoleIsntStored(t *testing.T) {
+	// arrange
+	handler, database := newServerWithDatabase(t, &bytes.Buffer{})
+
+	// act
+	response := get(t, handler, "/api/me", http.Header{"Authorization": {"Bearer " + noRoleToken}})
+
+	// assert
+	assert.Equal(t, http.StatusForbidden, response.Code)
+
+	identity, err := database.NewContext().Identities().ByLogin(t.Context(), "http://issuer.example", "lea-id")
+	require.NoError(t, err)
+	assert.Nil(t, identity)
 }
 
 func TestOnlyReadsAreAllowed(t *testing.T) {

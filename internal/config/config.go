@@ -96,6 +96,15 @@ type Server struct {
 type OIDC struct {
 	Issuer   string `koanf:"issuer"`
 	ClientID string `koanf:"client_id"`
+	Roles    Roles  `koanf:"roles"`
+}
+
+// Roles maps the issuer's roles to frogly's. Issuers put roles into
+// different claims, so the claim is a setting too.
+type Roles struct {
+	Claim string `koanf:"claim"`
+	// User is the role that lets someone use frogly, as the issuer writes it.
+	User string `koanf:"user"`
 }
 
 // Log says how frogly writes its log.
@@ -223,6 +232,14 @@ func missingKeys(config *Config) []string {
 
 	if config.OIDC.ClientID == "" {
 		missing = append(missing, "oidc.client_id")
+	}
+
+	if config.OIDC.Roles.Claim == "" {
+		missing = append(missing, "oidc.roles.claim")
+	}
+
+	if config.OIDC.Roles.User == "" {
+		missing = append(missing, "oidc.roles.user")
 	}
 
 	switch config.Database.Driver {

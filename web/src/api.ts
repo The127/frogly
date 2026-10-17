@@ -32,6 +32,29 @@ export class LoggedOut extends Error {
   }
 }
 
+// NotAllowed means the login works, but it doesn't give the person frogly's
+// role, so only whoever runs frogly can help.
+export class NotAllowed extends Error {
+  constructor() {
+    super("this login may not use frogly");
+    this.name = "NotAllowed";
+  }
+}
+
+export type SessionEnded = { kind: "loggedOut" } | { kind: "notAllowed" };
+
+export function sessionEnded(error: unknown): SessionEnded | undefined {
+  if (error instanceof LoggedOut) {
+    return { kind: "loggedOut" };
+  }
+
+  if (error instanceof NotAllowed) {
+    return { kind: "notAllowed" };
+  }
+
+  return undefined;
+}
+
 // NotFound means the project doesn't exist or the person isn't a member of
 // it. frogly doesn't say which.
 export class NotFound extends Error {
@@ -51,7 +74,8 @@ export async function fetchConfig(): Promise<Config> {
 }
 
 // Every call that needs the login goes through here, so a refused token
-// always ends up as LoggedOut.
+// always ends up as LoggedOut, and a login without frogly's role as
+// NotAllowed.
 async function authorized(path: string, accessToken: string, init: RequestInit = {}): Promise<Response> {
   const response = await fetch(path, {
     ...init,
@@ -61,11 +85,16 @@ async function authorized(path: string, accessToken: string, init: RequestInit =
     throw new LoggedOut();
   }
 
+  if (response.status === 403) {
+    throw new NotAllowed();
+  }
+
   return response;
 }
 
 // null means frogly refused the token, so the person has to log in again.
-// Any other failure is frogly's problem, not the person's.
+// NotAllowed means the login has no frogly role. Any other failure is
+// frogly's problem, not the person's.
 export async function fetchMe(accessToken: string): Promise<Me | null> {
   let response: Response;
   try {

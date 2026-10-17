@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,20 +40,24 @@ type Verifier interface {
 func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS, services *ioc.DependencyProvider) http.Handler {
 	mux := http.NewServeMux()
 
+	auth := func(next endpoint) http.Handler {
+		return authenticated(verifier, oidc.Roles.User, services, next)
+	}
+
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{
 			"issuer":   oidc.Issuer,
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, services, func(_ *http.Request, caller caller) (int, any, error) {
+	mux.Handle("GET /api/me", auth(func(_ *http.Request, caller caller) (int, any, error) {
 		return http.StatusOK, map[string]string{"name": caller.user.Name()}, nil
 	}))
-	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
-	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
-	mux.Handle("GET /api/projects/{id}", authenticated(verifier, services, getProject))
-	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, services, listGarden))
-	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, services, plantIdea))
+	mux.Handle("GET /api/projects", auth(listProjects))
+	mux.Handle("POST /api/projects", auth(createProject))
+	mux.Handle("GET /api/projects/{id}", auth(getProject))
+	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))
+	mux.Handle("POST /api/projects/{id}/ideas", auth(plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -157,7 +162,9 @@ type endpoint func(r *http.Request, caller caller) (int, any, error)
 // bigger than this is a mistake
 const maxBody = 4 << 10
 
-func authenticated(verifier Verifier, services *ioc.DependencyProvider, next endpoint) http.Handler {
+// authenticated checks the role before it looks the person up, so frogly
+// stores nobody who may not use it.
+func authenticated(verifier Verifier, userRole string, services *ioc.DependencyProvider, next endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -185,6 +192,16 @@ func authenticated(verifier Verifier, services *ioc.DependencyProvider, next end
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 			writeProblem(w, http.StatusUnauthorized)
+
+			return
+		}
+
+		// the frontend reads any 403 as a login without frogly's role, so
+		// this stays the only one
+		if !slices.Contains(person.Roles, userRole) {
+			logging.FromContext(r.Context()).InfoContext(r.Context(), "turned away a person without frogly's role",
+				"issuer", person.Issuer, "subject", person.Subject)
+			writeProblem(w, http.StatusForbidden)
 
 			return
 		}

@@ -39,9 +39,10 @@ const (
 )
 
 var (
-	froglyURL        string
-	accessToken      string
-	otherAccessToken string
+	froglyURL         string
+	accessToken       string
+	otherAccessToken  string
+	noRoleAccessToken string
 )
 
 func TestIntegration(t *testing.T) {
@@ -52,6 +53,7 @@ func TestIntegration(t *testing.T) {
 var _ = BeforeSuite(func() {
 	accessToken = logIn("frogly-tests", "test-service-user.pem")
 	otherAccessToken = logIn("frogly-tests-2", "test-service-user-2.pem")
+	noRoleAccessToken = logIn("frogly-tests-no-role", "test-service-user-no-role.pem")
 
 	binary, err := gexec.Build("github.com/the127/frogly/cmd/frogly")
 	Expect(err).NotTo(HaveOccurred())
@@ -62,6 +64,8 @@ var _ = BeforeSuite(func() {
 		"FROGLY_SERVER__LISTEN_ADDRESS=127.0.0.1:0",
 		"FROGLY_OIDC__ISSUER="+issuerURL,
 		"FROGLY_OIDC__CLIENT_ID="+application,
+		"FROGLY_OIDC__ROLES__CLAIM=roles",
+		"FROGLY_OIDC__ROLES__USER=frogly:frogly-user",
 		"FROGLY_LOG__FORMAT=text",
 		"FROGLY_DATABASE__DRIVER=postgres",
 		"FROGLY_DATABASE__POSTGRES__URL="+freshDatabase(),

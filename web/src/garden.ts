@@ -1,4 +1,14 @@
-import { type Idea, LoggedOut, NotFound, type Planted, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
+import {
+  type Idea,
+  NotFound,
+  type Planted,
+  type Project,
+  type SessionEnded,
+  fetchGarden,
+  fetchProject,
+  plantIdea,
+  sessionEnded,
+} from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -6,7 +16,7 @@ export type GardenLoaded =
   | { kind: "listed"; project: Project; ideas: Idea[] }
   | { kind: "notFound" }
   | { kind: "failed" }
-  | { kind: "loggedOut" };
+  | SessionEnded;
 
 export async function loadGarden(accessToken: AccessToken, projectId: string): Promise<GardenLoaded> {
   try {
@@ -25,7 +35,7 @@ export type IdeaAdded =
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
   | { kind: "notFound" }
-  | { kind: "loggedOut" };
+  | SessionEnded;
 
 export async function addIdea(accessToken: AccessToken, projectId: string, text: string): Promise<IdeaAdded> {
   let planted: Planted;
@@ -41,9 +51,10 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
   return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
 }
 
-function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | { kind: "loggedOut" } {
-  if (error instanceof LoggedOut) {
-    return { kind: "loggedOut" };
+function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
+  const ended = sessionEnded(error);
+  if (ended) {
+    return ended;
   }
 
   if (error instanceof NotFound) {

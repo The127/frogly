@@ -7,6 +7,7 @@ export interface Login {
   // asked for on every call, since the token renews in the background
   accessToken: () => Promise<string>;
   onLoggedOut: () => void;
+  onNotAllowed: () => void;
 }
 
 export const [getLogin, setLogin] = createContext<Login>();

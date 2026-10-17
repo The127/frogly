@@ -55,11 +55,12 @@ var _ = Describe("seeing your name", func() {
 })
 ```
 
-A test logs in as one of two service users, `frogly-tests` and
-`frogly-tests-2`, with the keys in `dev/keyline/test-service-user.pem` and
-`dev/keyline/test-service-user-2.pem`. There are two, so a test can check
-what one person can't see of another's. The files carry the `integration`
-build tag, so `go test ./...` leaves them out.
+A test logs in as one of three service users, with the keys in
+`dev/keyline/`. `frogly-tests` and `frogly-tests-2` have frogly's role in
+Keyline. There are two, so a test can check what one person can't see of
+another's. `frogly-tests-no-role` has no role, so frogly turns it away. The
+test files carry the `integration` build tag, so `go test ./...` leaves
+them out.
 
 Tests in `internal/` that need a running service, like the Postgres
 adapter's, carry the same tag, and `just integration` runs them too. They

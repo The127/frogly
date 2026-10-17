@@ -33,11 +33,15 @@ initialVirtualServer:
     displayName: "Karo"
     primaryEmail: "karo@frogly.local"
     passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$c6kr9Bazt2CNZekYzlL7ag$n3F+aAHuOhpqrAfL8shRO+zr+sQgGobaJa+YL8FQCts"
+    roles: ["frogly:frogly-user"]
   # the integration tests log in as these users with the private keys in
-  # test-service-user.pem and test-service-user-2.pem. Two of them, so a
-  # test can check what one person can't see of another's.
+  # test-service-user.pem, test-service-user-2.pem and
+  # test-service-user-no-role.pem. Two of them may use frogly, so a test can
+  # check what one person can't see of another's. The third has no frogly
+  # role, so frogly turns it away.
   serviceUsers:
     - username: "frogly-tests"
+      roles: ["frogly:frogly-user"]
       publicKey:
         kid: "frogly-tests"
         pem: |
@@ -45,16 +49,29 @@ initialVirtualServer:
           MCowBQYDK2VwAyEAs0EvhIJLH2/P2Ez6JFZ+N8C5PqHxWCabcsr+CruUNtI=
           -----END PUBLIC KEY-----
     - username: "frogly-tests-2"
+      roles: ["frogly:frogly-user"]
       publicKey:
         kid: "frogly-tests-2"
         pem: |
           -----BEGIN PUBLIC KEY-----
           MCowBQYDK2VwAyEAv0UVcyA/UCi78I36XZpnEPl2+nmVoGv8QnMqT7vyqFc=
           -----END PUBLIC KEY-----
+    - username: "frogly-tests-no-role"
+      publicKey:
+        kid: "frogly-tests-no-role"
+        pem: |
+          -----BEGIN PUBLIC KEY-----
+          MCowBQYDK2VwAyEArViC+jCaeXUd0w9DijPDczygvtAccMkoBJQEP2+xPVw=
+          -----END PUBLIC KEY-----
   projects:
     - slug: "frogly"
       name: "frogly"
       description: "frogly, the task planner"
+      # whoever has this role may use frogly. Keyline writes it into the
+      # token's roles claim as frogly:frogly-user.
+      roles:
+        - name: "frogly-user"
+          description: "may use frogly"
       applications:
         - name: "frogly"
           displayName: "frogly"
