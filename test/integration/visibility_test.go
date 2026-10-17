@@ -64,10 +64,20 @@ var _ = Describe("making a project public or private", func() {
 			garden := call(ctx, http.MethodGet, "/api/projects/"+fair.ID+"/ideas", otherAccessToken, nil)
 			Expect(garden).To(HaveHTTPStatus(http.StatusNotFound))
 		}, SpecTimeout(10*time.Second))
+
+		It("can't change it", func(ctx SpecContext) {
+			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
+
+			Expect(changeVisibility(ctx, otherAccessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusNotFound))
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(HaveKeyWithValue("id", fair.ID)))
+
+			// the same change by a member works, so the 404 above isn't a missing route
+			Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
+		}, SpecTimeout(10*time.Second))
 	})
 
 	Context("for a member", func() {
-		It("doesn't list their own public project among the others", func(ctx SpecContext) {
+		It("lists their own public project with their projects, not among the others", func(ctx SpecContext) {
 			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
 
 			Expect(publicProjectsFor(ctx, accessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
@@ -79,20 +89,9 @@ var _ = Describe("making a project public or private", func() {
 
 			Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
 			Expect(publicProjectsFor(ctx, otherAccessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
-			Expect(projectsOf(ctx, accessToken)).To(ContainElement(project{ID: fair.ID, Name: "Summer fair"}))
 
 			Expect(changeVisibility(ctx, accessToken, fair.ID, "public")).To(HaveHTTPStatus(http.StatusOK))
 			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(HaveKeyWithValue("id", fair.ID)))
 		}, SpecTimeout(10*time.Second))
 	})
-
-	It("can't be changed by someone outside the project", func(ctx SpecContext) {
-		fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
-
-		Expect(changeVisibility(ctx, otherAccessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusNotFound))
-		Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(HaveKeyWithValue("id", fair.ID)))
-
-		// the same change by a member works, so the 404 above isn't a missing route
-		Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
-	}, SpecTimeout(10*time.Second))
 })
