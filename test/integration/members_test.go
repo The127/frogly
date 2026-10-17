@@ -55,22 +55,36 @@ var _ = Describe("adding someone to your project", func() {
 	}, SpecTimeout(10*time.Second))
 
 	It("doesn't find someone who is a member already", func(ctx SpecContext) {
+		loggedInOnce(ctx, otherAccessToken)
 		garden := createProject(ctx, accessToken, "Garden", "private")
 
-		Expect(search(ctx, accessToken, garden.ID, "frogly-tests")).NotTo(ContainElement(HaveField("Name", "frogly-tests")))
+		found := search(ctx, accessToken, garden.ID, "frogly-tests")
+		Expect(found).To(ContainElement(HaveField("Name", "frogly-tests-2")))
+		Expect(found).NotTo(ContainElement(HaveField("Name", "frogly-tests")))
 	}, SpecTimeout(10*time.Second))
 
 	Context("from a project you aren't a member of", func() {
-		It("neither searches nor adds anyone", func(ctx SpecContext) {
-			loggedInOnce(ctx, otherAccessToken)
+		It("doesn't search", func(ctx SpecContext) {
 			garden := createProject(ctx, accessToken, "Garden", "public")
-			outsider := search(ctx, accessToken, garden.ID, "tests-2")[0]
 
 			searched := call(ctx, http.MethodGet, "/api/projects/"+garden.ID+"/people?search=frogly", otherAccessToken, nil)
 			Expect(searched).To(HaveHTTPStatus(http.StatusNotFound))
-			Expect(addMember(ctx, otherAccessToken, garden.ID, outsider.ID)).To(HaveHTTPStatus(http.StatusNotFound))
 
+			// the same search by a member works, so the 404 above isn't a missing route
+			search(ctx, accessToken, garden.ID, "frogly")
+		}, SpecTimeout(10*time.Second))
+
+		It("doesn't add anyone", func(ctx SpecContext) {
+			loggedInOnce(ctx, otherAccessToken)
+			garden := createProject(ctx, accessToken, "Garden", "public")
+			found := search(ctx, accessToken, garden.ID, "frogly-tests-2")
+			Expect(found).To(HaveLen(1))
+
+			Expect(addMember(ctx, otherAccessToken, garden.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusNotFound))
 			Expect(projectsOf(ctx, otherAccessToken)).NotTo(ContainElement(HaveField("ID", garden.ID)))
+
+			// the same addition by a member works, so the 404 above isn't a missing route
+			Expect(addMember(ctx, accessToken, garden.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusOK))
 		}, SpecTimeout(10*time.Second))
 	})
 })
