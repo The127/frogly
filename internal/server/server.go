@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -45,14 +46,14 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 			"clientId": oidc.ClientID,
 		})
 	})
-	mux.Handle("GET /api/me", authenticated(verifier, services, func(_ *http.Request, caller caller) (int, any, error) {
+	mux.Handle("GET /api/me", authenticated(verifier, oidc.Roles.User, services, func(_ *http.Request, caller caller) (int, any, error) {
 		return http.StatusOK, map[string]string{"name": caller.user.Name()}, nil
 	}))
-	mux.Handle("GET /api/projects", authenticated(verifier, services, listProjects))
-	mux.Handle("POST /api/projects", authenticated(verifier, services, createProject))
-	mux.Handle("GET /api/projects/{id}", authenticated(verifier, services, getProject))
-	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, services, listGarden))
-	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, services, plantIdea))
+	mux.Handle("GET /api/projects", authenticated(verifier, oidc.Roles.User, services, listProjects))
+	mux.Handle("POST /api/projects", authenticated(verifier, oidc.Roles.User, services, createProject))
+	mux.Handle("GET /api/projects/{id}", authenticated(verifier, oidc.Roles.User, services, getProject))
+	mux.Handle("GET /api/projects/{id}/ideas", authenticated(verifier, oidc.Roles.User, services, listGarden))
+	mux.Handle("POST /api/projects/{id}/ideas", authenticated(verifier, oidc.Roles.User, services, plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
 
 	return logRequests(logger, mux)
@@ -157,7 +158,10 @@ type endpoint func(r *http.Request, caller caller) (int, any, error)
 // bigger than this is a mistake
 const maxBody = 4 << 10
 
-func authenticated(verifier Verifier, services *ioc.DependencyProvider, next endpoint) http.Handler {
+// authenticated lets a request through only for a person with userRole,
+// frogly's role in the login. It checks before it looks the person up, so
+// frogly stores nobody who may not use it.
+func authenticated(verifier Verifier, userRole string, services *ioc.DependencyProvider, next endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
 		w.Header().Set("Cache-Control", "no-store")
@@ -185,6 +189,12 @@ func authenticated(verifier Verifier, services *ioc.DependencyProvider, next end
 		if err != nil {
 			w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
 			writeProblem(w, http.StatusUnauthorized)
+
+			return
+		}
+
+		if !slices.Contains(person.Roles, userRole) {
+			writeProblem(w, http.StatusForbidden)
 
 			return
 		}
