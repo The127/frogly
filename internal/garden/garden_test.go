@@ -1,6 +1,7 @@
 package garden_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -223,4 +224,45 @@ func TestAnIdeaThatIsntInTheProjectIsNotFound(t *testing.T) {
 		// assert
 		require.ErrorIs(t, err, garden.ErrIdeaNotFound)
 	}
+}
+
+// racedUnit saves the same me too through another unit of work right
+// before its own save, like a second tab of the same person.
+type racedUnit struct {
+	db.Context
+
+	database db.Database
+	ideaID   uuid.UUID
+	userID   uuid.UUID
+}
+
+func (unit racedUnit) SaveChanges(ctx context.Context) error {
+	meToo, err := repositories.NewMeToo(unit.ideaID, unit.userID)
+	if err != nil {
+		return err
+	}
+
+	other := unit.database.NewContext()
+	other.MeToos().Insert(meToo)
+
+	err = other.SaveChanges(ctx)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestAMeTooThatLostARaceToTheSamePersonCountsOnce(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	_, ana, project, idea := sharedIdea(t, database)
+	unit := racedUnit{Context: database.NewContext(), database: database, ideaID: idea.ID(), userID: ana.ID()}
+
+	// act
+	said, err := garden.MeToo(t.Context(), unit, ana, project.ID(), idea.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, 2, said.People)
 }

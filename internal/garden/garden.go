@@ -59,11 +59,9 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 
 // MeToo puts user behind an idea in the project's garden and gives the
 // idea back with how many people want it. Saying it again, or as the
-// planter, changes nothing, since they count already. When one person
-// says it twice at the same moment, one of the two gets
-// repositories.ErrConcurrentModification, and trying again works. A
-// project user may not see gives projects.ErrNotFound, and an idea that
-// isn't in it ErrIdeaNotFound.
+// planter, changes nothing, since they count already, and so does saying
+// it twice at the same moment. A project user may not see gives
+// projects.ErrNotFound, and an idea that isn't in it ErrIdeaNotFound.
 func MeToo(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, ideaID uuid.UUID) (repositories.PlantedIdea, error) {
 	_, err := projects.Get(ctx, unit, user, projectID)
 	if err != nil {
@@ -84,8 +82,12 @@ func MeToo(ctx context.Context, unit db.Context, user *repositories.User, projec
 	}
 
 	said, err := unit.MeToos().Said(ctx, ideaID, user.ID())
-	if err != nil || said {
-		return idea, err
+	if err != nil {
+		return repositories.PlantedIdea{}, err
+	}
+
+	if said {
+		return idea, nil
 	}
 
 	meToo, err := repositories.NewMeToo(ideaID, user.ID())
@@ -96,7 +98,10 @@ func MeToo(ctx context.Context, unit db.Context, user *repositories.User, projec
 	unit.MeToos().Insert(meToo)
 
 	err = unit.SaveChanges(ctx)
-	if err != nil {
+
+	// the same person's me too from elsewhere got saved in between, which
+	// the unique pair refuses as a race, and they count once either way
+	if err != nil && !errors.Is(err, repositories.ErrConcurrentModification) {
 		return repositories.PlantedIdea{}, fmt.Errorf("saving the me too of user %s for idea %s: %w", user.ID(), ideaID, err)
 	}
 
