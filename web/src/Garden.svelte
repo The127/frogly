@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
 
   import { type Idea, type Project, maxIdeaLength } from "./api";
-  import { addIdea, loadGarden, plantedOn } from "./garden";
+  import { addIdea, loadGarden, plantedOn, switchVisibility } from "./garden";
   import { getLogin } from "./login";
   import { p } from "./router";
 
@@ -16,6 +16,8 @@
   let text = $state("");
   let problem = $state("");
   let saving = $state(false);
+  let switching = $state(false);
+  let visibilityProblem = $state("");
 
   onMount(async () => {
     const loaded = await loadGarden(login.accessToken, projectId);
@@ -27,6 +29,38 @@
       garden = loaded;
     }
   });
+
+  async function toggleVisibility() {
+    if (switching || garden.kind !== "listed") {
+      return;
+    }
+
+    switching = true;
+    visibilityProblem = "";
+
+    const other = garden.project.visibility === "public" ? "private" : "public";
+    const switched = await switchVisibility(login.accessToken, projectId, other);
+    switching = false;
+
+    switch (switched.kind) {
+      case "changed":
+        if (garden.kind === "listed") {
+          garden = { ...garden, project: switched.project };
+        }
+        break;
+      case "notChanged":
+        visibilityProblem = "frogly couldn't change who sees the project. Try again in a moment.";
+        break;
+      case "notFound":
+        garden = { kind: "notFound" };
+        break;
+      case "loggedOut":
+        login.onLoggedOut();
+        break;
+      case "notAllowed":
+        login.onNotAllowed();
+    }
+  }
 
   async function plant(event: SubmitEvent) {
     event.preventDefault();
@@ -75,6 +109,14 @@
   <p class="quiet">Reload the page in a moment.</p>
 {:else}
   <h1>{garden.project.name}</h1>
+  <p class="quiet visibility">
+    {garden.project.visibility === "public" ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
+    <button class="btn" onclick={toggleVisibility} aria-busy={switching}>
+      make it {garden.project.visibility === "public" ? "private" : "public"}
+    </button>
+  </p>
+  <!-- always there, so screen readers announce the text when it changes -->
+  <p class="problem" role="alert">{visibilityProblem}</p>
 
   <form onsubmit={plant}>
     <label class="hidden" for="idea-text">A new idea</label>

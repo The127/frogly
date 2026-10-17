@@ -4,6 +4,7 @@ import {
   LoggedOut,
   NotAllowed,
   NotFound,
+  changeVisibility,
   createProject,
   fetchConfig,
   fetchGarden,
@@ -133,6 +134,46 @@ describe("fetchProjects", () => {
 
     // assert
     await expect(projects).rejects.toThrow("503");
+  });
+});
+
+describe("changeVisibility", () => {
+  it("sends the visibility and gives the changed project", async () => {
+    // arrange
+    respondWith(200, { id: "p-1", name: "Garden", visibility: "public" });
+
+    // act
+    const project = await changeVisibility("an-access-token", "p-1", "public");
+
+    // assert
+    expect(project).toEqual({ id: "p-1", name: "Garden", visibility: "public" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/visibility", {
+      method: "PUT",
+      headers: { Authorization: "Bearer an-access-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ visibility: "public" }),
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const project = changeVisibility("an-access-token", "p-1", "public");
+
+    // assert
+    await expect(project).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const project = changeVisibility("an-access-token", "p-1", "public");
+
+    // assert
+    await expect(project).rejects.toThrow("503");
   });
 });
 

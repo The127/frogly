@@ -1,13 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type Idea, LoggedOut, NotAllowed, NotFound, type Project, fetchGarden, fetchProject, plantIdea } from "./api";
-import { addIdea, loadGarden, plantedOn } from "./garden";
+import {
+  type Idea,
+  LoggedOut,
+  NotAllowed,
+  NotFound,
+  type Project,
+  changeVisibility,
+  fetchGarden,
+  fetchProject,
+  plantIdea,
+} from "./api";
+import { addIdea, loadGarden, plantedOn, switchVisibility } from "./garden";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   fetchGarden: vi.fn(),
   fetchProject: vi.fn(),
   plantIdea: vi.fn(),
+  changeVisibility: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -138,6 +149,36 @@ describe("addIdea", () => {
 
     // act
     const outcome = await addIdea(token, "p-1", "an idea");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("switchVisibility", () => {
+  it("gives the changed project", async () => {
+    // arrange
+    vi.mocked(changeVisibility).mockResolvedValue({ ...project, visibility: "public" });
+
+    // act
+    const outcome = await switchVisibility(token, "p-1", "public");
+
+    // assert
+    expect(outcome).toEqual({ kind: "changed", project: { ...project, visibility: "public" } });
+    expect(changeVisibility).toHaveBeenCalledWith("an-access-token", "p-1", "public");
+  });
+
+  it.each([
+    { name: "the change failed", error: new Error("frogly answered 500"), kind: "notChanged" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(changeVisibility).mockRejectedValue(error);
+
+    // act
+    const outcome = await switchVisibility(token, "p-1", "public");
 
     // assert
     expect(outcome).toEqual({ kind });

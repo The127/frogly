@@ -132,6 +132,23 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   return (await response.json()) as Project[];
 }
 
+export async function changeVisibility(accessToken: string, projectId: string, visibility: Visibility): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/visibility`, accessToken, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to change a project's visibility`);
+  }
+
+  return (await response.json()) as Project;
+}
+
 export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {
   const response = await authorized("/api/projects/public", accessToken);
   if (!response.ok) {

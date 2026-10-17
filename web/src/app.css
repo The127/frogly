@@ -170,6 +170,13 @@ a {
   margin: 4px 0 0;
 }
 
+.visibility {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
 .choice {
   border: 0;
   padding: 0;
