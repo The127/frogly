@@ -19,6 +19,17 @@ import (
 // of it. It doesn't say which, so nobody learns which projects exist.
 var ErrNotFound = errors.New("project not found")
 
+// ErrUnknownPerson refuses to add someone frogly doesn't know.
+var ErrUnknownPerson = repositories.Invalid("nobody with that ID uses frogly")
+
+// searchLimit keeps a search to a list someone reads at a glance, and
+// stops a short text from listing everyone who uses frogly at once.
+const searchLimit = 10
+
+// maxSearch is the longest an email can be, so a longer text can't match
+// anything, and the database never gets a pattern that large.
+const maxSearch = 320
+
 // Create makes a project called name with creator as its only member. A name
 // or visibility frogly can't use gives a *repositories.InvalidError.
 func Create(ctx context.Context, unit db.Context, creator *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
@@ -87,14 +98,6 @@ func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User
 	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
 }
 
-// searchLimit keeps a search to a list someone reads at a glance, and
-// stops a short text from listing everyone who uses frogly at once.
-const searchLimit = 10
-
-// maxSearch is the longest an email can be, so a longer text can't match
-// anything, and the database never gets a pattern that large.
-const maxSearch = 320
-
 // FindPeople lets a member find the people who could join the project, by
 // part of their name or email. Someone who isn't a member gets
 // ErrNotFound, like Get.
@@ -130,7 +133,7 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 
 	added, err := unit.Users().ByID(ctx, userID)
 	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, repositories.Invalid("nobody with that ID uses frogly")
+		return nil, ErrUnknownPerson
 	}
 
 	if err != nil {

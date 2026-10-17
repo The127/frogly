@@ -56,7 +56,7 @@ func addMember(r *http.Request, caller caller) (int, any, error) {
 	// an ID that can't be one gets the answer of an ID nobody has
 	userID, err := uuid.Parse(body.UserID)
 	if err != nil {
-		return 0, nil, repositories.Invalid("nobody with that ID uses frogly")
+		return 0, nil, projects.ErrUnknownPerson
 	}
 
 	added, err := projects.AddMember(r.Context(), caller.unit, caller.user, id, userID)
