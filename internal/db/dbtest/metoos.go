@@ -38,8 +38,8 @@ func (s *meToosSuite) TestAnIdeaCountsItsPlanter() {
 	s.Equal(1, ideas[0].People)
 }
 
-// TestEachMeTooCountsOnePersonMore checks the count in the garden and for
-// one idea, each idea with its own me toos.
+// TestEachMeTooCountsOnePersonMore checks that each idea in the garden
+// counts its own me toos.
 func (s *meToosSuite) TestEachMeTooCountsOnePersonMore() {
 	// arrange
 	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
@@ -51,17 +51,29 @@ func (s *meToosSuite) TestEachMeTooCountsOnePersonMore() {
 
 	// act
 	ideas, err := s.database.NewContext().Ideas().ListInProject(s.T().Context(), garden.ID())
-	one, oneErr := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), garden.ID(), search.ID())
 
 	// assert
 	s.Require().NoError(err)
-	s.Require().NoError(oneErr)
 	s.Require().Len(ideas, 2)
 	s.Equal(1, ideas[0].People, "the newer idea has nobody but its planter")
 	s.Equal(3, ideas[1].People)
-	s.Equal(3, one.People)
-	s.Equal("Karo", one.PlantedBy)
-	s.Equal(search.ID(), one.Idea.ID())
+}
+
+// TestOneIdeaCountsItsMeToos checks the count when a single idea is
+// loaded.
+func (s *meToosSuite) TestOneIdeaCountsItsMeToos() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+	search := s.savedIdea(garden, karo, "search by any word")
+	s.savedMeToo(search, ana)
+
+	// act
+	one, err := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), garden.ID(), search.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(2, one.People)
 }
 
 // TestAPlantersMeTooDoesntCount checks that the planter counts once, even
@@ -120,33 +132,6 @@ func (s *meToosSuite) TestWhoSaidMeTooIsKnown() {
 	s.Require().NoError(tomasErr)
 	s.True(anaSaid)
 	s.False(tomasSaid)
-}
-
-// TestAnIdeaIsFoundOnlyInItsProject checks that an idea's ID doesn't find
-// it through another project, nor an ID that no idea has.
-func (s *meToosSuite) TestAnIdeaIsFoundOnlyInItsProject() {
-	// arrange
-	karo := s.savedUser("Karo")
-	garden := s.savedProject("Garden", karo)
-	kitchen := s.savedProject("Kitchen", karo)
-	idea := s.savedIdea(garden, karo, "search by any word")
-
-	for _, test := range []struct {
-		name      string
-		projectID uuid.UUID
-		ideaID    uuid.UUID
-	}{
-		{name: "another project", projectID: kitchen.ID(), ideaID: idea.ID()},
-		{name: "no such idea", projectID: garden.ID(), ideaID: uuid.Must(uuid.NewV7())},
-	} {
-		s.Run(test.name, func() {
-			// act
-			_, err := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), test.projectID, test.ideaID)
-
-			// assert
-			s.Require().ErrorIs(err, repositories.ErrNotFound)
-		})
-	}
 }
 
 // TestAMeTooNeedsAnExistingIdea checks that a me too can't point to an

@@ -149,3 +149,48 @@ func (s *ideasSuite) TestAnIdeaNeedsAnExistingPlanter() {
 	s.Require().NoError(err)
 	s.Empty(ideas)
 }
+
+// TestOneIdeaComesBackWithItsPlanter checks that a single idea loads with
+// who planted it.
+func (s *ideasSuite) TestOneIdeaComesBackWithItsPlanter() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	idea := s.savedIdea(garden, karo, "search by any word")
+
+	// act
+	one, err := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), garden.ID(), idea.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(idea.ID(), one.Idea.ID())
+	s.Equal("search by any word", one.Idea.Text())
+	s.Equal("Karo", one.PlantedBy)
+}
+
+// TestAnIdeaIsFoundOnlyInItsProject checks that an idea's ID doesn't find
+// it through another project, nor an ID that no idea has.
+func (s *ideasSuite) TestAnIdeaIsFoundOnlyInItsProject() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	kitchen := s.savedProject("Kitchen", karo)
+	idea := s.savedIdea(garden, karo, "search by any word")
+
+	for _, test := range []struct {
+		name      string
+		projectID uuid.UUID
+		ideaID    uuid.UUID
+	}{
+		{name: "another project", projectID: kitchen.ID(), ideaID: idea.ID()},
+		{name: "no such idea", projectID: garden.ID(), ideaID: uuid.Must(uuid.NewV7())},
+	} {
+		s.Run(test.name, func() {
+			// act
+			_, err := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), test.projectID, test.ideaID)
+
+			// assert
+			s.Require().ErrorIs(err, repositories.ErrNotFound)
+		})
+	}
+}
