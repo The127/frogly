@@ -64,6 +64,23 @@ func (s *meToosSuite) TestEachMeTooCountsOnePersonMore() {
 	s.Equal(search.ID(), one.Idea.ID())
 }
 
+// TestAPlantersMeTooDoesntCount checks that the planter counts once, even
+// with a me too of their own stored.
+func (s *meToosSuite) TestAPlantersMeTooDoesntCount() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+	idea := s.savedIdea(garden, karo, "search by any word")
+	s.savedMeToo(idea, karo)
+
+	// act
+	one, err := s.database.NewContext().Ideas().ByIDInProject(s.T().Context(), garden.ID(), idea.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(1, one.People)
+}
+
 // TestAUserSaysMeTooToAnIdeaOnlyOnce checks that a second me too of the
 // same user is refused like a race.
 func (s *meToosSuite) TestAUserSaysMeTooToAnIdeaOnlyOnce() {
