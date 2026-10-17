@@ -22,8 +22,7 @@
     saving = true;
     problem = "";
 
-    // only a public project can be joined, a private one starts closed
-    const added = await addProject(login.accessToken, name, visibility, visibility === "public" ? joining : undefined);
+    const added = await addProject(login.accessToken, name, visibility, joining);
     saving = false;
 
     switch (added.kind) {

@@ -1,8 +1,8 @@
 import {
   type Created,
+  type Joining,
   type Project,
   type PublicProject,
-  type Joining,
   type SessionEnded,
   type Visibility,
   createProject,
@@ -48,7 +48,8 @@ export async function addProject(
   let created: Created;
 
   try {
-    created = await createProject(await accessToken(), name, visibility, joining);
+    // only a public project can be joined, a private one starts closed
+    created = await createProject(await accessToken(), name, visibility, visibility === "public" ? joining : undefined);
   } catch (error) {
     const ended = sessionEnded(error);
     if (ended) {

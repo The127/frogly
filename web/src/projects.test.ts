@@ -30,6 +30,17 @@ describe("addProject", () => {
     expect(createProject).toHaveBeenCalledWith("an-access-token", "Garden", "private", undefined);
   });
 
+  it("sends no choice of who can join for a private project", async () => {
+    // arrange
+    vi.mocked(createProject).mockResolvedValue({ project: garden });
+
+    // act
+    await addProject(token, "Garden", "private", "open");
+
+    // assert
+    expect(createProject).toHaveBeenCalledWith("an-access-token", "Garden", "private", undefined);
+  });
+
   it("gives frogly's reason when the name can't be used", async () => {
     // arrange
     vi.mocked(createProject).mockResolvedValue({ problem: "a project needs a name" });
