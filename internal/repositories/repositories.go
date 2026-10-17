@@ -21,6 +21,12 @@ func invalid(format string, args ...any) error {
 	return &InvalidError{reason: fmt.Sprintf(format, args...)}
 }
 
+// Invalid refuses a request with reason, for a check that belongs to no
+// model, like a search without any text.
+func Invalid(reason string) error {
+	return &InvalidError{reason: reason}
+}
+
 // Reason says what's wrong, like "a project needs a name", without
 // anything only frogly's code cares about.
 func (err *InvalidError) Reason() string {

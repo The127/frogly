@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -83,4 +84,67 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 // ListPublicFor lists the public projects user isn't a member of.
 func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]*repositories.Project, error) {
 	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
+}
+
+// searchLimit keeps a search to a list someone reads at a glance, and
+// stops a short text from listing everyone who uses frogly at once.
+const searchLimit = 10
+
+// FindPeople lets a member find the people who could join the project, by
+// part of their name or email. Someone who isn't a member gets
+// ErrNotFound, like Get.
+func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, text string) ([]*repositories.User, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil, repositories.Invalid("type part of a name or an email")
+	}
+
+	return unit.Users().SearchNonMembers(ctx, projectID, text, searchLimit)
+}
+
+// AddMember lets a member add someone who has logged in to frogly, and
+// gives them back. Adding a member again changes nothing. Someone who
+// isn't a member gets ErrNotFound, like Get.
+func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	added, err := unit.Users().ByID(ctx, userID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return nil, repositories.Invalid("nobody with that ID uses frogly")
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
+	if err == nil {
+		return added, nil
+	}
+
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return nil, err
+	}
+
+	membership, err := repositories.NewMembership(projectID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Memberships().Insert(membership)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("adding user %s to project %s: %w", userID, projectID, err)
+	}
+
+	return added, nil
 }
