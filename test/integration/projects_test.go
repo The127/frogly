@@ -49,8 +49,8 @@ func projectsOf(ctx context.Context, token string) []project {
 	return projects
 }
 
-// createProject makes a public project closed, the way a project only a
-// member adds people to worked before joining existed
+// a public project starts closed here, so only the tests about joining
+// let anyone in
 func createProject(ctx context.Context, token string, name string, visibility string) project {
 	body := map[string]string{"name": name, "visibility": visibility}
 	if visibility == "public" {
