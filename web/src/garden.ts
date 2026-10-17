@@ -1,13 +1,12 @@
 import {
   type Idea,
-  NotFound,
   type Planted,
   type Project,
   type SessionEnded,
+  failure,
   fetchGarden,
   fetchProject,
   plantIdea,
-  sessionEnded,
 } from "./api";
 
 type AccessToken = () => Promise<string>;
@@ -49,21 +48,6 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
   }
 
   return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
-}
-
-function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
-  const ended = sessionEnded(error);
-  if (ended) {
-    return ended;
-  }
-
-  if (error instanceof NotFound) {
-    return { kind: "notFound" };
-  }
-
-  console.error(error);
-
-  return { kind: "failed" };
 }
 
 // The day an idea was planted, as the person reads dates. The locale and

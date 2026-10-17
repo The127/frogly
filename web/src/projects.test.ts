@@ -1,32 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects } from "./api";
-import { addProject, loadProjects } from "./projects";
+import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects, fetchPublicProjects } from "./api";
+import { addProject, loadProjects, loadPublicProjects, nameFrom } from "./projects";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
   createProject: vi.fn(),
   fetchProjects: vi.fn(),
+  fetchPublicProjects: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
-const garden: Project = { id: "p-1", name: "Garden" };
+const garden: Project = { id: "p-1", name: "Garden", visibility: "private" };
 const token = async () => "an-access-token";
 
 describe("addProject", () => {
-  it("gives the new list once the project is saved", async () => {
+  it("gives the new project once it's saved", async () => {
     // arrange
     vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockResolvedValue([garden]);
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
-    expect(outcome).toEqual({ kind: "saved", projects: [garden] });
+    expect(outcome).toEqual({ kind: "saved", project: garden });
+    expect(createProject).toHaveBeenCalledWith("an-access-token", "Garden", "private");
   });
 
   it("gives frogly's reason when the name can't be used", async () => {
@@ -34,35 +35,10 @@ describe("addProject", () => {
     vi.mocked(createProject).mockResolvedValue({ problem: "a project needs a name" });
 
     // act
-    const outcome = await addProject(token, "  ");
+    const outcome = await addProject(token, "  ", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "refused", problem: "a project needs a name" });
-    expect(fetchProjects).not.toHaveBeenCalled();
-  });
-
-  it("says the project is saved when only the list fails", async () => {
-    // arrange
-    vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockRejectedValue(new Error("frogly answered 503"));
-
-    // act
-    const outcome = await addProject(token, "Garden");
-
-    // assert
-    expect(outcome).toEqual({ kind: "savedButNotListed" });
-  });
-
-  it("notices a lost role when listing after the save", async () => {
-    // arrange
-    vi.mocked(createProject).mockResolvedValue({ project: garden });
-    vi.mocked(fetchProjects).mockRejectedValue(new NotAllowed());
-
-    // act
-    const outcome = await addProject(token, "Garden");
-
-    // assert
-    expect(outcome).toEqual({ kind: "notAllowed" });
   });
 
   it("says the save failed when it did", async () => {
@@ -70,7 +46,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new Error("frogly answered 500"));
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "notSaved" });
@@ -81,7 +57,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new LoggedOut());
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "loggedOut" });
@@ -92,7 +68,7 @@ describe("addProject", () => {
     vi.mocked(createProject).mockRejectedValue(new NotAllowed());
 
     // act
-    const outcome = await addProject(token, "Garden");
+    const outcome = await addProject(token, "Garden", "private");
 
     // assert
     expect(outcome).toEqual({ kind: "notAllowed" });
@@ -142,5 +118,51 @@ describe("loadProjects", () => {
 
     // assert
     expect(outcome).toEqual({ kind: "failed" });
+  });
+});
+
+describe("loadPublicProjects", () => {
+  it("gives the public projects of others", async () => {
+    // arrange
+    vi.mocked(fetchPublicProjects).mockResolvedValue([{ id: "p-2", name: "Summer fair" }]);
+
+    // act
+    const outcome = await loadPublicProjects(token);
+
+    // assert
+    expect(outcome).toEqual({ kind: "listed", projects: [{ id: "p-2", name: "Summer fair" }] });
+  });
+
+  it.each([
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+    { name: "the list can't be loaded", error: new Error("frogly answered 503"), kind: "failed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(fetchPublicProjects).mockRejectedValue(error);
+
+    // act
+    const outcome = await loadPublicProjects(token);
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("nameFrom", () => {
+  it.each(["Summer fair", "2024", "007", "true", " ", "a&b=c"])("keeps %j as the text it is", (name) => {
+    // act
+    const read = nameFrom("?" + new URLSearchParams({ name }).toString());
+
+    // assert
+    expect(read).toBe(name);
+  });
+
+  it("is empty without a name", () => {
+    // act
+    const read = nameFrom("");
+
+    // assert
+    expect(read).toBe("");
   });
 });

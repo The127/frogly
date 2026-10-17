@@ -114,6 +114,10 @@ func (unit *Context) apply(ctx context.Context, tx *sql.Tx, entry *change.Entry)
 		return unit.identities.ExecuteInsert(ctx, tx, item)
 
 	case *repositories.Project:
+		if entry.Type() == change.Updated {
+			return unit.projects.ExecuteUpdate(ctx, tx, item)
+		}
+
 		return unit.projects.ExecuteInsert(ctx, tx, item)
 
 	case *repositories.Membership:

@@ -18,9 +18,9 @@ import (
 var ErrNotFound = errors.New("project not found")
 
 // Create makes a project called name with owner as its only member. A name
-// frogly can't use gives a *repositories.InvalidError.
-func Create(ctx context.Context, unit db.Context, owner *repositories.User, name string) (*repositories.Project, error) {
-	project, err := repositories.NewProject(name)
+// or visibility frogly can't use gives a *repositories.InvalidError.
+func Create(ctx context.Context, unit db.Context, owner *repositories.User, name string, visibility repositories.Visibility) (*repositories.Project, error) {
+	project, err := repositories.NewProject(name, visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -55,4 +55,32 @@ func Get(ctx context.Context, unit db.Context, user *repositories.User, projectI
 	}
 
 	return project, err
+}
+
+// ChangeVisibility lets a member make the project public or private. It
+// gives ErrNotFound to someone who isn't a member, like Get.
+func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, visibility repositories.Visibility) (*repositories.Project, error) {
+	project, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = project.ChangeVisibility(visibility)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Projects().Update(project)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("saving the visibility of project %s: %w", projectID, err)
+	}
+
+	return project, nil
+}
+
+// ListPublicFor lists the public projects user isn't a member of.
+func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]*repositories.Project, error) {
+	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
 }

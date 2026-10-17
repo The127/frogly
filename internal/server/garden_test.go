@@ -16,7 +16,13 @@ import (
 func createdProject(t *testing.T, handler http.Handler) string {
 	t.Helper()
 
-	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden"}`)
+	return createdProjectWith(t, handler, "private")
+}
+
+func createdProjectWith(t *testing.T, handler http.Handler, visibility string) string {
+	t.Helper()
+
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "`+visibility+`"}`)
 	require.Equal(t, http.StatusCreated, created.Code)
 
 	var project struct {

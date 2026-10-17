@@ -123,7 +123,7 @@ func (s *projectsSuite) TestAUserIsAMemberOfAProjectOnlyOnce() {
 func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
 	// arrange
 	karo := s.savedUser("Karo")
-	nowhere, err := repositories.NewProject("Nowhere")
+	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate)
 	s.Require().NoError(err)
 
 	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID(), repositories.RoleOwner)
@@ -138,4 +138,119 @@ func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
 	// assert
 	s.Require().Error(err)
 	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestAProjectKeepsItsVisibility checks that a project loads as public or
+// private, as it was saved.
+func (s *projectsSuite) TestAProjectKeepsItsVisibility() {
+	for _, visibility := range []repositories.Visibility{repositories.VisibilityPublic, repositories.VisibilityPrivate} {
+		s.Run(string(visibility), func() {
+			// arrange
+			karo := s.savedUser("Karo")
+			garden := s.savedProjectWith("Garden", karo, visibility)
+
+			// act
+			found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+
+			// assert
+			s.Require().NoError(err)
+			s.Equal(visibility, found.Visibility())
+		})
+	}
+}
+
+// TestPublicProjectsAreListedForNonMembers checks that the list holds the
+// public projects of others only, sorted like a member's list.
+func (s *projectsSuite) TestPublicProjectsAreListedForNonMembers() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProjectWith("garden", ana, repositories.VisibilityPublic)
+	board := s.savedProjectWith("Board", ana, repositories.VisibilityPublic)
+	s.savedProjectWith("Secret", ana, repositories.VisibilityPrivate)
+	s.savedProjectWith("Kitchen", karo, repositories.VisibilityPublic)
+
+	// act
+	projects, err := s.database.NewContext().Projects().ListPublicForNonMember(s.T().Context(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(projects, 2)
+	s.Equal(board.ID(), projects[0].ID(), "upper case sorts before lower case")
+	s.Equal("Board", projects[0].Name())
+	s.Equal(repositories.VisibilityPublic, projects[0].Visibility())
+	s.Equal(garden.ID(), projects[1].ID())
+}
+
+// TestAChangedVisibilityIsSaved checks that an update writes the new
+// visibility and the next version.
+func (s *projectsSuite) TestAChangedVisibilityIsSaved() {
+	// arrange
+	karo := s.savedUser("Karo")
+	saved := s.savedProject("Garden", karo)
+	garden, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), saved.ID(), karo.ID())
+	s.Require().NoError(err)
+	s.Require().NoError(garden.ChangeVisibility(repositories.VisibilityPublic))
+
+	unit := s.database.NewContext()
+	unit.Projects().Update(garden)
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+
+	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+	s.Require().NoError(err)
+	s.Equal(repositories.VisibilityPublic, found.Visibility())
+	s.Equal(2, found.Version())
+}
+
+// TestAStaleProjectUpdateIsAConcurrentModification checks that a change
+// to a project someone saved in between is refused.
+func (s *projectsSuite) TestAStaleProjectUpdateIsAConcurrentModification() {
+	// arrange
+	karo := s.savedUser("Karo")
+	garden := s.savedProject("Garden", karo)
+
+	first, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+	s.Require().NoError(err)
+	second, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+	s.Require().NoError(err)
+
+	s.Require().NoError(first.ChangeVisibility(repositories.VisibilityPublic))
+	unit := s.database.NewContext()
+	unit.Projects().Update(first)
+	s.save(unit)
+
+	s.Require().NoError(second.ChangeVisibility(repositories.VisibilityPublic))
+	stale := s.database.NewContext()
+	stale.Projects().Update(second)
+
+	// act
+	err = stale.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
+}
+
+// TestAPublicProjectWithSeveralMembersIsListedOnce checks that a project
+// with several members shows up once for someone outside it, and not at all
+// for one of its members. A query that joins the memberships could get
+// either wrong.
+func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
+	// arrange
+	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
+	shared := s.savedProjectWith("Shared", ana, repositories.VisibilityPublic)
+	s.savedMember(shared, karo)
+	others := s.savedProjectWith("Others", ana, repositories.VisibilityPublic)
+	s.savedMember(others, tomas)
+
+	// act
+	projects, err := s.database.NewContext().Projects().ListPublicForNonMember(s.T().Context(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(projects, 1)
+	s.Equal(others.ID(), projects[0].ID())
 }

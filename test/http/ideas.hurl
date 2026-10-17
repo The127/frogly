@@ -2,7 +2,7 @@
 POST {{frogly}}/api/projects
 Authorization: Bearer {{token}}
 Content-Type: application/json
-{"name": "Hurl garden"}
+{"name": "Hurl garden", "visibility": "private"}
 HTTP 201
 [Captures]
 project: jsonpath "$.id"

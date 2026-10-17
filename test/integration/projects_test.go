@@ -14,8 +14,9 @@ import (
 )
 
 type project struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Visibility string `json:"visibility"`
 }
 
 func call(ctx context.Context, method string, path string, token string, body any) *http.Response {
@@ -47,8 +48,8 @@ func projectsOf(ctx context.Context, token string) []project {
 	return projects
 }
 
-func createProject(ctx context.Context, token string, name string) project {
-	response := call(ctx, http.MethodPost, "/api/projects", token, map[string]string{"name": name})
+func createProject(ctx context.Context, token string, name string, visibility string) project {
+	response := call(ctx, http.MethodPost, "/api/projects", token, map[string]string{"name": name, "visibility": visibility})
 	Expect(response).To(HaveHTTPStatus(http.StatusCreated))
 
 	var created project
@@ -61,7 +62,7 @@ var _ = Describe("creating a project", func() {
 	It("shows the project in your list and nobody else's", func(ctx SpecContext) {
 		name := "Garden " + time.Now().Format(time.RFC3339Nano)
 
-		created := createProject(ctx, accessToken, name)
+		created := createProject(ctx, accessToken, name, "private")
 		Expect(created.ID).NotTo(BeEmpty())
 		Expect(created.Name).To(Equal(name))
 

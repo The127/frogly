@@ -33,7 +33,7 @@ func TestACreatedProjectIsListedForItsOwner(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
 
 	// assert
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestAProjectIsNotListedForOthers(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
 
-	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
 	require.NoError(t, err)
 
 	// act
@@ -68,7 +68,7 @@ func TestANameFroglyCantUseCreatesNothing(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 
 	// act
-	_, err := projects.Create(t.Context(), database.NewContext(), karo, "  ")
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "  ", repositories.VisibilityPrivate)
 
 	// assert
 	invalid, ok := errors.AsType[*repositories.InvalidError](err)
@@ -87,7 +87,7 @@ func TestAProjectNeedsASavedOwner(t *testing.T) {
 	require.NoError(t, err)
 
 	// act
-	_, err = projects.Create(t.Context(), database.NewContext(), stranger, "Garden")
+	_, err = projects.Create(t.Context(), database.NewContext(), stranger, "Garden", repositories.VisibilityPrivate)
 
 	// assert
 	require.Error(t, err)
@@ -102,7 +102,7 @@ func TestAMemberGetsTheProject(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo := savedUser(t, database, "Karo")
 
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
 	require.NoError(t, err)
 
 	// act
@@ -120,7 +120,7 @@ func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
 	karo := savedUser(t, database, "Karo")
 	ana := savedUser(t, database, "Ana")
 
-	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -140,4 +140,109 @@ func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
 			require.ErrorIs(t, err, projects.ErrNotFound)
 		})
 	}
+}
+
+func TestACreatedProjectHasTheChosenVisibility(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+
+	// act
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+
+	// assert
+	require.NoError(t, err)
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPublic, project.Visibility())
+}
+
+func TestAVisibilityFroglyDoesntKnowCreatesNothing(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+
+	// act
+	_, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", "secret")
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), karo)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+}
+
+func TestAMemberChangesTheVisibility(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	changed, err := projects.ChangeVisibility(t.Context(), database.NewContext(), karo, created.ID(), repositories.VisibilityPublic)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPublic, changed.Visibility())
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPublic, project.Visibility())
+}
+
+func TestOnlyAMemberChangesTheVisibility(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.ChangeVisibility(t.Context(), database.NewContext(), ana, created.ID(), repositories.VisibilityPrivate)
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPublic, project.Visibility())
+}
+
+func TestAVisibilityFroglyDoesntKnowChangesNothing(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	created, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.ChangeVisibility(t.Context(), database.NewContext(), karo, created.ID(), "secret")
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+
+	project, err := projects.Get(t.Context(), database.NewContext(), karo, created.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, project.Visibility())
+}
+
+func TestOthersPublicProjectsAreListed(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	ana := savedUser(t, database, "Ana")
+	fair, err := projects.Create(t.Context(), database.NewContext(), ana, "Summer fair", repositories.VisibilityPublic)
+	require.NoError(t, err)
+
+	// act
+	listed, err := projects.ListPublicFor(t.Context(), database.NewContext(), karo)
+
+	// assert
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, fair.ID(), listed[0].ID())
 }

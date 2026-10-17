@@ -53,7 +53,7 @@ func idsOf(ideas []idea) []string {
 var _ = Describe("planting an idea", func() {
 	Context("in a project you're a member of", func() {
 		It("shows the idea in the garden, newest first, with who planted it and when", func(ctx SpecContext) {
-			garden := createProject(ctx, accessToken, "Garden")
+			garden := createProject(ctx, accessToken, "Garden", "private")
 
 			first := plant(ctx, accessToken, garden.ID, "search should find ideas by any word")
 			second := plant(ctx, accessToken, garden.ID, "  a calmer color for done tickets  ")
@@ -75,7 +75,7 @@ var _ = Describe("planting an idea", func() {
 
 	Context("in a project you aren't a member of", func() {
 		It("neither shows the garden nor takes the idea", func(ctx SpecContext) {
-			garden := createProject(ctx, accessToken, "Garden")
+			garden := createProject(ctx, accessToken, "Garden", "private")
 			plant(ctx, accessToken, garden.ID, "only for members")
 
 			listed := call(ctx, http.MethodGet, "/api/projects/"+garden.ID+"/ideas", otherAccessToken, nil)

@@ -3,16 +3,14 @@
 
   import type { Project } from "./api";
   import { getLogin } from "./login";
-  import { addProject, loadProjects } from "./projects";
-  import { p } from "./router";
+  import { loadProjects } from "./projects";
+  import { navigate, p } from "./router";
 
   const { accessToken, onLoggedOut, onNotAllowed } = getLogin();
 
   let projects = $state<Project[] | undefined>();
   let listFailed = $state(false);
   let name = $state("");
-  let problem = $state("");
-  let saving = $state(false);
 
   onMount(async () => {
     const loaded = await loadProjects(accessToken);
@@ -31,40 +29,9 @@
     }
   });
 
-  async function create(event: SubmitEvent) {
+  function startProject(event: SubmitEvent) {
     event.preventDefault();
-    if (saving) {
-      return;
-    }
-
-    saving = true;
-    problem = "";
-
-    const added = await addProject(accessToken, name);
-    saving = false;
-
-    switch (added.kind) {
-      case "saved":
-        name = "";
-        projects = added.projects;
-        listFailed = false;
-        break;
-      case "savedButNotListed":
-        name = "";
-        listFailed = true;
-        break;
-      case "refused":
-        problem = added.problem;
-        break;
-      case "notSaved":
-        problem = "frogly couldn't save the project. Try again in a moment.";
-        break;
-      case "loggedOut":
-        onLoggedOut();
-        break;
-      case "notAllowed":
-        onNotAllowed();
-    }
+    void navigate("/projects/new", { search: { name } });
   }
 </script>
 
@@ -85,20 +52,8 @@
     </ul>
   {/if}
 
-  <form onsubmit={create}>
+  <form onsubmit={startProject}>
     <label class="hidden" for="project-name">Name of a new project</label>
-    <!-- readonly while saving, since a disabled field would lose the focus -->
-    <input
-      class="plant"
-      id="project-name"
-      bind:value={name}
-      placeholder="name a project…"
-      readonly={saving}
-      aria-busy={saving}
-      aria-invalid={problem ? "true" : undefined}
-      aria-describedby="project-problem"
-    />
-    <!-- always there, so screen readers announce the text when it changes -->
-    <p class="problem" id="project-problem" role="alert">{problem}</p>
+    <input class="plant" id="project-name" bind:value={name} placeholder="name a project…" />
   </form>
 </section>

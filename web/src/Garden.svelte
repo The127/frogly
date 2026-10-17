@@ -75,6 +75,7 @@
   <p class="quiet">Reload the page in a moment.</p>
 {:else}
   <h1>{garden.project.name}</h1>
+  <p class="quiet"><a href={p("/projects/:id/settings", { params: { id: projectId } })}>settings</a></p>
 
   <form onsubmit={plant}>
     <label class="hidden" for="idea-text">A new idea</label>

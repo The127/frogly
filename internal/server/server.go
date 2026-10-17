@@ -55,7 +55,9 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	}))
 	mux.Handle("GET /api/projects", auth(listProjects))
 	mux.Handle("POST /api/projects", auth(createProject))
+	mux.Handle("GET /api/projects/public", auth(listPublicProjects))
 	mux.Handle("GET /api/projects/{id}", auth(getProject))
+	mux.Handle("PUT /api/projects/{id}/visibility", auth(changeVisibility))
 	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))
 	mux.Handle("POST /api/projects/{id}/ideas", auth(plantIdea))
 	mux.Handle("GET /", serveFrontend(frontend))
@@ -291,6 +293,14 @@ func answerError(w http.ResponseWriter, r *http.Request, err error) {
 
 	if invalid, ok := errors.AsType[*repositories.InvalidError](err); ok {
 		writeProblemDetail(w, http.StatusBadRequest, invalid.Reason())
+
+		return
+	}
+
+	// another request saved the same row first, which happens when two
+	// people change one thing at once, and trying again works
+	if errors.Is(err, repositories.ErrConcurrentModification) {
+		writeProblem(w, http.StatusConflict)
 
 		return
 	}

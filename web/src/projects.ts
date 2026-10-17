@@ -1,4 +1,14 @@
-import { type Created, type Project, type SessionEnded, createProject, fetchProjects, sessionEnded } from "./api";
+import {
+  type Created,
+  type Project,
+  type PublicProject,
+  type SessionEnded,
+  type Visibility,
+  createProject,
+  fetchProjects,
+  fetchPublicProjects,
+  sessionEnded,
+} from "./api";
 
 type AccessToken = () => Promise<string>;
 
@@ -22,20 +32,17 @@ export async function loadProjects(accessToken: AccessToken): Promise<Loaded> {
   }
 }
 
-// savedButNotListed is its own outcome, since saying the save failed would
-// make the person try again and create the project twice.
 export type Added =
-  | { kind: "saved"; projects: Project[] }
-  | { kind: "savedButNotListed" }
+  | { kind: "saved"; project: Project }
   | { kind: "refused"; problem: string }
   | { kind: "notSaved" }
   | SessionEnded;
 
-export async function addProject(accessToken: AccessToken, name: string): Promise<Added> {
+export async function addProject(accessToken: AccessToken, name: string, visibility: Visibility | undefined): Promise<Added> {
   let created: Created;
 
   try {
-    created = await createProject(await accessToken(), name);
+    created = await createProject(await accessToken(), name, visibility);
   } catch (error) {
     const ended = sessionEnded(error);
     if (ended) {
@@ -47,18 +54,28 @@ export async function addProject(accessToken: AccessToken, name: string): Promis
     return { kind: "notSaved" };
   }
 
-  if ("problem" in created) {
-    return { kind: "refused", problem: created.problem };
-  }
+  return "problem" in created ? { kind: "refused", problem: created.problem } : { kind: "saved", project: created.project };
+}
 
-  const loaded = await loadProjects(accessToken);
-  switch (loaded.kind) {
-    case "listed":
-      return { kind: "saved", projects: loaded.projects };
-    case "loggedOut":
-    case "notAllowed":
-      return { kind: loaded.kind };
-    case "failed":
-      return { kind: "savedButNotListed" };
+export type PublicLoaded = { kind: "listed"; projects: PublicProject[] } | { kind: "failed" } | SessionEnded;
+
+export async function loadPublicProjects(accessToken: AccessToken): Promise<PublicLoaded> {
+  try {
+    return { kind: "listed", projects: await fetchPublicProjects(await accessToken()) };
+  } catch (error) {
+    const ended = sessionEnded(error);
+    if (ended) {
+      return ended;
+    }
+
+    console.error(error);
+
+    return { kind: "failed" };
   }
+}
+
+// nameFrom reads the name the home page passed on. sv-router's route.search
+// would turn a name like "2024" or "true" into a number or a boolean.
+export function nameFrom(search: string): string {
+  return new URLSearchParams(search).get("name") ?? "";
 }

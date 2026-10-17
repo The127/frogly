@@ -14,7 +14,7 @@ import (
 
 func TestANewModelHasAnIDButNoVersion(t *testing.T) {
 	// act
-	project, err := repositories.NewProject("Garden")
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
 
 	// assert
 	require.NoError(t, err)
@@ -75,7 +75,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 
 	// act
 	user := repositories.NewUserFromDB(base, "", "not an email")
-	project := repositories.NewProjectFromDB(base, "")
+	project := repositories.NewProjectFromDB(base, "", "secret")
 	identity := repositories.NewIdentityFromDB(base, uuid.Nil, "", "")
 
 	// assert
@@ -83,6 +83,7 @@ func TestModelsRebuiltFromStorageKeepWhatWasStored(t *testing.T) {
 	assert.Equal(t, 3, user.Version())
 	assert.Equal(t, "not an email", user.Email())
 	assert.Empty(t, project.Name())
+	assert.Equal(t, repositories.Visibility("secret"), project.Visibility())
 	assert.Empty(t, identity.Issuer())
 }
 
@@ -154,7 +155,7 @@ func TestNewIdentityNeedsAnIssuerAndASubject(t *testing.T) {
 
 func TestNewProjectTakesATrimmedName(t *testing.T) {
 	// act
-	project, err := repositories.NewProject("  Garden  ")
+	project, err := repositories.NewProject("  Garden  ", repositories.VisibilityPrivate)
 
 	// assert
 	require.NoError(t, err)
@@ -173,12 +174,63 @@ func TestNewProjectRefusesNamesItCantUse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// act
-			_, err := repositories.NewProject(test.projectName)
+			_, err := repositories.NewProject(test.projectName, repositories.VisibilityPrivate)
 
 			// assert
 			require.ErrorAs(t, err, new(*repositories.InvalidError))
 		})
 	}
+}
+
+func TestNewProjectTakesItsVisibility(t *testing.T) {
+	for _, visibility := range []repositories.Visibility{repositories.VisibilityPublic, repositories.VisibilityPrivate} {
+		t.Run(string(visibility), func(t *testing.T) {
+			// act
+			project, err := repositories.NewProject("Garden", visibility)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, visibility, project.Visibility())
+		})
+	}
+}
+
+func TestNewProjectRefusesAVisibilityItDoesntKnow(t *testing.T) {
+	for _, visibility := range []repositories.Visibility{"", "secret"} {
+		t.Run(string(visibility), func(t *testing.T) {
+			// act
+			_, err := repositories.NewProject("Garden", visibility)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestAProjectChangesItsVisibility(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	err = project.ChangeVisibility(repositories.VisibilityPublic)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPublic, project.Visibility())
+}
+
+func TestAProjectKeepsItsVisibilityForOneItDoesntKnow(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	err = project.ChangeVisibility("secret")
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+	assert.Equal(t, repositories.VisibilityPrivate, project.Visibility())
 }
 
 func TestNewMembershipRefusesWhatItCantUse(t *testing.T) {

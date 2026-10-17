@@ -7,7 +7,16 @@ export interface Me {
   name: string;
 }
 
+export type Visibility = "public" | "private";
+
 export interface Project {
+  id: string;
+  name: string;
+  visibility: Visibility;
+}
+
+// PublicProject is what someone outside a public project sees of it.
+export interface PublicProject {
   id: string;
   name: string;
 }
@@ -53,6 +62,23 @@ export function sessionEnded(error: unknown): SessionEnded | undefined {
   }
 
   return undefined;
+}
+
+// failure says how a call about one project failed, so its page can say
+// what to do about it.
+export function failure(error: unknown): { kind: "notFound" } | { kind: "failed" } | SessionEnded {
+  const ended = sessionEnded(error);
+  if (ended) {
+    return ended;
+  }
+
+  if (error instanceof NotFound) {
+    return { kind: "notFound" };
+  }
+
+  console.error(error);
+
+  return { kind: "failed" };
 }
 
 // NotFound means the project doesn't exist or the person isn't a member of
@@ -123,6 +149,32 @@ export async function fetchProjects(accessToken: string): Promise<Project[]> {
   return (await response.json()) as Project[];
 }
 
+export async function changeVisibility(accessToken: string, projectId: string, visibility: Visibility): Promise<Project> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/visibility`, accessToken, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to change a project's visibility`);
+  }
+
+  return (await response.json()) as Project;
+}
+
+export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {
+  const response = await authorized("/api/projects/public", accessToken);
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for the public projects`);
+  }
+
+  return (await response.json()) as PublicProject[];
+}
+
 export async function fetchProject(accessToken: string, projectId: string): Promise<Project> {
   const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}`, accessToken);
   if (response.status === 404) {
@@ -140,14 +192,16 @@ export async function fetchProject(accessToken: string, projectId: string): Prom
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
 
-export async function createProject(accessToken: string, name: string): Promise<Created> {
+// visibility is undefined until the person chooses, and frogly's answer
+// then says that a choice is missing
+export async function createProject(accessToken: string, name: string, visibility: Visibility | undefined): Promise<Created> {
   const response = await authorized("/api/projects", accessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, visibility }),
   });
   if (response.status === 400) {
-    return { problem: await refusal(response, "frogly can't use that name") };
+    return { problem: await refusal(response, "frogly can't create that project") };
   }
 
   if (!response.ok) {
