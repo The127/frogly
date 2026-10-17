@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -90,6 +91,10 @@ func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User
 // stops a short text from listing everyone who uses frogly at once.
 const searchLimit = 10
 
+// maxSearch is the longest an email can be, so a longer text can't match
+// anything, and the database never gets a pattern that large.
+const maxSearch = 320
+
 // FindPeople lets a member find the people who could join the project, by
 // part of their name or email. Someone who isn't a member gets
 // ErrNotFound, like Get.
@@ -100,8 +105,13 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 	}
 
 	text = strings.TrimSpace(text)
-	if text == "" {
+
+	switch {
+	case text == "":
 		return nil, repositories.Invalid("type part of a name or an email")
+
+	case utf8.RuneCountInString(text) > maxSearch:
+		return nil, repositories.Invalid(fmt.Sprintf("a search has at most %d characters", maxSearch))
 	}
 
 	return unit.Users().SearchNonMembers(ctx, projectID, text, searchLimit)

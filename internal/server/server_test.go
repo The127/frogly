@@ -853,6 +853,20 @@ func TestAMemberFindsSomeoneWhoLoggedIn(t *testing.T) {
 	assert.JSONEq(t, `[{"id": "`+id+`", "name": "Ana", "email": ""}]`, response.Body.String())
 }
 
+func TestASearchLeavesOutWhoeverSearches(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+	id := anaID(t, handler, projectID)
+
+	// act, a matches both Karo and Ana
+	response := searchPeople(t, handler, validToken, projectID, "a")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `[{"id": "`+id+`", "name": "Ana", "email": ""}]`, response.Body.String())
+}
+
 func TestASearchFindingNobodyIsAnEmptyList(t *testing.T) {
 	// arrange
 	handler := newServer(t, &bytes.Buffer{})
@@ -926,4 +940,5 @@ func TestSomeoneOutsideTheProjectNeitherSearchesNorAdds(t *testing.T) {
 	// assert
 	assert.Equal(t, http.StatusNotFound, searched.Code)
 	assert.Equal(t, http.StatusNotFound, added.Code)
+	assert.JSONEq(t, `[]`, projects(t, handler, http.MethodGet, otherToken, "").Body.String())
 }

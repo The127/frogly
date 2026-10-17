@@ -2,6 +2,7 @@ package projects_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -293,6 +294,20 @@ func TestAnEmptySearchFindsNobody(t *testing.T) {
 
 	// act
 	_, err = projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), "   ")
+
+	// assert
+	require.ErrorAs(t, err, new(*repositories.InvalidError))
+}
+
+func TestASearchLongerThanAnyEmailIsRefused(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden, err := projects.Create(t.Context(), database.NewContext(), karo, "Garden", repositories.VisibilityPrivate)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.FindPeople(t.Context(), database.NewContext(), karo, garden.ID(), strings.Repeat("a", 100_000))
 
 	// assert
 	require.ErrorAs(t, err, new(*repositories.InvalidError))
