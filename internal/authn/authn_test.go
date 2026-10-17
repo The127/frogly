@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	clientID = "frogly"
-	subject  = "1d0c8b4e-0000-4000-8000-000000000000"
+	clientID  = "frogly"
+	subject   = "1d0c8b4e-0000-4000-8000-000000000000"
+	roleClaim = "roles"
 )
 
 type fakeIssuer struct {
@@ -106,7 +107,7 @@ func (issuer *fakeIssuer) sign(t *testing.T, key jose.SigningKey, typ jose.Conte
 func newVerifier(t *testing.T, issuer *fakeIssuer) *authn.Verifier {
 	t.Helper()
 
-	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID)
+	verifier, err := authn.NewVerifier(t.Context(), issuer.url, clientID, roleClaim)
 	require.NoError(t, err)
 
 	return verifier
@@ -150,6 +151,41 @@ func TestVerifyGivesThePerson(t *testing.T) {
 				Name:    test.wantName,
 				Email:   test.wantEmail,
 			}, person)
+		})
+	}
+}
+
+func TestVerifyGivesTheRoles(t *testing.T) {
+	tests := []struct {
+		name   string
+		claims map[string]any
+		want   []string
+	}{
+		{
+			name:   "a list of roles",
+			claims: map[string]any{roleClaim: []string{"frogly:frogly-user", "frogly:admin"}},
+			want:   []string{"frogly:frogly-user", "frogly:admin"},
+		},
+		{name: "no claim", claims: nil, want: nil},
+		{name: "another claim", claims: map[string]any{"groups": []string{"frogly:frogly-user"}}, want: nil},
+		// guessing what another shape means could let someone in
+		{name: "a single string", claims: map[string]any{roleClaim: "frogly:frogly-user"}, want: nil},
+		{name: "a list with something else", claims: map[string]any{roleClaim: []any{"frogly:frogly-user", 1}}, want: nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			issuer := newIssuer(t)
+			verifier := newVerifier(t, issuer)
+			token := issuer.token(t, test.claims)
+
+			// act
+			person, err := verifier.Verify(t.Context(), token)
+
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.want, person.Roles)
 		})
 	}
 }

@@ -6,6 +6,7 @@ package authn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -41,17 +42,23 @@ type Person struct {
 	Name    string
 	// Email is empty when the token doesn't carry one.
 	Email string
+	// Roles are what the token's role claim lists, as the issuer wrote
+	// them. They're empty when the claim is missing or isn't a list of
+	// strings.
+	Roles []string
 }
 
 // Verifier checks access tokens from one issuer, meant for one client.
 type Verifier struct {
-	verifier *oidc.IDTokenVerifier
+	verifier  *oidc.IDTokenVerifier
+	roleClaim string
 }
 
 // NewVerifier fetches the issuer's discovery document with ctx, so the
 // issuer has to be reachable when frogly starts. The issuer's keys are
 // fetched and cached later, on the first token, independent of ctx.
-func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier, error) {
+// roleClaim names the claim that lists a person's roles.
+func NewVerifier(ctx context.Context, issuer string, clientID string, roleClaim string) (*Verifier, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("discovering the OIDC issuer %s: %w", issuer, err)
@@ -84,6 +91,7 @@ func NewVerifier(ctx context.Context, issuer string, clientID string) (*Verifier
 				return time.Now().Add(-clockSkew)
 			},
 		}),
+		roleClaim: roleClaim,
 	}, nil
 }
 
@@ -125,12 +133,33 @@ func (verifier *Verifier) Verify(ctx context.Context, accessToken string) (Perso
 		name = claims.PreferredUsername
 	}
 
+	var all map[string]json.RawMessage
+
+	err = token.Claims(&all)
+	if err != nil {
+		return Person{}, fmt.Errorf("%w: reading the claims: %w", ErrUnauthenticated, err)
+	}
+
 	return Person{
 		Issuer:  token.Issuer,
 		Subject: token.Subject,
 		Name:    name,
 		Email:   claims.Email,
+		Roles:   rolesIn(all[verifier.roleClaim]),
 	}, nil
+}
+
+// rolesIn takes nothing from a claim that isn't a list of strings, since
+// guessing what another shape means could let someone in.
+func rolesIn(claim json.RawMessage) []string {
+	var roles []string
+
+	err := json.Unmarshal(claim, &roles)
+	if err != nil {
+		return nil
+	}
+
+	return roles
 }
 
 // checkType runs after the signature check, so the header it reads is the
