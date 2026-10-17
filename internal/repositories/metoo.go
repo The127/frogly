@@ -1,6 +1,8 @@
 package repositories
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 )
 
@@ -30,4 +32,11 @@ func (meToo *MeToo) IdeaID() uuid.UUID {
 // UserID is who wants it.
 func (meToo *MeToo) UserID() uuid.UUID {
 	return meToo.userID
+}
+
+// MeTooRepository saves me toos.
+type MeTooRepository interface {
+	// Said says whether the user already said me too to the idea.
+	Said(ctx context.Context, ideaID uuid.UUID, userID uuid.UUID) (bool, error)
+	Insert(meToo *MeToo)
 }

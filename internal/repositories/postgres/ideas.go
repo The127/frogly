@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,8 +28,7 @@ func NewIdeaRepository(reader Reader, tracker *change.Tracker) *IdeaRepository {
 // ListInProject lists the project's garden with the planters' names,
 // newest first.
 func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID uuid.UUID) ([]repositories.PlantedIdea, error) {
-	selection := sqlbuilder.Select("i.id", "i.version", "i.project_id", "i.planter_id", "i.text", "i.planted_at", "u.name").From("ideas i")
-	selection.Join("users u", "u.id = i.planter_id")
+	selection := selectPlanted()
 	selection.Where(selection.Equal("i.project_id", projectID))
 	selection.OrderByDesc("i.planted_at").OrderByDesc("i.id")
 
@@ -62,6 +62,36 @@ func (repository *IdeaRepository) ListInProject(ctx context.Context, projectID u
 	return ideas, nil
 }
 
+// selectPlanted counts the people behind each idea in the same query, so
+// a garden costs one query however many ideas it has. The planter counts
+// once, even if a me too of theirs got stored.
+func selectPlanted() *sqlbuilder.SelectBuilder {
+	return sqlbuilder.Select(
+		"i.id", "i.version", "i.project_id", "i.planter_id", "i.text", "i.planted_at", "u.name",
+		"1 + (select count(*) from me_toos t where t.idea_id = i.id and t.user_id <> i.planter_id)",
+	).From("ideas i").Join("users u", "u.id = i.planter_id")
+}
+
+// ByIDInProject loads one idea of the project, or returns
+// repositories.ErrNotFound.
+func (repository *IdeaRepository) ByIDInProject(ctx context.Context, projectID uuid.UUID, ideaID uuid.UUID) (repositories.PlantedIdea, error) {
+	selection := selectPlanted()
+	selection.Where(selection.Equal("i.project_id", projectID), selection.Equal("i.id", ideaID))
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	idea, err := scanPlantedIdea(repository.reader.QueryRowContext(ctx, query, args...))
+	if errors.Is(err, sql.ErrNoRows) {
+		return repositories.PlantedIdea{}, fmt.Errorf("idea %s in project %s: %w", ideaID, projectID, repositories.ErrNotFound)
+	}
+
+	if err != nil {
+		return repositories.PlantedIdea{}, fmt.Errorf("loading idea %s: %w", ideaID, err)
+	}
+
+	return idea, nil
+}
+
 func scanPlantedIdea(row scanner) (repositories.PlantedIdea, error) {
 	var (
 		id        uuid.UUID
@@ -70,10 +100,11 @@ func scanPlantedIdea(row scanner) (repositories.PlantedIdea, error) {
 		planterID uuid.UUID
 		text      string
 		plantedBy string
+		people    int
 		plantedAt time.Time
 	)
 
-	err := row.Scan(&id, &version, &projectID, &planterID, &text, &plantedAt, &plantedBy)
+	err := row.Scan(&id, &version, &projectID, &planterID, &text, &plantedAt, &plantedBy, &people)
 	if err != nil {
 		return repositories.PlantedIdea{}, fmt.Errorf("reading an idea: %w", err)
 	}
@@ -81,7 +112,7 @@ func scanPlantedIdea(row scanner) (repositories.PlantedIdea, error) {
 	base := repositories.NewBaseFromDB(id, version)
 	idea := repositories.NewIdeaFromDB(base, projectID, planterID, text, plantedAt)
 
-	return repositories.PlantedIdea{Idea: idea, PlantedBy: plantedBy}, nil
+	return repositories.PlantedIdea{Idea: idea, PlantedBy: plantedBy, People: people}, nil
 }
 
 // Insert records the idea to be written.
