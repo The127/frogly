@@ -374,3 +374,37 @@ func TestNewIdeaFromDBKeepsTheTimeInUTC(t *testing.T) {
 	assert.Equal(t, time.UTC, idea.PlantedAt().Location())
 	assert.True(t, plantedAt.Equal(idea.PlantedAt()))
 }
+
+func TestNewMeTooPutsTheUserBehindTheIdea(t *testing.T) {
+	// arrange
+	ideaID, userID := uuid.New(), uuid.New()
+
+	// act
+	meToo, err := repositories.NewMeToo(ideaID, userID)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, ideaID, meToo.IdeaID())
+	assert.Equal(t, userID, meToo.UserID())
+}
+
+func TestNewMeTooNeedsAnIdeaAndAUser(t *testing.T) {
+	tests := []struct {
+		name   string
+		ideaID uuid.UUID
+		userID uuid.UUID
+	}{
+		{name: "no idea", ideaID: uuid.Nil, userID: uuid.New()},
+		{name: "no user", ideaID: uuid.New(), userID: uuid.Nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewMeToo(test.ideaID, test.userID)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
