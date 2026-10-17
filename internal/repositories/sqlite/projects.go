@@ -95,7 +95,7 @@ func scanProject(row scanner) (*repositories.Project, error) {
 		return nil, fmt.Errorf("reading a project: %w", err)
 	}
 
-	return repositories.NewProjectFromDB(repositories.NewBaseFromDB(id, version), name), nil
+	return repositories.NewProjectFromDB(repositories.NewBaseFromDB(id, version), name, repositories.VisibilityPrivate), nil
 }
 
 // Insert records the project to be written.

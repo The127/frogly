@@ -12,12 +12,31 @@ import (
 type Project struct {
 	Base
 
-	name string
+	name       string
+	visibility Visibility
+}
+
+// Visibility says who besides its members sees a project.
+type Visibility string
+
+const (
+	// VisibilityPublic shows the project to everyone who may use frogly.
+	VisibilityPublic Visibility = "public"
+	// VisibilityPrivate shows the project to its members only.
+	VisibilityPrivate Visibility = "private"
+)
+
+func checkVisibility(visibility Visibility) error {
+	if visibility != VisibilityPublic && visibility != VisibilityPrivate {
+		return invalid("a project is public or private")
+	}
+
+	return nil
 }
 
 // NewProject creates a project that was never saved. A project needs a
 // name of up to 100 characters.
-func NewProject(name string) (*Project, error) {
+func NewProject(name string, visibility Visibility) (*Project, error) {
 	name = strings.TrimSpace(name)
 
 	switch {
@@ -28,17 +47,39 @@ func NewProject(name string) (*Project, error) {
 		return nil, invalid("a project's name has at most %d characters", MaxName)
 	}
 
-	return &Project{Base: newBase(), name: name}, nil
+	err := checkVisibility(visibility)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Project{Base: newBase(), name: name, visibility: visibility}, nil
 }
 
 // NewProjectFromDB rebuilds a project as loaded.
-func NewProjectFromDB(base Base, name string) *Project {
-	return &Project{Base: base, name: name}
+func NewProjectFromDB(base Base, name string, visibility Visibility) *Project {
+	return &Project{Base: base, name: name, visibility: visibility}
 }
 
 // Name is what the project is called.
 func (project *Project) Name() string {
 	return project.name
+}
+
+// Visibility says who besides its members sees the project.
+func (project *Project) Visibility() Visibility {
+	return project.visibility
+}
+
+// ChangeVisibility keeps the old visibility when it refuses the new one.
+func (project *Project) ChangeVisibility(visibility Visibility) error {
+	err := checkVisibility(visibility)
+	if err != nil {
+		return err
+	}
+
+	project.visibility = visibility
+
+	return nil
 }
 
 // ProjectRepository loads and saves projects.

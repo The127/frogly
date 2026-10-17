@@ -20,7 +20,7 @@ var ErrNotFound = errors.New("project not found")
 // Create makes a project called name with owner as its only member. A name
 // frogly can't use gives a *repositories.InvalidError.
 func Create(ctx context.Context, unit db.Context, owner *repositories.User, name string) (*repositories.Project, error) {
-	project, err := repositories.NewProject(name)
+	project, err := repositories.NewProject(name, repositories.VisibilityPrivate)
 	if err != nil {
 		return nil, err
 	}

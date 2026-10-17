@@ -123,7 +123,7 @@ func (s *projectsSuite) TestAUserIsAMemberOfAProjectOnlyOnce() {
 func (s *projectsSuite) TestAMembershipNeedsAnExistingProject() {
 	// arrange
 	karo := s.savedUser("Karo")
-	nowhere, err := repositories.NewProject("Nowhere")
+	nowhere, err := repositories.NewProject("Nowhere", repositories.VisibilityPrivate)
 	s.Require().NoError(err)
 
 	membership, err := repositories.NewMembership(nowhere.ID(), karo.ID(), repositories.RoleOwner)
