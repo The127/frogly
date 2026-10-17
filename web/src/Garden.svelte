@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import { type Idea, type Project, maxIdeaLength } from "./api";
+  import { type Idea, type Project, type SessionEnded, maxIdeaLength } from "./api";
   import { addIdea, loadGarden, meToo, peopleBehind, plantedOn } from "./garden";
   import { getLogin } from "./login";
   import { p } from "./router";
@@ -30,6 +30,21 @@
     }
   });
 
+  // what every action does when the project is gone or the session ended,
+  // so each one only handles its own outcomes
+  function handledElsewhere(outcome: { kind: "notFound" } | SessionEnded) {
+    switch (outcome.kind) {
+      case "notFound":
+        garden = { kind: "notFound" };
+        break;
+      case "loggedOut":
+        login.onLoggedOut();
+        break;
+      case "notAllowed":
+        login.onNotAllowed();
+    }
+  }
+
   async function sayMeTooTo(idea: Idea) {
     if (sayingMeToo || garden.kind !== "listed") {
       return;
@@ -50,14 +65,8 @@
       case "notSaid":
         meTooProblem = "frogly couldn't say me too. Try again in a moment.";
         break;
-      case "notFound":
-        garden = { kind: "notFound" };
-        break;
-      case "loggedOut":
-        login.onLoggedOut();
-        break;
-      case "notAllowed":
-        login.onNotAllowed();
+      default:
+        handledElsewhere(outcome);
     }
   }
 
@@ -70,28 +79,22 @@
     saving = true;
     problem = "";
 
-    const added = await addIdea(login.accessToken, projectId, text);
+    const outcome = await addIdea(login.accessToken, projectId, text);
     saving = false;
 
-    switch (added.kind) {
+    switch (outcome.kind) {
       case "saved":
         text = "";
-        garden = { ...garden, ideas: [added.idea, ...garden.ideas] };
+        garden = { ...garden, ideas: [outcome.idea, ...garden.ideas] };
         break;
       case "refused":
-        problem = added.problem;
+        problem = outcome.problem;
         break;
       case "notSaved":
         problem = "frogly couldn't plant the idea. Try again in a moment.";
         break;
-      case "notFound":
-        garden = { kind: "notFound" };
-        break;
-      case "loggedOut":
-        login.onLoggedOut();
-        break;
-      case "notAllowed":
-        login.onNotAllowed();
+      default:
+        handledElsewhere(outcome);
     }
   }
 </script>
