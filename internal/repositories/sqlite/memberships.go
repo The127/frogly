@@ -32,7 +32,8 @@ func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *s
 	what := "inserting membership " + membership.ID().String()
 
 	if membership.OnlyIfOpen() {
-		// constants, not parameters, like the list of public projects
+		// 'public' and 'open' are fixed filters, not input, so writing them
+		// in can't change what the statement does
 		joining := sqlbuilder.Build(
 			"insert into memberships (id, version, project_id, user_id) "+
 				"select $?, 1, $?, $? from projects "+
