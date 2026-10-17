@@ -20,6 +20,7 @@ type Context struct {
 	projects    *repos.ProjectRepository
 	memberships *repos.MembershipRepository
 	ideas       *repos.IdeaRepository
+	meToos      *repos.MeTooRepository
 }
 
 func newContext(connection *sql.DB) *Context {
@@ -33,6 +34,7 @@ func newContext(connection *sql.DB) *Context {
 		projects:    repos.NewProjectRepository(connection, tracker),
 		memberships: repos.NewMembershipRepository(tracker),
 		ideas:       repos.NewIdeaRepository(connection, tracker),
+		meToos:      repos.NewMeTooRepository(connection, tracker),
 	}
 }
 
@@ -59,6 +61,11 @@ func (unit *Context) Memberships() repositories.MembershipRepository {
 // Ideas is the unit of work's idea repository.
 func (unit *Context) Ideas() repositories.IdeaRepository {
 	return unit.ideas
+}
+
+// MeToos is the unit of work's me too repository.
+func (unit *Context) MeToos() repositories.MeTooRepository {
+	return unit.meToos
 }
 
 // SaveChanges writes every recorded change in one transaction, in the
@@ -125,6 +132,9 @@ func (unit *Context) apply(ctx context.Context, tx *sql.Tx, entry *change.Entry)
 
 	case *repositories.Idea:
 		return unit.ideas.ExecuteInsert(ctx, tx, item)
+
+	case *repositories.MeToo:
+		return unit.meToos.ExecuteInsert(ctx, tx, item)
 
 	default:
 		return fmt.Errorf("%w: %T", errUnsupportedChange, entry.Item())

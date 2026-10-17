@@ -19,6 +19,7 @@ type idea struct {
 	Text      string    `json:"text"`
 	PlantedBy string    `json:"plantedBy"`
 	PlantedAt time.Time `json:"plantedAt"`
+	People    int       `json:"people"`
 }
 
 func plant(ctx context.Context, token string, projectID string, text string) idea {

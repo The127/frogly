@@ -99,6 +99,9 @@ func (idea *Idea) PlantedAt() time.Time {
 type PlantedIdea struct {
 	Idea      *Idea
 	PlantedBy string
+	// People is how many people want the idea, the planter and everyone
+	// who said me too.
+	People int
 }
 
 // IdeaRepository loads and saves ideas.
@@ -106,5 +109,8 @@ type IdeaRepository interface {
 	// ListInProject lists the project's garden, newest first. Ideas planted
 	// at the same time are sorted by ID, the newest first as well.
 	ListInProject(ctx context.Context, projectID uuid.UUID) ([]PlantedIdea, error)
+	// ByIDInProject returns ErrNotFound when the project has no idea with
+	// the ID.
+	ByIDInProject(ctx context.Context, projectID uuid.UUID, ideaID uuid.UUID) (PlantedIdea, error)
 	Insert(idea *Idea)
 }

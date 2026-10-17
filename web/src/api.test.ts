@@ -14,6 +14,7 @@ import {
   fetchProjects,
   fetchPublicProjects,
   plantIdea,
+  sayMeToo,
   searchPeople,
 } from "./api";
 
@@ -176,6 +177,46 @@ describe("changeVisibility", () => {
 
     // assert
     await expect(project).rejects.toThrow("503");
+  });
+});
+
+describe("sayMeToo", () => {
+  it("sends the me too and gives the idea with its people", async () => {
+    // arrange
+    const idea = { id: "i-1", text: "search", plantedBy: "Karo", plantedAt: "2026-10-15T21:00:00Z", people: 2 };
+    respondWith(200, idea);
+
+    // act
+    const said = await sayMeToo("an-access-token", "p-1", "i-1");
+
+    // assert
+    expect(said).toEqual(idea);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/ideas/i-1/metoo", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the idea isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const said = sayMeToo("an-access-token", "p-1", "i-1");
+
+    // assert
+    await expect(said).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const said = sayMeToo("an-access-token", "p-1", "i-1");
+
+    // assert
+    await expect(said).rejects.toThrow("503");
   });
 });
 

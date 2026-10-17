@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/the127/frogly/internal/garden"
 	"github.com/the127/frogly/internal/repositories"
@@ -13,14 +16,16 @@ type ideaJSON struct {
 	Text      string    `json:"text"`
 	PlantedBy string    `json:"plantedBy"`
 	PlantedAt time.Time `json:"plantedAt"`
+	People    int       `json:"people"`
 }
 
-func toIdeaJSON(idea *repositories.Idea, plantedBy string) ideaJSON {
+func toIdeaJSON(planted repositories.PlantedIdea) ideaJSON {
 	return ideaJSON{
-		ID:        idea.ID().String(),
-		Text:      idea.Text(),
-		PlantedBy: plantedBy,
-		PlantedAt: idea.PlantedAt(),
+		ID:        planted.Idea.ID().String(),
+		Text:      planted.Idea.Text(),
+		PlantedBy: planted.PlantedBy,
+		PlantedAt: planted.Idea.PlantedAt(),
+		People:    planted.People,
 	}
 }
 
@@ -38,7 +43,7 @@ func listGarden(r *http.Request, caller caller) (int, any, error) {
 	// a list, even an empty one, never null
 	listed := make([]ideaJSON, 0, len(planted))
 	for _, entry := range planted {
-		listed = append(listed, toIdeaJSON(entry.Idea, entry.PlantedBy))
+		listed = append(listed, toIdeaJSON(entry))
 	}
 
 	return http.StatusOK, listed, nil
@@ -59,10 +64,30 @@ func plantIdea(r *http.Request, caller caller) (int, any, error) {
 		return 0, nil, err
 	}
 
-	idea, err := garden.Plant(r.Context(), caller.unit, caller.user, id, body.Text)
+	planted, err := garden.Plant(r.Context(), caller.unit, caller.user, id, body.Text)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return http.StatusCreated, toIdeaJSON(idea, caller.user.Name()), nil
+	return http.StatusCreated, toIdeaJSON(planted), nil
+}
+
+func sayMeToo(r *http.Request, caller caller) (int, any, error) {
+	id, err := projectID(r)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	// an ID that can't be one is an idea that doesn't exist
+	ideaID, err := uuid.Parse(r.PathValue("ideaId"))
+	if err != nil {
+		return 0, nil, fmt.Errorf("idea %q: %w", r.PathValue("ideaId"), garden.ErrIdeaNotFound)
+	}
+
+	said, err := garden.MeToo(r.Context(), caller.unit, caller.user, id, ideaID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return http.StatusOK, toIdeaJSON(said), nil
 }

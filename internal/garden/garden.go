@@ -4,6 +4,7 @@ package garden
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -13,29 +14,35 @@ import (
 	"github.com/the127/frogly/internal/repositories"
 )
 
-// Plant writes an idea down in the project's garden. A project that
-// doesn't exist or that planter isn't a member of gives
-// projects.ErrNotFound, and a text frogly can't use a
+// ErrIdeaNotFound means the project has no idea with the ID. It wraps
+// projects.ErrNotFound, so it gets the same answer as a project nobody
+// may see.
+var ErrIdeaNotFound = fmt.Errorf("idea not found: %w", projects.ErrNotFound)
+
+// Plant writes an idea down in the project's garden and gives it back as
+// the garden lists it. A project that doesn't exist or that planter isn't
+// a member of gives projects.ErrNotFound, and a text frogly can't use a
 // *repositories.InvalidError.
-func Plant(ctx context.Context, unit db.Context, planter *repositories.User, projectID uuid.UUID, text string) (*repositories.Idea, error) {
+func Plant(ctx context.Context, unit db.Context, planter *repositories.User, projectID uuid.UUID, text string) (repositories.PlantedIdea, error) {
 	_, err := projects.Get(ctx, unit, planter, projectID)
 	if err != nil {
-		return nil, err
+		return repositories.PlantedIdea{}, err
 	}
 
 	idea, err := repositories.NewIdea(projectID, planter.ID(), text)
 	if err != nil {
-		return nil, err
+		return repositories.PlantedIdea{}, err
 	}
 
 	unit.Ideas().Insert(idea)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("saving the idea: %w", err)
+		return repositories.PlantedIdea{}, fmt.Errorf("saving the idea: %w", err)
 	}
 
-	return idea, nil
+	// loaded again, so only the garden's query knows how people are counted
+	return unit.Ideas().ByIDInProject(ctx, projectID, idea.ID())
 }
 
 // List lists the project's garden for one of its members, newest first,
@@ -48,4 +55,56 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 	}
 
 	return unit.Ideas().ListInProject(ctx, projectID)
+}
+
+// MeToo puts user behind an idea in the project's garden and gives the
+// idea back with how many people want it. Saying it again, or as the
+// planter, changes nothing, since they count already, and so does saying
+// it twice at the same moment. A project user may not see gives
+// projects.ErrNotFound, and an idea that isn't in it ErrIdeaNotFound.
+func MeToo(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, ideaID uuid.UUID) (repositories.PlantedIdea, error) {
+	_, err := projects.Get(ctx, unit, user, projectID)
+	if err != nil {
+		return repositories.PlantedIdea{}, err
+	}
+
+	idea, err := unit.Ideas().ByIDInProject(ctx, projectID, ideaID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return repositories.PlantedIdea{}, fmt.Errorf("idea %s in project %s: %w", ideaID, projectID, ErrIdeaNotFound)
+	}
+
+	if err != nil {
+		return repositories.PlantedIdea{}, err
+	}
+
+	if idea.Idea.PlanterID() == user.ID() {
+		return idea, nil
+	}
+
+	said, err := unit.MeToos().Said(ctx, ideaID, user.ID())
+	if err != nil {
+		return repositories.PlantedIdea{}, err
+	}
+
+	if said {
+		return idea, nil
+	}
+
+	meToo, err := repositories.NewMeToo(ideaID, user.ID())
+	if err != nil {
+		return repositories.PlantedIdea{}, err
+	}
+
+	unit.MeToos().Insert(meToo)
+
+	err = unit.SaveChanges(ctx)
+
+	// the same person's me too from elsewhere got saved in between, which
+	// the unique pair refuses as a race, and they count once either way
+	if err != nil && !errors.Is(err, repositories.ErrConcurrentModification) {
+		return repositories.PlantedIdea{}, fmt.Errorf("saving the me too of user %s for idea %s: %w", user.ID(), ideaID, err)
+	}
+
+	// loaded again, so the count has the me toos others saved meanwhile too
+	return unit.Ideas().ByIDInProject(ctx, projectID, ideaID)
 }

@@ -37,6 +37,8 @@ export interface Idea {
   plantedBy: string;
   // an RFC 3339 time in UTC
   plantedAt: string;
+  // the planter and everyone who said me too
+  people: number;
 }
 
 // LoggedOut means the login ended, and trying again won't help until the
@@ -214,6 +216,20 @@ export async function addMember(accessToken: string, projectId: string, userId: 
   }
 
   return (await response.json()) as Person;
+}
+
+export async function sayMeToo(accessToken: string, projectId: string, ideaId: string): Promise<Idea> {
+  const path = `${gardenPath(projectId)}/${encodeURIComponent(ideaId)}/metoo`;
+  const response = await authorized(path, accessToken, { method: "POST" });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to say me too`);
+  }
+
+  return (await response.json()) as Idea;
 }
 
 export async function fetchPublicProjects(accessToken: string): Promise<PublicProject[]> {

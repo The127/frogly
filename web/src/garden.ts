@@ -7,6 +7,7 @@ import {
   fetchGarden,
   fetchProject,
   plantIdea,
+  sayMeToo,
 } from "./api";
 
 type AccessToken = () => Promise<string>;
@@ -48,6 +49,22 @@ export async function addIdea(accessToken: AccessToken, projectId: string, text:
   }
 
   return "problem" in planted ? { kind: "refused", problem: planted.problem } : { kind: "saved", idea: planted.idea };
+}
+
+export type MeTooSaid = { kind: "said"; idea: Idea } | { kind: "notSaid" } | { kind: "notFound" } | SessionEnded;
+
+export async function meToo(accessToken: AccessToken, projectId: string, ideaId: string): Promise<MeTooSaid> {
+  try {
+    return { kind: "said", idea: await sayMeToo(await accessToken(), projectId, ideaId) };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notSaid" } : failed;
+  }
+}
+
+export function peopleBehind(people: number): string {
+  return `${people} ${people === 1 ? "person" : "people"}`;
 }
 
 // The day an idea was planted, as the person reads dates. The locale and
