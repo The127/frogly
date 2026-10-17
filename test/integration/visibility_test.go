@@ -28,6 +28,10 @@ func createVisibleProject(ctx context.Context, token string, name string, visibi
 	return created
 }
 
+func changeVisibility(ctx context.Context, token string, projectID string, visibility string) *http.Response {
+	return call(ctx, http.MethodPut, "/api/projects/"+projectID+"/visibility", token, map[string]string{"visibility": visibility})
+}
+
 // a map, so a test also sees a field a non-member mustn't get
 func publicProjectsFor(ctx context.Context, token string) []map[string]any {
 	response := call(ctx, http.MethodGet, "/api/projects/public", token, nil)
@@ -40,32 +44,55 @@ func publicProjectsFor(ctx context.Context, token string) []map[string]any {
 }
 
 var _ = Describe("making a project public or private", func() {
-	It("shows a public project to others by name, and hides it again once it's private", func(ctx SpecContext) {
+	Context("for someone outside the project", func() {
+		It("lists a public project by its name only", func(ctx SpecContext) {
+			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
+			Expect(fair.Visibility).To(Equal("public"))
+
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair"}))
+		}, SpecTimeout(10*time.Second))
+
+		It("doesn't list a private project", func(ctx SpecContext) {
+			secret := createVisibleProject(ctx, accessToken, "Secret", "private")
+
+			Expect(publicProjectsFor(ctx, otherAccessToken)).NotTo(ContainElement(HaveKeyWithValue("id", secret.ID)))
+		}, SpecTimeout(10*time.Second))
+
+		It("keeps the garden of a public project closed", func(ctx SpecContext) {
+			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
+
+			garden := call(ctx, http.MethodGet, "/api/projects/"+fair.ID+"/ideas", otherAccessToken, nil)
+			Expect(garden).To(HaveHTTPStatus(http.StatusNotFound))
+		}, SpecTimeout(10*time.Second))
+	})
+
+	Context("for a member", func() {
+		It("doesn't list their own public project among the others", func(ctx SpecContext) {
+			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
+
+			Expect(publicProjectsFor(ctx, accessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
+			Expect(projectsOf(ctx, accessToken)).To(ContainElement(project{ID: fair.ID, Name: "Summer fair"}))
+		}, SpecTimeout(10*time.Second))
+
+		It("hides a public project once they make it private, and shows it again once it's public", func(ctx SpecContext) {
+			fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
+
+			Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
+			Expect(publicProjectsFor(ctx, otherAccessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
+			Expect(projectsOf(ctx, accessToken)).To(ContainElement(project{ID: fair.ID, Name: "Summer fair"}))
+
+			Expect(changeVisibility(ctx, accessToken, fair.ID, "public")).To(HaveHTTPStatus(http.StatusOK))
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(HaveKeyWithValue("id", fair.ID)))
+		}, SpecTimeout(10*time.Second))
+	})
+
+	It("can't be changed by someone outside the project", func(ctx SpecContext) {
 		fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
-		secret := createVisibleProject(ctx, accessToken, "Secret", "private")
-		Expect(fair.Visibility).To(Equal("public"))
 
-		Expect(publicProjectsFor(ctx, otherAccessToken)).To(And(
-			ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair"}),
-			Not(ContainElement(HaveKeyWithValue("id", secret.ID))),
-		))
-		Expect(publicProjectsFor(ctx, accessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
-
-		garden := call(ctx, http.MethodGet, "/api/projects/"+fair.ID+"/ideas", otherAccessToken, nil)
-		Expect(garden).To(HaveHTTPStatus(http.StatusNotFound))
-
-		changed := call(ctx, http.MethodPut, "/api/projects/"+fair.ID+"/visibility", accessToken, map[string]string{"visibility": "private"})
-		Expect(changed).To(HaveHTTPStatus(http.StatusOK))
-
-		Expect(publicProjectsFor(ctx, otherAccessToken)).NotTo(ContainElement(HaveKeyWithValue("id", fair.ID)))
-	}, SpecTimeout(10*time.Second))
-
-	It("lets only a member change it", func(ctx SpecContext) {
-		fair := createVisibleProject(ctx, accessToken, "Summer fair", "public")
-
-		changed := call(ctx, http.MethodPut, "/api/projects/"+fair.ID+"/visibility", otherAccessToken, map[string]string{"visibility": "private"})
-		Expect(changed).To(HaveHTTPStatus(http.StatusNotFound))
-
+		Expect(changeVisibility(ctx, otherAccessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusNotFound))
 		Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(HaveKeyWithValue("id", fair.ID)))
+
+		// the same change by a member works, so the 404 above isn't a missing route
+		Expect(changeVisibility(ctx, accessToken, fair.ID, "private")).To(HaveHTTPStatus(http.StatusOK))
 	}, SpecTimeout(10*time.Second))
 })
