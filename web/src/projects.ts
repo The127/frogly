@@ -2,6 +2,7 @@ import {
   type Created,
   type Project,
   type PublicProject,
+  type Joining,
   type SessionEnded,
   type Visibility,
   createProject,
@@ -38,11 +39,16 @@ export type Added =
   | { kind: "notSaved" }
   | SessionEnded;
 
-export async function addProject(accessToken: AccessToken, name: string, visibility: Visibility | undefined): Promise<Added> {
+export async function addProject(
+  accessToken: AccessToken,
+  name: string,
+  visibility: Visibility | undefined,
+  joining: Joining | undefined,
+): Promise<Added> {
   let created: Created;
 
   try {
-    created = await createProject(await accessToken(), name, visibility);
+    created = await createProject(await accessToken(), name, visibility, joining);
   } catch (error) {
     const ended = sessionEnded(error);
     if (ended) {

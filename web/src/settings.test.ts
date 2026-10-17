@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-const project: Project = { id: "p-1", name: "Garden", visibility: "private" };
+const project: Project = { id: "p-1", name: "Garden", visibility: "private", joining: "closed" };
 const token = async () => "an-access-token";
 
 describe("loadSettings", () => {

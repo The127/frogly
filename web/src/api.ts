@@ -9,10 +9,13 @@ export interface Me {
 
 export type Visibility = "public" | "private";
 
+export type Joining = "open" | "closed";
+
 export interface Project {
   id: string;
   name: string;
   visibility: Visibility;
+  joining: Joining;
 }
 
 // PublicProject is what someone outside a public project sees of it.
@@ -258,13 +261,18 @@ export async function fetchProject(accessToken: string, projectId: string): Prom
 // the person can act on. Any other failure is frogly's problem.
 export type Created = { project: Project } | { problem: string };
 
-// visibility is undefined until the person chooses, and frogly's answer
-// then says that a choice is missing
-export async function createProject(accessToken: string, name: string, visibility: Visibility | undefined): Promise<Created> {
+// visibility and joining are undefined until the person chooses, and
+// frogly's answer then says that a choice is missing
+export async function createProject(
+  accessToken: string,
+  name: string,
+  visibility: Visibility | undefined,
+  joining: Joining | undefined,
+): Promise<Created> {
   const response = await authorized("/api/projects", accessToken, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, visibility }),
+    body: JSON.stringify({ name, visibility, joining }),
   });
   if (response.status === 400) {
     return { problem: await refusal(response, "frogly can't create that project") };

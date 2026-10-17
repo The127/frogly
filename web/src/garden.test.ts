@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-const project: Project = { id: "p-1", name: "Garden", visibility: "private" };
+const project: Project = { id: "p-1", name: "Garden", visibility: "private", joining: "closed" };
 const idea: Idea = { id: "i-1", text: "search by any word", plantedBy: "Karo", plantedAt: "2026-10-15T21:00:00Z", people: 1 };
 const token = async () => "an-access-token";
 
