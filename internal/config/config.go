@@ -99,18 +99,11 @@ type OIDC struct {
 	Roles    Roles  `koanf:"roles"`
 }
 
-// Roles says which of the issuer's roles mean what in frogly. Issuers put
-// roles into different claims, so the claim is a setting too. It has to be
-// a top-level claim with a list of strings. A nested one like Keycloak's
-// realm_access.roles doesn't work. frogly reads the roles from the
-// access token, so a role taken away stops working once the person's
-// current token expires.
+// Roles maps the issuer's roles to frogly's. Issuers put roles into
+// different claims, so the claim is a setting too.
 type Roles struct {
-	// Claim names the claim in the access token that lists a person's
-	// roles.
 	Claim string `koanf:"claim"`
-	// User is the role that lets someone use frogly, exactly as the issuer
-	// writes it into the claim, like frogly:frogly-user for Keyline.
+	// User is the role that lets someone use frogly, as the issuer writes it.
 	User string `koanf:"user"`
 }
 

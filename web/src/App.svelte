@@ -43,8 +43,7 @@
 
       // automaticSilentRenew failed, maybe because the refresh token expired
       login.events.addSilentRenewError(() => {
-        // the page for a login without frogly's role needs no fresh token,
-        // and the login page would hide why the person can't get in
+        // the login page would hide why the person can't get in
         if (session.kind !== "notAllowed") {
           session = { kind: "loggedOut" };
         }

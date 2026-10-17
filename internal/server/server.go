@@ -40,8 +40,6 @@ type Verifier interface {
 func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.FS, services *ioc.DependencyProvider) http.Handler {
 	mux := http.NewServeMux()
 
-	// every route that needs a login goes through here, so none can skip
-	// the role check
 	auth := func(next endpoint) http.Handler {
 		return authenticated(verifier, oidc.Roles.User, services, next)
 	}
@@ -164,9 +162,8 @@ type endpoint func(r *http.Request, caller caller) (int, any, error)
 // bigger than this is a mistake
 const maxBody = 4 << 10
 
-// authenticated lets a request through only for a person with userRole,
-// frogly's role in the login. It checks before it looks the person up, so
-// frogly stores nobody who may not use it.
+// authenticated checks the role before it looks the person up, so frogly
+// stores nobody who may not use it.
 func authenticated(verifier Verifier, userRole string, services *ioc.DependencyProvider, next endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// what a token unlocks is personal, no cache may keep it
@@ -202,8 +199,6 @@ func authenticated(verifier Verifier, userRole string, services *ioc.DependencyP
 		// the frontend reads any 403 as a login without frogly's role, so
 		// this stays the only one
 		if !slices.Contains(person.Roles, userRole) {
-			// if the role setting doesn't match the issuer, everyone ends up
-			// here, and this line is how whoever runs frogly finds out
 			logging.FromContext(r.Context()).InfoContext(r.Context(), "turned away a person without frogly's role",
 				"issuer", person.Issuer, "subject", person.Subject)
 			writeProblem(w, http.StatusForbidden)

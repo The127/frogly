@@ -42,9 +42,7 @@ type Person struct {
 	Name    string
 	// Email is empty when the token doesn't carry one.
 	Email string
-	// Roles are what the token's role claim lists, as the issuer wrote
-	// them. They're empty when the claim is missing or isn't a list of
-	// strings.
+	// Roles are as the issuer wrote them.
 	Roles []string
 }
 
@@ -57,7 +55,6 @@ type Verifier struct {
 // NewVerifier fetches the issuer's discovery document with ctx, so the
 // issuer has to be reachable when frogly starts. The issuer's keys are
 // fetched and cached later, on the first token, independent of ctx.
-// roleClaim names the claim that lists a person's roles.
 func NewVerifier(ctx context.Context, issuer string, clientID string, roleClaim string) (*Verifier, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {

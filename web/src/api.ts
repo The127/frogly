@@ -41,11 +41,8 @@ export class NotAllowed extends Error {
   }
 }
 
-// SessionEnded is how a call can end the person's session.
 export type SessionEnded = { kind: "loggedOut" } | { kind: "notAllowed" };
 
-// sessionEnded says how a call ended the person's session, or undefined
-// when it didn't.
 export function sessionEnded(error: unknown): SessionEnded | undefined {
   if (error instanceof LoggedOut) {
     return { kind: "loggedOut" };
