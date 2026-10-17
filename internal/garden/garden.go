@@ -58,9 +58,11 @@ func List(ctx context.Context, unit db.Context, user *repositories.User, project
 
 // MeToo puts user behind an idea in the project's garden and gives the
 // idea back with how many people want it. Saying it again, or as the
-// planter, changes nothing, since they count already. A project user may
-// not see gives projects.ErrNotFound, and an idea that isn't in it
-// ErrIdeaNotFound.
+// planter, changes nothing, since they count already. When one person
+// says it twice at the same moment, one of the two gets
+// repositories.ErrConcurrentModification, and trying again works. A
+// project user may not see gives projects.ErrNotFound, and an idea that
+// isn't in it ErrIdeaNotFound.
 func MeToo(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, ideaID uuid.UUID) (repositories.PlantedIdea, error) {
 	_, err := projects.Get(ctx, unit, user, projectID)
 	if err != nil {

@@ -185,6 +185,10 @@ func TestAMeTooAgainOrByThePlanterChangesNothing(t *testing.T) {
 		require.NoError(t, err, who.Name())
 		assert.Equal(t, 2, said.People, who.Name())
 	}
+
+	planterSaid, err := database.NewContext().MeToos().Said(t.Context(), idea.ID(), karo.ID())
+	require.NoError(t, err)
+	assert.False(t, planterSaid, "nothing is stored for the planter")
 }
 
 func TestSomeoneOutsideTheProjectCantSayMeToo(t *testing.T) {
