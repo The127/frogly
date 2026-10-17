@@ -95,6 +95,15 @@ func (s *base) savedProjectWith(name string, owner *repositories.User, visibilit
 	return project
 }
 
+func (s *base) savedMember(project *repositories.Project, user *repositories.User) {
+	membership, err := repositories.NewMembership(project.ID(), user.ID(), repositories.RoleOwner)
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Insert(membership)
+	s.save(unit)
+}
+
 func (s *base) savedIdea(project *repositories.Project, planter *repositories.User, text string) *repositories.Idea {
 	return s.savedIdeaAt(project, planter, text, time.Time{})
 }

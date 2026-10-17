@@ -233,3 +233,23 @@ func (s *projectsSuite) TestAStaleProjectUpdateIsAConcurrentModification() {
 	// assert
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 }
+
+// TestAPublicProjectWithSeveralMembersIsListedOnce checks that the other
+// members of a project neither hide it from someone outside nor list it
+// twice, and that being one of several members keeps it off the list.
+func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
+	// arrange
+	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
+	shared := s.savedProjectWith("Shared", ana, repositories.VisibilityPublic)
+	s.savedMember(shared, karo)
+	others := s.savedProjectWith("Others", ana, repositories.VisibilityPublic)
+	s.savedMember(others, tomas)
+
+	// act
+	projects, err := s.database.NewContext().Projects().ListPublicForNonMember(s.T().Context(), karo.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Require().Len(projects, 1)
+	s.Equal(others.ID(), projects[0].ID())
+}

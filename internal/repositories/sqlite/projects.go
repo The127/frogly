@@ -42,8 +42,10 @@ func (repository *ProjectRepository) ListPublicForNonMember(ctx context.Context,
 	membership.Where("m.project_id = p.id", membership.Equal("m.user_id", userID.String()))
 
 	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility").From("projects p")
+	// a constant, not a parameter: the database only uses the partial
+	// index projects_public when it sees the value in the query
 	selection.Where(
-		selection.Equal("p.visibility", string(repositories.VisibilityPublic)),
+		"p.visibility = 'public'",
 		selection.NotExists(membership),
 	)
 	selection.OrderBy("p.name", "p.id")
