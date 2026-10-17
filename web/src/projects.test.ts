@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LoggedOut, NotAllowed, type Project, createProject, fetchProjects, fetchPublicProjects } from "./api";
-import { addProject, loadProjects, loadPublicProjects } from "./projects";
+import { addProject, loadProjects, loadPublicProjects, nameFrom } from "./projects";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -146,5 +146,23 @@ describe("loadPublicProjects", () => {
 
     // assert
     expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("nameFrom", () => {
+  it.each(["Summer fair", "2024", "007", "true", " ", "a&b=c"])("keeps %j as the text it is", (name) => {
+    // act
+    const read = nameFrom("?" + new URLSearchParams({ name }).toString());
+
+    // assert
+    expect(read).toBe(name);
+  });
+
+  it("is empty without a name", () => {
+    // act
+    const read = nameFrom("");
+
+    // assert
+    expect(read).toBe("");
   });
 });

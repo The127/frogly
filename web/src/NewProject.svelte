@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { Visibility } from "./api";
   import { getLogin } from "./login";
-  import { addProject } from "./projects";
-  import { navigate, p, route } from "./router";
+  import { addProject, nameFrom } from "./projects";
+  import { navigate, p } from "./router";
 
   const login = getLogin();
 
-  let name = $state((route.search as { name?: string }).name ?? "");
+  let name = $state(nameFrom(window.location.search));
   // nothing is chosen in advance, the person decides who sees a project
   let visibility = $state<Visibility | undefined>();
   let problem = $state("");
@@ -56,6 +56,7 @@
     bind:value={name}
     readonly={saving}
     aria-busy={saving}
+    aria-invalid={problem ? "true" : undefined}
     aria-describedby="project-problem"
   />
 

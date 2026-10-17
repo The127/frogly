@@ -73,3 +73,9 @@ export async function loadPublicProjects(accessToken: AccessToken): Promise<Publ
     return { kind: "failed" };
   }
 }
+
+// nameFrom reads the name the home page passed on. sv-router's route.search
+// would turn a name like "2024" or "true" into a number or a boolean.
+export function nameFrom(search: string): string {
+  return new URLSearchParams(search).get("name") ?? "";
+}

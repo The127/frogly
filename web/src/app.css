@@ -177,7 +177,6 @@ a {
   gap: 8px 14px;
 }
 
-/* one setting below the other, so a new one is just another block */
 .fields .label {
   display: block;
   margin: 32px 0 8px;
