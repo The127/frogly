@@ -234,9 +234,10 @@ func (s *projectsSuite) TestAStaleProjectUpdateIsAConcurrentModification() {
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 }
 
-// TestAPublicProjectWithSeveralMembersIsListedOnce checks that the other
-// members of a project neither hide it from someone outside nor list it
-// twice, and that being one of several members keeps it off the list.
+// TestAPublicProjectWithSeveralMembersIsListedOnce checks that a project
+// with several members shows up once for someone outside it, and not at all
+// for one of its members. A query that joins the memberships could get
+// either wrong.
 func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
 	// arrange
 	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
