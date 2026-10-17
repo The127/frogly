@@ -71,7 +71,7 @@
   <h1>These settings can't be shown right now.</h1>
   <p class="quiet">Reload the page in a moment.</p>
 {:else}
-  <h1>{settings.project.name}</h1>
+  <h1>Settings for {settings.project.name}</h1>
 
   <section aria-labelledby="visibility-label">
     <p class="label" id="visibility-label">who sees it</p>
