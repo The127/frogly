@@ -65,6 +65,7 @@
 
     switching = true;
     problem = "";
+    joiningProblem = "";
 
     const outcome = await switchVisibility(login.accessToken, projectId, isPublic ? "private" : "public");
     switching = false;
@@ -87,6 +88,7 @@
     }
 
     switching = true;
+    problem = "";
     joiningProblem = "";
 
     const outcome = await switchJoining(login.accessToken, projectId, isOpen ? "closed" : "open");
@@ -185,7 +187,7 @@
       <span aria-live="polite">
         {isPublic ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
       </span>
-      <button class="btn" onclick={toggleVisibility}>
+      <button class="btn" onclick={toggleVisibility} aria-disabled={switching}>
         make it {isPublic ? "private" : "public"}
       </button>
     </p>
@@ -201,7 +203,7 @@
         <span aria-live="polite">
           {isOpen ? "Anyone who uses frogly can join right away." : "Only people a member adds."}
         </span>
-        <button class="btn" onclick={toggleJoining}>
+        <button class="btn" onclick={toggleJoining} aria-disabled={switching}>
           {isOpen ? "close it" : "let anyone join"}
         </button>
       </p>
