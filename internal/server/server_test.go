@@ -514,7 +514,7 @@ func TestACreatedProjectIsListed(t *testing.T) {
 func TestOthersDontSeeYourProjects(t *testing.T) {
 	// arrange
 	handler := newServer(t, &bytes.Buffer{})
-	// public, since even those only show up in a list of their own
+	// public, because a public project still belongs only in its members' list
 	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Garden", "visibility": "public"}`)
 	require.Equal(t, http.StatusCreated, created.Code)
 
@@ -701,8 +701,23 @@ func TestAVisibilityYouCantChangeIsNotFound(t *testing.T) {
 
 			// assert
 			assert.Equal(t, http.StatusNotFound, response.Code)
+
+			got := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
+			assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private"}`, got.Body.String())
 		})
 	}
+}
+
+func TestAPublicProjectYouArentInIsNotFound(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProjectWith(t, handler, "public")
+
+	// act
+	response := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + otherToken}})
+
+	// assert
+	assert.Equal(t, http.StatusNotFound, response.Code)
 }
 
 func TestAnUnknownVisibilityIsABadRequest(t *testing.T) {
