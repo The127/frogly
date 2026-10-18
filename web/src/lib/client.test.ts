@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, call } from "./client";
+import { LoggedOut, type Result, both, call } from "./client";
 
 function respondWith(status: number, body?: unknown): void {
   vi.stubGlobal(
@@ -184,5 +184,35 @@ describe("call", () => {
 
     // assert
     expect(result).toEqual({ ok: false, failure: { kind: "failed" } });
+  });
+});
+
+describe("both", () => {
+  it("gives both values when both calls work", async () => {
+    // arrange
+    const a: Promise<Result<number>> = Promise.resolve({ ok: true, value: 1 });
+    const b: Promise<Result<string>> = Promise.resolve({ ok: true, value: "two" });
+
+    // act
+    const result = await both(a, b);
+
+    // assert
+    expect(result).toEqual({ ok: true, value: [1, "two"] });
+  });
+
+  it.each([
+    { name: "the first", first: { kind: "notFound" }, second: undefined, failure: { kind: "notFound" } },
+    { name: "the second", first: undefined, second: { kind: "failed" }, failure: { kind: "failed" } },
+    { name: "both, the first one's", first: { kind: "loggedOut" }, second: { kind: "failed" }, failure: { kind: "loggedOut" } },
+  ])("gives the failure of $name", async ({ first, second, failure }) => {
+    // arrange
+    const a = Promise.resolve((first ? { ok: false, failure: first } : { ok: true, value: 1 }) as Result<number>);
+    const b = Promise.resolve((second ? { ok: false, failure: second } : { ok: true, value: 2 }) as Result<number>);
+
+    // act
+    const result = await both(a, b);
+
+    // assert
+    expect(result).toEqual({ ok: false, failure });
   });
 });

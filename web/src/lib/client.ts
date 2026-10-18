@@ -122,3 +122,18 @@ async function reason(response: Response, fallback: string): Promise<string> {
 function failed<T>(failure: Failure): Result<T> {
   return { ok: false, failure };
 }
+
+// both runs two calls side by side, for a page that needs both, and gives
+// the first failure if either fails
+export async function both<A, B>(a: Promise<Result<A>>, b: Promise<Result<B>>): Promise<Result<[A, B]>> {
+  const [first, second] = await Promise.all([a, b]);
+  if (!first.ok) {
+    return first;
+  }
+
+  if (!second.ok) {
+    return second;
+  }
+
+  return { ok: true, value: [first.value, second.value] };
+}
