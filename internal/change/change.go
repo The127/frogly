@@ -10,7 +10,7 @@ const (
 	Added Type = iota
 	// Updated is an item the database has, written again as a whole.
 	Updated
-	// Deleted is an item the database has and won't any more.
+	// Deleted is something the database has and won't any more.
 	Deleted
 )
 
