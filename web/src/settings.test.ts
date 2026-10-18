@@ -300,7 +300,7 @@ describe("leave", () => {
 
   it.each([
     { name: "leaving failed", error: new Error("frogly answered 500"), kind: "notLeft" },
-    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "you left already, like in another tab", error: new NotFound(), kind: "left" },
     { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
     { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
   ])("says so when $name", async ({ error, kind }) => {

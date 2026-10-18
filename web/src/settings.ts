@@ -113,9 +113,8 @@ export async function answerRequest(
   }
 }
 
-export type Left = { kind: "left" } | { kind: "notLeft" } | { kind: "notFound" } | SessionEnded;
+export type Left = { kind: "left" } | { kind: "notLeft" } | SessionEnded;
 
-// notFound means you aren't a member any more, or the project is gone
 export async function leave(accessToken: AccessToken, projectId: string): Promise<Left> {
   try {
     await leaveProject(await accessToken(), projectId);
@@ -123,7 +122,15 @@ export async function leave(accessToken: AccessToken, projectId: string): Promis
     return { kind: "left" };
   } catch (error) {
     const failed = failure(error);
-
-    return failed.kind === "failed" ? { kind: "notLeft" } : failed;
+    switch (failed.kind) {
+      case "failed":
+        return { kind: "notLeft" };
+      // not a member any more, like after leaving in another tab, is what
+      // leaving was for
+      case "notFound":
+        return { kind: "left" };
+      default:
+        return failed;
+    }
   }
 }

@@ -284,16 +284,19 @@
     leaveProblem = "";
 
     const outcome = await leave(login.accessToken, projectId);
-    leaving = false;
 
     switch (outcome.kind) {
+      // still leaving until the home page shows, so a second click can't
+      // send another leave
       case "left":
         void navigate("/");
         break;
       case "notLeft":
+        leaving = false;
         leaveProblem = "frogly couldn't take you out of this project. Try again in a moment.";
         break;
       default:
+        leaving = false;
         handledElsewhere(outcome);
     }
   }
