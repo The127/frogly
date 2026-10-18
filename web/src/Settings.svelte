@@ -287,9 +287,7 @@
       <!-- always there, so screen readers announce the text when it changes -->
       <p class="problem" id="joining-problem" role="alert">{joiningProblem}</p>
     </section>
-  {/if}
 
-  {#if isPublic}
     <section aria-labelledby="requests-label">
       <p class="label" id="requests-label" tabindex="-1" bind:this={requestsHeading}>asked to join</p>
       {#if requests.length === 0}
