@@ -798,3 +798,33 @@ func TestAJoinWhoseSaveWasStoppedIsARace(t *testing.T) {
 	// assert
 	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
 }
+
+func TestAMemberGetsTheProjectWithHowManyAreInIt(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	got, err := projects.GetWithMembers(t.Context(), database.NewContext(), karo, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, garden.ID(), got.Project.ID())
+	assert.Equal(t, 2, got.Members)
+}
+
+func TestSomeoneOutsideDoesntLearnHowManyAreInAProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	// act
+	_, err := projects.GetWithMembers(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}

@@ -28,6 +28,7 @@ HTTP 200
 header "Content-Type" == "application/json"
 jsonpath "$.id" == "{{id}}"
 jsonpath "$.name" == "Hurl garden"
+jsonpath "$.members" == 1
 
 # a project that doesn't exist is not found
 GET {{frogly}}/api/projects/01a14180-d957-7cc5-af29-7f1fe18d89bb

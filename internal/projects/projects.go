@@ -71,6 +71,28 @@ func Get(ctx context.Context, unit db.Context, user *repositories.User, projectI
 	return project, err
 }
 
+// ProjectWithMembers is a project as its members see it, with how many
+// they are.
+type ProjectWithMembers struct {
+	Project *repositories.Project
+	Members int
+}
+
+// GetWithMembers is Get, together with how many members the project has.
+func GetWithMembers(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (ProjectWithMembers, error) {
+	project, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return ProjectWithMembers{}, err
+	}
+
+	members, err := unit.Projects().MemberCount(ctx, projectID)
+	if err != nil {
+		return ProjectWithMembers{}, err
+	}
+
+	return ProjectWithMembers{Project: project, Members: members}, nil
+}
+
 // ChangeVisibility lets a member make the project public or private. It
 // gives ErrNotFound to someone who isn't a member, like Get.
 func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, visibility repositories.Visibility) (*repositories.Project, error) {

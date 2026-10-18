@@ -610,7 +610,7 @@ func TestAMemberGetsTheProject(t *testing.T) {
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
-	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed"}`, response.Body.String())
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed", "members": 1}`, response.Body.String())
 }
 
 func TestAProjectYouCantSeeIsNotFound(t *testing.T) {
@@ -689,7 +689,7 @@ func TestAMemberChangesTheVisibility(t *testing.T) {
 	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "closed"}`, response.Body.String())
 
 	got := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
-	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "closed"}`, got.Body.String())
+	assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "public", "joining": "closed", "members": 1}`, got.Body.String())
 }
 
 func TestAVisibilityYouCantChangeIsNotFound(t *testing.T) {
@@ -716,7 +716,7 @@ func TestAVisibilityYouCantChangeIsNotFound(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, response.Code)
 
 			got := get(t, handler, "/api/projects/"+projectID, http.Header{"Authorization": {"Bearer " + validToken}})
-			assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed"}`, got.Body.String())
+			assert.JSONEq(t, `{"id": "`+projectID+`", "name": "Garden", "visibility": "private", "joining": "closed", "members": 1}`, got.Body.String())
 		})
 	}
 }

@@ -167,6 +167,8 @@ type ProjectRepository interface {
 	ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]PublicProject, error)
 	Insert(project *Project)
 	Update(project *Project)
+	// MemberCount says how many members the project has.
+	MemberCount(ctx context.Context, projectID uuid.UUID) (int, error)
 	// OpenIfEmpty makes the project public and open, and drops its
 	// requests, if nobody is a member of it when the change is written.
 	// A project with members stays as it is.
