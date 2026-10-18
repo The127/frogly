@@ -41,14 +41,18 @@
   );
 
   onMount(async () => {
-    const loaded = await loadSettings(login.accessToken, projectId);
+    // both at once, so the requests don't push the page down later
+    const [loaded, waiting] = await Promise.all([
+      loadSettings(login.accessToken, projectId),
+      loadRequests(login.accessToken, projectId),
+    ]);
     if (loaded.kind === "loggedOut") {
       login.onLoggedOut();
     } else if (loaded.kind === "notAllowed") {
       login.onNotAllowed();
     } else if (loaded.kind === "loaded") {
       show(loaded.project);
-      await refreshRequests();
+      showRequests(waiting);
     } else {
       settings = loaded;
     }
@@ -58,9 +62,13 @@
   let answering = $state(false);
   let requestsProblem = $state("");
   let answered = $state("");
+  let requestsHeading = $state<HTMLElement>();
 
   async function refreshRequests() {
-    const loaded = await loadRequests(login.accessToken, projectId);
+    showRequests(await loadRequests(login.accessToken, projectId));
+  }
+
+  function showRequests(loaded: Awaited<ReturnType<typeof loadRequests>>) {
     switch (loaded.kind) {
       case "listed":
         requests = loaded.requests;
@@ -89,6 +97,8 @@
       case "answered":
         requests = requests.filter((waiting) => waiting.id !== request.id);
         answered = reply === "yes" ? `${request.name} is a member now.` : `You said no to ${request.name}.`;
+        // the button that had the focus is gone with the request
+        requestsHeading?.focus();
         break;
       case "notAnswered":
         requestsProblem = `frogly couldn't answer ${request.name}. Try again in a moment.`;
@@ -279,9 +289,12 @@
     </section>
   {/if}
 
-  {#if requests.length > 0 || requestsProblem || answered}
+  {#if isPublic}
     <section aria-labelledby="requests-label">
-      <p class="label" id="requests-label">asked to join</p>
+      <p class="label" id="requests-label" tabindex="-1" bind:this={requestsHeading}>asked to join</p>
+      {#if requests.length === 0}
+        <p class="quiet">Nobody waits for an answer right now.</p>
+      {/if}
       <ul class="rows">
         {#each requests as request (request.id)}
           <li>

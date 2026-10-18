@@ -243,6 +243,17 @@ describe("answerRequest", () => {
     expect(declineRequest).not.toHaveBeenCalled();
   });
 
+  it("says when the no failed", async () => {
+    // arrange
+    vi.mocked(declineRequest).mockRejectedValue(new Error("frogly answered 500"));
+
+    // act
+    const outcome = await answerRequest(token, "p-1", "u-2", "no");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAnswered" });
+  });
+
   it("says no", async () => {
     // arrange
     vi.mocked(declineRequest).mockResolvedValue();
