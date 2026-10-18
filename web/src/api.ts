@@ -9,7 +9,7 @@ export interface Me {
 
 export type Visibility = "public" | "private";
 
-export type Joining = "open" | "closed";
+export type Joining = "open" | "request" | "closed";
 
 export interface Project {
   id: string;
