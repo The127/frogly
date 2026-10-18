@@ -252,6 +252,30 @@ func (s *joinRequestsSuite) TestRemovingTheRequestsOfAProjectWithNoneIsNoError()
 	s.Require().NoError(err)
 }
 
+// TestAProjectNobodyIsInDropsItsRequests checks that an empty project
+// that opens drops the requests nobody can answer any more.
+func (s *joinRequestsSuite) TestAProjectNobodyIsInDropsItsRequests() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	fair := s.takingRequests("Summer fair", karo)
+	_, err := s.asking(fair, ana)
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Delete(fair.ID(), karo.ID())
+	unit.Projects().OpenIfEmpty(fair.ID())
+
+	// act
+	err = unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+
+	waiting, err := s.database.NewContext().JoinRequests().ListForProject(s.T().Context(), fair.ID())
+	s.Require().NoError(err)
+	s.Empty(waiting)
+}
+
 // TestDeletingARequestThatIsGoneIsARace checks that a request someone else
 // answered in between can't be answered again.
 func (s *joinRequestsSuite) TestDeletingARequestThatIsGoneIsARace() {
