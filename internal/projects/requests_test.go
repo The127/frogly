@@ -52,20 +52,26 @@ func TestAskingAgainOrAsAMemberMakesNoNewRequest(t *testing.T) {
 	karo, ana, fair := askedProject(t, database)
 
 	for _, test := range []struct {
+		name  string
 		who   *repositories.User
 		asked bool
-	}{{ana, true}, {karo, false}} {
-		// act
-		asked, err := projects.AskToJoin(t.Context(), database.NewContext(), test.who, fair.ID())
+	}{
+		{name: "again", who: ana, asked: true},
+		{name: "as a member", who: karo, asked: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			asked, err := projects.AskToJoin(t.Context(), database.NewContext(), test.who, fair.ID())
 
-		// assert
-		require.NoError(t, err, test.who.Name())
-		assert.Equal(t, test.asked, asked, "%s waits for an answer", test.who.Name())
+			// assert
+			require.NoError(t, err)
+			assert.Equal(t, test.asked, asked, "waits for an answer")
+
+			waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+			require.NoError(t, err)
+			assert.Len(t, waiting, 1, "still only Ana's request")
+		})
 	}
-
-	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
-	require.NoError(t, err)
-	assert.Len(t, waiting, 1)
 }
 
 func TestAskingAsSomeoneGetsInMakesNoRequest(t *testing.T) {

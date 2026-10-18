@@ -379,10 +379,10 @@ func (s *projectsSuite) TestJoiningTwiceIsARace() {
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 }
 
-// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
-// what the model never builds, a private project anyone could join or
-// ask.
-func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
+// TestAPrivateProjectThatOthersCouldGetIntoIsRefused checks that the
+// database refuses what the model never builds, a private project anyone
+// could join or ask.
+func (s *projectsSuite) TestAPrivateProjectThatOthersCouldGetIntoIsRefused() {
 	karo := s.savedUser("Karo")
 
 	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest} {
