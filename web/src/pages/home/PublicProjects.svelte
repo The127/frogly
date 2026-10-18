@@ -6,6 +6,7 @@
   import { getLogin } from "../../lib/login";
   import { navigate } from "../../router";
   import Button from "../../ui/Button.svelte";
+  import List from "../../ui/List.svelte";
   import Problem from "../../ui/Problem.svelte";
   import Row from "../../ui/Row.svelte";
   import Rows from "../../ui/Rows.svelte";
@@ -64,32 +65,28 @@
 </script>
 
 <Section label="public projects of others" id="public-label">
-  {#if projects.state.kind === "failed"}
-    <p class="quiet">frogly can't list them right now. Reload the page in a moment.</p>
-  {:else if projects.state.kind !== "loaded"}
-    <p class="quiet" aria-busy="true">…</p>
-  {:else if projects.state.value.length === 0}
-    <p class="quiet">Nobody else has a public project yet.</p>
-  {:else}
-    <!-- not links, a garden opens to its members -->
-    <Rows>
-      {#each projects.state.value as project (project.id)}
-        <Row serif>
-          {project.name}
-          {#snippet actions()}
-            {#if project.joining === "open"}
-              <Button busy={action.busy} onclick={() => join(project)}>join <span class="hidden">{project.name}</span></Button>
-            {:else if project.joining === "request" && project.asked}
-              <span class="quiet">you asked, a member will answer</span>
-            {:else if project.joining === "request"}
-              <Button busy={action.busy} onclick={() => ask(project)}>ask to join <span class="hidden">{project.name}</span></Button>
-            {:else}
-              <span class="quiet">a member adds people</span>
-            {/if}
-          {/snippet}
-        </Row>
-      {/each}
-    </Rows>
-  {/if}
+  <List resource={projects} failed="frogly can't list them right now. Reload the page in a moment." empty="Nobody else has a public project yet.">
+    {#snippet children(listed)}
+      <!-- not links, a garden opens to its members -->
+      <Rows>
+        {#each listed as project (project.id)}
+          <Row serif>
+            {project.name}
+            {#snippet actions()}
+              {#if project.joining === "open"}
+                <Button busy={action.busy} onclick={() => join(project)}>join <span class="hidden">{project.name}</span></Button>
+              {:else if project.joining === "request" && project.asked}
+                <span class="quiet small">you asked, a member will answer</span>
+              {:else if project.joining === "request"}
+                <Button busy={action.busy} onclick={() => ask(project)}>ask to join <span class="hidden">{project.name}</span></Button>
+              {:else}
+                <span class="quiet small">a member adds people</span>
+              {/if}
+            {/snippet}
+          </Row>
+        {/each}
+      </Rows>
+    {/snippet}
+  </List>
   <Problem text={action.problem} />
 </Section>

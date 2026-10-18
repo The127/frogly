@@ -5,6 +5,7 @@
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import { navigate, p } from "../../router";
+  import List from "../../ui/List.svelte";
   import Row from "../../ui/Row.svelte";
   import Rows from "../../ui/Rows.svelte";
   import Section from "../../ui/Section.svelte";
@@ -25,19 +26,15 @@
 </script>
 
 <Section label="your projects" id="projects-label">
-  {#if projects.state.kind === "failed"}
-    <p class="quiet">frogly can't list your projects right now. Reload the page in a moment.</p>
-  {:else if projects.state.kind !== "loaded"}
-    <p class="quiet" aria-busy="true">…</p>
-  {:else if projects.state.value.length === 0}
-    <p class="quiet">No projects yet. Name your first one below.</p>
-  {:else}
-    <Rows>
-      {#each projects.state.value as project (project.id)}
-        <Row serif><a class="plain" href={p("/projects/:id", { params: { id: project.id } })}>{project.name}</a></Row>
-      {/each}
-    </Rows>
-  {/if}
+  <List resource={projects} failed="frogly can't list your projects right now. Reload the page in a moment." empty="No projects yet. Name your first one below.">
+    {#snippet children(listed)}
+      <Rows>
+        {#each listed as project (project.id)}
+          <Row serif><a class="plain" href={p("/projects/:id", { params: { id: project.id } })}>{project.name}</a></Row>
+        {/each}
+      </Rows>
+    {/snippet}
+  </List>
 
   <form onsubmit={start}>
     <TextField id="project-name" label="Name of a new project" bind:value={name} placeholder="name a project…" />

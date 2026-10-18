@@ -98,6 +98,10 @@ h1 {
   color: var(--ink-2);
 }
 
+.small {
+  font-size: 13px;
+}
+
 .btn {
   font: inherit;
   font-size: 14px;
