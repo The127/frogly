@@ -26,6 +26,7 @@ func TestAChangeNoRepositoryMakesIsRefused(t *testing.T) {
 		{name: "a deleted user", entry: change.NewEntry(change.Deleted, user)},
 		{name: "an updated membership", entry: change.NewEntry(change.Updated, membership)},
 		{name: "an updated request", entry: change.NewEntry(change.Updated, request)},
+		{name: "an unknown change", entry: change.NewEntry(change.Type(99), user)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			// arrange
