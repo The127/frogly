@@ -117,6 +117,10 @@
   function show(project: Project) {
     settings = { kind: "loaded", project };
     chosenJoining = project.joining;
+    // frogly drops the requests of a project that doesn't take them any more
+    if (project.joining !== "request") {
+      requests = [];
+    }
   }
 
   // what every action does when the project is gone or the session ended,
