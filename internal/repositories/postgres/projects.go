@@ -193,11 +193,6 @@ func (repository *ProjectRepository) MemberCount(ctx context.Context, projectID 
 	return count, nil
 }
 
-// OpenIfEmpty records the project to be opened if nobody is in it.
-func (repository *ProjectRepository) OpenIfEmpty(projectID uuid.UUID) {
-	repository.tracker.Add(change.NewEntry(change.Updated, emptyProjectOpening{projectID: projectID}))
-}
-
 // ExecuteInsert writes the project as version 1.
 func (repository *ProjectRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, project *repositories.Project) error {
 	insert := sqlbuilder.InsertInto("projects").
@@ -235,64 +230,4 @@ func (repository *ProjectRepository) ExecuteUpdate(ctx context.Context, tx *sql.
 	// the version trigger only fires for a row that exists, so a missing
 	// row would otherwise pass as written
 	return requireRow(result, "project "+project.ID().String())
-}
-
-// emptyProjectOpening makes a project nobody is in public and open, so it
-// isn't lost, and drops the requests nobody can answer any more. Both
-// statements check that nobody is in it as they run, so a member who
-// joins in between keeps the project as it is.
-type emptyProjectOpening struct {
-	projectID uuid.UUID
-}
-
-// Execute opens the project and drops its requests, if it's empty.
-func (opening emptyProjectOpening) Execute(ctx context.Context, tx *sql.Tx) error {
-	id := opening.projectID
-
-	// a statement only sees what other transactions committed before it
-	// began, so two last members leaving at once would each still see the
-	// other. Locking the project row makes the second wait for the first
-	// and then see that nobody is left.
-	lock := sqlbuilder.Select("id").From("projects")
-	lock.Where(lock.Equal("id", id))
-	lock.ForUpdate()
-
-	query, args := lock.BuildWithFlavor(sqlbuilder.PostgreSQL)
-
-	_, err := tx.ExecContext(ctx, query, args...)
-
-	err = written(err, "locking project "+opening.projectID.String()+" to open it")
-	if err != nil {
-		return err
-	}
-
-	members := sqlbuilder.Select("1").From("memberships m")
-	members.Where(members.Equal("m.project_id", id))
-
-	// 'public' and 'open' are fixed values, not input, so writing them in
-	// can't change what the statement does
-	update := sqlbuilder.Update("projects")
-	update.Set("visibility = 'public'", "joining = 'open'", update.Incr("version"))
-	update.Where(update.Equal("id", id), update.NotExists(members))
-
-	query, args = update.BuildWithFlavor(sqlbuilder.PostgreSQL)
-
-	_, err = tx.ExecContext(ctx, query, args...)
-
-	err = written(err, "opening empty project "+opening.projectID.String())
-	if err != nil {
-		return err
-	}
-
-	members = sqlbuilder.Select("1").From("memberships m")
-	members.Where(members.Equal("m.project_id", id))
-
-	deletion := sqlbuilder.DeleteFrom("join_requests")
-	deletion.Where(deletion.Equal("project_id", id), deletion.NotExists(members))
-
-	query, args = deletion.BuildWithFlavor(sqlbuilder.PostgreSQL)
-
-	_, err = tx.ExecContext(ctx, query, args...)
-
-	return written(err, "dropping the requests of empty project "+opening.projectID.String())
 }

@@ -463,56 +463,6 @@ func (s *projectsSuite) TestRemovingAMembershipTwiceIsNoError() {
 	s.Require().NoError(err)
 }
 
-// TestAProjectNobodyIsInOpens checks that a project whose last member is
-// taken out turns public and open in the same save, as its next version.
-func (s *projectsSuite) TestAProjectNobodyIsInOpens() {
-	// arrange
-	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
-	garden := s.savedProject("Garden", karo)
-
-	unit := s.database.NewContext()
-	unit.Memberships().Delete(garden.ID(), karo.ID())
-	unit.Projects().OpenIfEmpty(garden.ID())
-
-	// act
-	err := unit.SaveChanges(s.T().Context())
-
-	// assert
-	s.Require().NoError(err)
-
-	public, err := s.database.NewContext().Projects().ListPublicForNonMember(s.T().Context(), ana.ID())
-	s.Require().NoError(err)
-	s.Require().Len(public, 1)
-	s.Equal(garden.ID(), public[0].Project.ID())
-	s.Equal(repositories.JoiningOpen, public[0].Project.Joining())
-	s.Equal(2, public[0].Project.Version())
-}
-
-// TestAProjectWithMembersStaysAsItIs checks that opening an empty project
-// leaves one with a member in it alone.
-func (s *projectsSuite) TestAProjectWithMembersStaysAsItIs() {
-	// arrange
-	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
-	garden := s.savedProject("Garden", karo)
-	s.savedMember(garden, ana)
-
-	unit := s.database.NewContext()
-	unit.Memberships().Delete(garden.ID(), ana.ID())
-	unit.Projects().OpenIfEmpty(garden.ID())
-
-	// act
-	err := unit.SaveChanges(s.T().Context())
-
-	// assert
-	s.Require().NoError(err)
-
-	found, err := s.database.NewContext().Projects().ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
-	s.Require().NoError(err)
-	s.Equal(repositories.VisibilityPrivate, found.Visibility())
-	s.Equal(repositories.JoiningClosed, found.Joining())
-	s.Equal(1, found.Version())
-}
-
 // TestAProjectCountsItsMembers checks the member count, only of that
 // project.
 func (s *projectsSuite) TestAProjectCountsItsMembers() {

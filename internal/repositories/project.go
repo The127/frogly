@@ -144,6 +144,13 @@ func (project *Project) ChangeVisibility(visibility Visibility) error {
 	return nil
 }
 
+// Open makes the project public and open to join, for a project nobody is
+// in any more, so it isn't lost and someone can pick it up.
+func (project *Project) Open() {
+	project.visibility = VisibilityPublic
+	project.joining = JoiningOpen
+}
+
 // PublicProject is a public project as someone outside it sees it.
 type PublicProject struct {
 	Project *Project
@@ -169,8 +176,4 @@ type ProjectRepository interface {
 	Update(project *Project)
 	// MemberCount says how many members the project has.
 	MemberCount(ctx context.Context, projectID uuid.UUID) (int, error)
-	// OpenIfEmpty makes the project public and open, and drops its
-	// requests, if nobody is a member of it when the change is written.
-	// A project with members stays as it is.
-	OpenIfEmpty(projectID uuid.UUID)
 }

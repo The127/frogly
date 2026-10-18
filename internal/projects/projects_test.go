@@ -828,3 +828,45 @@ func TestSomeoneOutsideDoesntLearnHowManyAreInAProject(t *testing.T) {
 	// assert
 	require.ErrorIs(t, err, projects.ErrNotFound)
 }
+
+// leavingUnit lets another member leave through another unit of work
+// right before its own save, like the last two members leaving at once.
+type leavingUnit struct {
+	db.Context
+
+	database  db.Database
+	other     *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit leavingUnit) SaveChanges(ctx context.Context) error {
+	err := projects.Leave(ctx, unit.database.NewContext(), unit.other, unit.projectID)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestTheLastTwoLeavingAtOnceOpenTheProjectOnceOneTriesAgain(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, tomas := savedUser(t, database, "Karo"), savedUser(t, database, "Ana"), savedUser(t, database, "Tomás")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	raced := projects.Leave(t.Context(), leavingUnit{Context: database.NewContext(), database: database, other: karo, projectID: garden.ID()}, ana, garden.ID())
+	require.ErrorIs(t, raced, repositories.ErrConcurrentModification, "both counted two members")
+
+	// act
+	err = projects.Leave(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), tomas)
+	require.NoError(t, err)
+	require.Len(t, public, 1)
+	assert.Equal(t, repositories.JoiningOpen, public[0].Project.Joining())
+}

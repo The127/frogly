@@ -225,17 +225,32 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 // Leave takes user out of a project they're a member of. The project and
 // what they planted in it stay for the others. The last member may leave
 // too, and the project then turns public and open and drops its requests,
-// so it isn't lost and someone can pick it up. Leaving twice at the same
-// moment leaves once. Someone who isn't a member gets ErrNotFound, like
-// Get.
+// so it isn't lost and someone can pick it up. Someone who isn't a member
+// gets ErrNotFound, like Get.
+//
+// When two members leave at the same moment, or someone changes the
+// project meanwhile, one of them gets
+// repositories.ErrConcurrentModification, and trying again works.
 func Leave(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) error {
-	_, err := Get(ctx, unit, user, projectID)
+	project, err := Get(ctx, unit, user, projectID)
 	if err != nil {
 		return err
 	}
 
+	members, err := unit.Projects().MemberCount(ctx, projectID)
+	if err != nil {
+		return err
+	}
+
+	if members == 1 {
+		project.Open()
+	}
+
 	unit.Memberships().Delete(projectID, user.ID())
-	unit.Projects().OpenIfEmpty(projectID)
+	// saved even when nothing about it changed, so its version goes up and
+	// two last members leaving at once can't both count the other
+	unit.Projects().Update(project)
+	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
