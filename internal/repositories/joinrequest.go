@@ -61,8 +61,9 @@ type WaitingRequest struct {
 	Asker   *User
 }
 
-// ProjectRequests stands for all the waiting requests of one project, so
-// a single change can remove them together.
+// ProjectRequests stands for all the waiting requests of one project. It
+// isn't a stored model, only the item of the change DeleteForProject
+// records, so a single change can remove them together.
 type ProjectRequests struct {
 	ProjectID uuid.UUID
 }

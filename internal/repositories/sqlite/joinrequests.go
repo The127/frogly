@@ -185,8 +185,8 @@ func (repository *JoinRequestRepository) ExecuteDelete(ctx context.Context, tx *
 }
 
 // ExecuteDeleteForProject removes every request of the project. Unlike
-// ExecuteDelete it doesn't check versions, since it removes whatever
-// waits, however many that are.
+// ExecuteDelete it doesn't check versions, and a project without
+// requests is fine.
 func (repository *JoinRequestRepository) ExecuteDeleteForProject(ctx context.Context, tx *sql.Tx, requests repositories.ProjectRequests) error {
 	deletion := sqlbuilder.DeleteFrom("join_requests")
 	deletion.Where(deletion.Equal("project_id", requests.ProjectID.String()))

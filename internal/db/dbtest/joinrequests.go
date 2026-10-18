@@ -236,9 +236,10 @@ func (s *joinRequestsSuite) TestAProjectsRequestsAreRemovedAtOnce() {
 	s.Len(clubWaiting, 1, "another project's request stays")
 }
 
-// TestRemovingTheRequestsOfAProjectNobodyAskedIsFine checks that there is
-// no race to lose when nothing waits.
-func (s *joinRequestsSuite) TestRemovingTheRequestsOfAProjectNobodyAskedIsFine() {
+// TestRemovingTheRequestsOfAProjectWithNoneIsNoError checks that removing
+// the requests of a project nobody asked doesn't fail, unlike deleting
+// one request that is gone.
+func (s *joinRequestsSuite) TestRemovingTheRequestsOfAProjectWithNoneIsNoError() {
 	// arrange
 	fair := s.takingRequests("Summer fair", s.savedUser("Karo"))
 	unit := s.database.NewContext()
