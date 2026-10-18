@@ -50,7 +50,7 @@ func (repository *JoinRequestRepository) ByProjectAndUser(ctx context.Context, p
 		return nil, fmt.Errorf("loading the request of user %s for project %s: %w", userID, projectID, err)
 	}
 
-	return repositories.NewJoinRequestFromDB(repositories.NewBaseFromDB(id, version), project, user, time.UnixMicro(askedAt)), nil
+	return repositories.NewJoinRequestFromDB(repositories.NewBaseFromDB(id, version), project, user, time.UnixMicro(askedAt).UTC()), nil
 }
 
 // ListForProject lists the project's waiting requests with who asked, in
@@ -93,7 +93,7 @@ func (repository *JoinRequestRepository) ListForProject(ctx context.Context, pro
 		}
 
 		waiting = append(waiting, repositories.WaitingRequest{
-			Request: repositories.NewJoinRequestFromDB(repositories.NewBaseFromDB(id, version), project, user, time.UnixMicro(askedAt)),
+			Request: repositories.NewJoinRequestFromDB(repositories.NewBaseFromDB(id, version), project, user, time.UnixMicro(askedAt).UTC()),
 			Asker:   repositories.NewUserFromDB(repositories.NewBaseFromDB(user, userVersion), name, email),
 		})
 	}

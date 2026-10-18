@@ -24,6 +24,17 @@ func (s *joinRequestsSuite) asking(project *repositories.Project, user *reposito
 	return request, unit.SaveChanges(s.T().Context())
 }
 
+// askingAt saves a request asked at the given time, for a test of the
+// order
+func (s *joinRequestsSuite) askingAt(project *repositories.Project, user *repositories.User, askedAt time.Time) {
+	request, err := repositories.NewJoinRequest(project.ID(), user.ID())
+	s.Require().NoError(err)
+
+	unit := s.database.NewContext()
+	unit.JoinRequests().Insert(repositories.NewJoinRequestFromDB(request.Base, project.ID(), user.ID(), askedAt))
+	s.save(unit)
+}
+
 func (s *joinRequestsSuite) takingRequests(name string, creator *repositories.User) *repositories.Project {
 	return s.savedProjectJoining(name, creator, repositories.VisibilityPublic, repositories.JoiningRequest)
 }
@@ -46,7 +57,7 @@ func (s *joinRequestsSuite) TestARequestComesBackAsAsked() {
 	s.Equal(1, found.Version())
 	s.Equal(fair.ID(), found.ProjectID())
 	s.Equal(ana.ID(), found.UserID())
-	s.WithinDuration(asked.AskedAt(), found.AskedAt(), time.Microsecond)
+	s.Equal(asked.AskedAt(), found.AskedAt())
 }
 
 // TestOnlyAProjectThatTakesRequestsCanBeAsked checks that a request for an
@@ -99,26 +110,25 @@ func (s *joinRequestsSuite) TestAUserAsksAProjectOnlyOnce() {
 // oldest first, with each asker, and only that project's requests.
 func (s *joinRequestsSuite) TestWaitingRequestsAreListedWithWhoAsked() {
 	// arrange
-	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
+	karo, ana, tomas, lea := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás"), s.savedUser("Lea")
 	fair := s.takingRequests("Summer fair", karo)
 	book := s.takingRequests("Book club", karo)
-	_, err := s.asking(fair, tomas)
-	s.Require().NoError(err)
-	_, err = s.asking(fair, ana)
-	s.Require().NoError(err)
-	_, err = s.asking(book, ana)
-	s.Require().NoError(err)
+	start := time.Date(2026, 10, 18, 9, 0, 0, 0, time.UTC)
+	s.askingAt(fair, ana, start.Add(2*time.Minute))
+	s.askingAt(fair, tomas, start)
+	s.askingAt(fair, lea, start.Add(time.Minute))
+	s.askingAt(book, ana, start)
 
 	// act
 	waiting, err := s.database.NewContext().JoinRequests().ListForProject(s.T().Context(), fair.ID())
 
 	// assert
 	s.Require().NoError(err)
-	s.Require().Len(waiting, 2)
-	s.Equal(tomas.ID(), waiting[0].Request.UserID(), "the oldest first")
-	s.Equal("Tomás", waiting[0].Asker.Name())
+	s.Require().Len(waiting, 3)
+	s.Equal([]string{"Tomás", "Lea", "Ana"}, []string{waiting[0].Asker.Name(), waiting[1].Asker.Name(), waiting[2].Asker.Name()}, "the oldest first")
+	s.Equal(tomas.ID(), waiting[0].Request.UserID())
 	s.Equal("Tomás@frogly.local", waiting[0].Asker.Email())
-	s.Equal(ana.ID(), waiting[1].Asker.ID())
+	s.Equal(start, waiting[0].Request.AskedAt())
 }
 
 // TestTheProjectsSomeoneAskedAreKnown checks ProjectsAskedBy for someone
