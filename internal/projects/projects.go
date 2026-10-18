@@ -173,21 +173,10 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 		return nil, err
 	}
 
-	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
-	if err == nil {
-		return added, nil
-	}
-
-	if !errors.Is(err, repositories.ErrNotFound) {
-		return nil, err
-	}
-
-	membership, err := repositories.NewMembership(projectID, userID)
+	err = addMembership(ctx, unit, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	unit.Memberships().Insert(membership)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
@@ -303,6 +292,28 @@ func Requests(ctx context.Context, unit db.Context, user *repositories.User, pro
 	return unit.JoinRequests().ListForProject(ctx, projectID)
 }
 
+// addMembership queues a membership for userID, unless they already are a
+// member.
+func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
+	_, err := unit.Projects().ByIDForMember(ctx, projectID, userID)
+	if err == nil {
+		return nil
+	}
+
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return err
+	}
+
+	membership, err := repositories.NewMembership(projectID, userID)
+	if err != nil {
+		return err
+	}
+
+	unit.Memberships().Insert(membership)
+
+	return nil
+}
+
 // AcceptRequest lets a member say yes to a request, which makes the asker
 // a member and removes the request in the same save. It gives the asker
 // back. Someone who isn't a member gets ErrNotFound, and a request that
@@ -320,18 +331,8 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 
 	// the asker may have got in another way since, like a member adding
 	// them, and then the yes only clears the request
-	_, err = unit.Projects().ByIDForMember(ctx, projectID, askerID)
-
-	switch {
-	case errors.Is(err, repositories.ErrNotFound):
-		membership, err := repositories.NewMembership(projectID, askerID)
-		if err != nil {
-			return nil, err
-		}
-
-		unit.Memberships().Insert(membership)
-
-	case err != nil:
+	err = addMembership(ctx, unit, projectID, askerID)
+	if err != nil {
 		return nil, err
 	}
 
