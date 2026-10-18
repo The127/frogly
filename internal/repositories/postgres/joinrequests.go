@@ -106,44 +106,6 @@ func (repository *JoinRequestRepository) ListForProject(ctx context.Context, pro
 	return waiting, nil
 }
 
-// ProjectsAskedBy gives the projects the user has a waiting request for.
-func (repository *JoinRequestRepository) ProjectsAskedBy(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
-	selection := sqlbuilder.Select("project_id").From("join_requests")
-	selection.Where(selection.Equal("user_id", userID))
-	selection.OrderBy("project_id")
-
-	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
-
-	rows, err := repository.reader.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("listing the projects user %s asked: %w", userID, err)
-	}
-
-	defer func() {
-		_ = rows.Close() // a read-only query, closing can't lose anything
-	}()
-
-	var asked []uuid.UUID
-
-	for rows.Next() {
-		var projectID uuid.UUID
-
-		err := rows.Scan(&projectID)
-		if err != nil {
-			return nil, fmt.Errorf("reading a project user %s asked: %w", userID, err)
-		}
-
-		asked = append(asked, projectID)
-	}
-
-	err = rows.Err()
-	if err != nil {
-		return nil, fmt.Errorf("listing the projects user %s asked: %w", userID, err)
-	}
-
-	return asked, nil
-}
-
 // Insert records the request to be written.
 func (repository *JoinRequestRepository) Insert(request *repositories.JoinRequest) {
 	repository.tracker.Add(change.NewEntry(change.Added, request))

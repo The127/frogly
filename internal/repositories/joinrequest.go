@@ -69,9 +69,6 @@ type JoinRequestRepository interface {
 	// ListForProject lists the project's waiting requests, the oldest
 	// first, then by ID.
 	ListForProject(ctx context.Context, projectID uuid.UUID) ([]WaitingRequest, error)
-	// ProjectsAskedBy gives the projects the user has a waiting request
-	// for.
-	ProjectsAskedBy(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	Insert(request *JoinRequest)
 	Delete(request *JoinRequest)
 }

@@ -177,10 +177,10 @@ func (s *projectsSuite) TestPublicProjectsAreListedForNonMembers() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(projects, 2)
-	s.Equal(board.ID(), projects[0].ID(), "upper case sorts before lower case")
-	s.Equal("Board", projects[0].Name())
-	s.Equal(repositories.VisibilityPublic, projects[0].Visibility())
-	s.Equal(garden.ID(), projects[1].ID())
+	s.Equal(board.ID(), projects[0].Project.ID(), "upper case sorts before lower case")
+	s.Equal("Board", projects[0].Project.Name())
+	s.Equal(repositories.VisibilityPublic, projects[0].Project.Visibility())
+	s.Equal(garden.ID(), projects[1].Project.ID())
 }
 
 // TestAChangedVisibilityIsSaved checks that an update writes the new
@@ -254,7 +254,7 @@ func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(projects, 1)
-	s.Equal(others.ID(), projects[0].ID())
+	s.Equal(others.ID(), projects[0].Project.ID())
 }
 
 // TestAProjectKeepsHowPeopleJoin checks that a public project loads open
@@ -276,9 +276,9 @@ func (s *projectsSuite) TestAProjectKeepsHowPeopleJoin() {
 			s.Equal(joining, found.Joining())
 
 			// the subtests share the database, so the list holds the other's project too
-			listed := slices.IndexFunc(public, func(project *repositories.Project) bool { return project.ID() == fair.ID() })
+			listed := slices.IndexFunc(public, func(listed repositories.PublicProject) bool { return listed.Project.ID() == fair.ID() })
 			s.Require().GreaterOrEqual(listed, 0)
-			s.Equal(joining, public[listed].Joining())
+			s.Equal(joining, public[listed].Project.Joining())
 		})
 	}
 }

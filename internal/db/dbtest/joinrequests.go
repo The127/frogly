@@ -3,8 +3,6 @@ package dbtest
 import (
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/the127/frogly/internal/repositories"
 )
 
@@ -149,26 +147,31 @@ func (s *joinRequestsSuite) TestWaitingRequestsAreListedWithWhoAsked() {
 	s.Equal(start, waiting[0].Request.AskedAt())
 }
 
-// TestTheProjectsSomeoneAskedAreKnown checks ProjectsAskedBy for someone
-// with requests and someone without.
-func (s *joinRequestsSuite) TestTheProjectsSomeoneAskedAreKnown() {
+// TestThePublicListSaysWhichProjectsTheUserAsked checks the asked flag
+// for someone with a request and someone without.
+func (s *joinRequestsSuite) TestThePublicListSaysWhichProjectsTheUserAsked() {
 	// arrange
 	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
 	fair := s.takingRequests("Summer fair", karo)
-	s.takingRequests("Book club", karo)
+	club := s.takingRequests("Book club", karo)
 	_, err := s.asking(fair, ana)
 	s.Require().NoError(err)
-	requests := s.database.NewContext().JoinRequests()
+	projects := s.database.NewContext().Projects()
 
 	// act
-	anaAsked, anaErr := requests.ProjectsAskedBy(s.T().Context(), ana.ID())
-	tomasAsked, tomasErr := requests.ProjectsAskedBy(s.T().Context(), tomas.ID())
+	anaList, anaErr := projects.ListPublicForNonMember(s.T().Context(), ana.ID())
+	tomasList, tomasErr := projects.ListPublicForNonMember(s.T().Context(), tomas.ID())
 
 	// assert
 	s.Require().NoError(anaErr)
 	s.Require().NoError(tomasErr)
-	s.Equal([]uuid.UUID{fair.ID()}, anaAsked)
-	s.Empty(tomasAsked)
+	s.Require().Len(anaList, 2)
+	s.Equal(club.ID(), anaList[0].Project.ID())
+	s.False(anaList[0].Asked)
+	s.Equal(fair.ID(), anaList[1].Project.ID())
+	s.True(anaList[1].Asked)
+	s.Require().Len(tomasList, 2)
+	s.False(tomasList[0].Asked || tomasList[1].Asked, "Ana's request isn't Tomás's")
 }
 
 // TestAnAnsweredRequestIsGone checks that a deleted request is gone and

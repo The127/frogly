@@ -22,13 +22,6 @@ var ErrNotFound = errors.New("project not found")
 // ErrUnknownPerson refuses to add someone frogly doesn't know.
 var ErrUnknownPerson = repositories.Invalid("nobody with that ID uses frogly")
 
-// PublicProject is a public project as someone outside it sees it.
-type PublicProject struct {
-	Project *repositories.Project
-	// Asked says whether they asked to join and wait for an answer.
-	Asked bool
-}
-
 // searchLimit keeps a search to a list someone reads at a glance, and
 // stops a short text from listing everyone who uses frogly at once.
 const searchLimit = 10
@@ -103,28 +96,8 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 
 // ListPublicFor lists the public projects user isn't a member of, each
 // with whether they asked to join it.
-func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]PublicProject, error) {
-	found, err := unit.Projects().ListPublicForNonMember(ctx, user.ID())
-	if err != nil {
-		return nil, err
-	}
-
-	asked, err := unit.JoinRequests().ProjectsAskedBy(ctx, user.ID())
-	if err != nil {
-		return nil, err
-	}
-
-	askedSet := make(map[uuid.UUID]bool, len(asked))
-	for _, projectID := range asked {
-		askedSet[projectID] = true
-	}
-
-	listed := make([]PublicProject, 0, len(found))
-	for _, project := range found {
-		listed = append(listed, PublicProject{Project: project, Asked: askedSet[project.ID()]})
-	}
-
-	return listed, nil
+func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]repositories.PublicProject, error) {
+	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
 }
 
 // FindPeople lets a member find the people who could join the project, by

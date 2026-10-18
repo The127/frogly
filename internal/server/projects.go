@@ -34,7 +34,7 @@ type publicProjectJSON struct {
 	Asked   bool   `json:"asked"`
 }
 
-func toPublicProjectJSON(public projects.PublicProject) publicProjectJSON {
+func toPublicProjectJSON(public repositories.PublicProject) publicProjectJSON {
 	return publicProjectJSON{
 		ID:      public.Project.ID().String(),
 		Name:    public.Project.Name(),

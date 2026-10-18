@@ -1,7 +1,7 @@
 -- +migrate Up
 
--- the unique pair also finds a project's requests, and the index on the
--- user the projects someone asked
+-- the unique pair also finds a project's requests, and whether someone
+-- asked to join a project
 create table join_requests
 (
     id         uuid        not null primary key,
@@ -11,8 +11,6 @@ create table join_requests
     asked_at   timestamptz not null,
     unique (project_id, user_id)
 );
-
-create index join_requests_by_user on join_requests (user_id);
 
 -- +migrate Down
 
