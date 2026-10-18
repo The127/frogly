@@ -904,3 +904,46 @@ func TestLeavingTwiceAtOnceLeavesOnce(t *testing.T) {
 	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
 	require.ErrorIs(t, err, projects.ErrNotFound)
 }
+
+// brokenAfterSaveUnit refuses its save as a race, and its reads of
+// projects fail after that, like a request cancelled in between.
+type brokenAfterSaveUnit struct {
+	db.Context
+
+	saved *bool
+}
+
+func (unit brokenAfterSaveUnit) SaveChanges(context.Context) error {
+	*unit.saved = true
+
+	return repositories.ErrConcurrentModification
+}
+
+func (unit brokenAfterSaveUnit) Projects() repositories.ProjectRepository {
+	if *unit.saved {
+		return brokenProjects{unit.Context.Projects()}
+	}
+
+	return unit.Context.Projects()
+}
+
+type brokenProjects struct {
+	repositories.ProjectRepository
+}
+
+func (brokenProjects) ByIDForMember(context.Context, uuid.UUID, uuid.UUID) (*repositories.Project, error) {
+	return nil, errors.New("the database is gone")
+}
+
+func TestALeaveThatLostARaceAndCantReadIsNoLeave(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	// act
+	err := projects.Leave(t.Context(), brokenAfterSaveUnit{Context: database.NewContext(), saved: new(bool)}, karo, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+}

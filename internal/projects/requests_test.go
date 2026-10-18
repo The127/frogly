@@ -305,3 +305,19 @@ func TestAProjectThatStillTakesRequestsKeepsThem(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, waiting, 1)
 }
+
+func TestAYesWhileAMemberLeavesIsARace(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+	tomas := savedUser(t, database, "Tomás")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, fair.ID(), tomas.ID())
+	require.NoError(t, err)
+	unit := leavingUnit{Context: database.NewContext(), database: database, other: tomas, projectID: fair.ID()}
+
+	// act
+	_, err = projects.AcceptRequest(t.Context(), unit, karo, fair.ID(), ana.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+}
