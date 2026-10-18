@@ -5,6 +5,7 @@
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import { navigate, p } from "../../router";
+  import Button from "../../ui/Button.svelte";
   import List from "../../ui/List.svelte";
   import Row from "../../ui/Row.svelte";
   import Rows from "../../ui/Rows.svelte";
@@ -38,5 +39,16 @@
 
   <form onsubmit={start}>
     <TextField id="project-name" label="Name of a new project" bind:value={name} placeholder="name a project…" />
+    <div class="under">
+      <Button pond type="submit">create</Button>
+    </div>
   </form>
 </Section>
+
+<style>
+  .under {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+  }
+</style>

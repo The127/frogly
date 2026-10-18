@@ -78,7 +78,10 @@
           problem={planting.problem}
           aria-describedby="idea-count"
         />
-        <p class="quiet small count" id="idea-count">{text.length} / {api.maxIdeaLength}</p>
+        <div class="under">
+          <p class="quiet small" id="idea-count">{text.length} / {api.maxIdeaLength}</p>
+          <Button pond type="submit" busy={planting.busy}>plant</Button>
+        </div>
       </form>
 
       <Section label="the garden">
@@ -103,8 +106,14 @@
 </Loaded>
 
 <style>
-  .count {
-    text-align: right;
-    margin: 4px 0 0;
+  .under {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .under p {
+    margin: 0;
   }
 </style>
