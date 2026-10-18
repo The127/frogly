@@ -721,11 +721,11 @@ func TestAMemberLeavesAProject(t *testing.T) {
 func TestTheLastMemberLeavesAProject(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	karo := savedUser(t, database, "Karo")
-	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
 
 	// act
-	err := projects.Leave(t.Context(), database.NewContext(), karo, garden.ID())
+	err := projects.Leave(t.Context(), database.NewContext(), karo, fair.ID())
 
 	// assert
 	require.NoError(t, err)
@@ -733,6 +733,11 @@ func TestTheLastMemberLeavesAProject(t *testing.T) {
 	listed, err := projects.ListFor(t.Context(), database.NewContext(), karo)
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+
+	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	require.Len(t, public, 1, "the project stays")
+	assert.Equal(t, fair.ID(), public[0].Project.ID())
 }
 
 func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
