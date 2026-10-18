@@ -263,10 +263,10 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 
 // AskToJoin lets user ask to join a public project that takes requests,
 // and says whether a request of theirs waits now. Asking again changes
-// nothing, and a member asking has nothing to wait for, also one who got
-// in a moment before. A project that
-// doesn't exist or doesn't take requests gives ErrNotFound, decided by
-// the database as it saves the request.
+// nothing, and a member asking has nothing to wait for, including someone
+// who joined a moment before. A project that doesn't exist or doesn't
+// take requests gives ErrNotFound, decided by the database as it saves
+// the request.
 func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (bool, error) {
 	_, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if err == nil {
