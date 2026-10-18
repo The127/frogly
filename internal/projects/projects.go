@@ -202,9 +202,10 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 
 // Leave takes user out of a project they're a member of. The project and
 // what they planted in it stay for the others. The last member may leave
-// too, and the project then turns public and open, so it isn't lost and
-// someone can pick it up. Leaving twice at the same moment leaves once. Someone who isn't a
-// member gets ErrNotFound, like Get.
+// too, and the project then turns public and open and drops its requests,
+// so it isn't lost and someone can pick it up. Leaving twice at the same
+// moment leaves once. Someone who isn't a member gets ErrNotFound, like
+// Get.
 func Leave(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) error {
 	_, err := Get(ctx, unit, user, projectID)
 	if err != nil {
