@@ -272,7 +272,8 @@ export async function fetchRequests(accessToken: string, projectId: string): Pro
 
 export async function acceptRequest(accessToken: string, projectId: string, userId: string): Promise<Person> {
   const response = await authorized(requestPath(projectId, userId) + "/accept", accessToken, { method: "POST" });
-  if (response.status === 404) {
+  // a conflict means someone answered it at the same moment, so it's gone
+  if (response.status === 404 || response.status === 409) {
     throw new NotFound();
   }
 
@@ -285,7 +286,8 @@ export async function acceptRequest(accessToken: string, projectId: string, user
 
 export async function declineRequest(accessToken: string, projectId: string, userId: string): Promise<void> {
   const response = await authorized(requestPath(projectId, userId), accessToken, { method: "DELETE" });
-  if (response.status === 404) {
+  // a conflict means someone answered it at the same moment, so it's gone
+  if (response.status === 404 || response.status === 409) {
     throw new NotFound();
   }
 

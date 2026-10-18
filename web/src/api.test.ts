@@ -378,9 +378,12 @@ describe("acceptRequest", () => {
     });
   });
 
-  it("fails as not found when nobody waits", async () => {
+  it.each([
+    { name: "nobody waits", status: 404 },
+    { name: "another member answers at the same moment", status: 409 },
+  ])("fails as not found when $name", async ({ status }) => {
     // arrange
-    respondWith(404, { status: 404 });
+    respondWith(status, { status });
 
     // act
     const accepted = acceptRequest("an-access-token", "p-1", "u-2");
@@ -405,9 +408,12 @@ describe("declineRequest", () => {
     });
   });
 
-  it("fails as not found when nobody waits", async () => {
+  it.each([
+    { name: "nobody waits", status: 404 },
+    { name: "another member answers at the same moment", status: 409 },
+  ])("fails as not found when $name", async ({ status }) => {
     // arrange
-    respondWith(404, { status: 404 });
+    respondWith(status, { status });
 
     // act
     const declined = declineRequest("an-access-token", "p-1", "u-2");
