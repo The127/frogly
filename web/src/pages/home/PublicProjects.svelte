@@ -8,6 +8,7 @@
   import { navigate } from "../../router";
   import Button from "../../ui/Button.svelte";
   import List from "../../ui/List.svelte";
+  import Notice from "../../ui/Notice.svelte";
   import Problem from "../../ui/Problem.svelte";
   import Row from "../../ui/Row.svelte";
   import Rows from "../../ui/Rows.svelte";
@@ -16,7 +17,8 @@
   const login = getLogin();
   const projects = new Resource(login, () => api.publicProjects(login.accessToken));
   // joining and asking share one action, so a person does one at a time
-  const action = new Action(login, () => projects.load());
+  const action = new Action(login);
+  let top = $state<HTMLElement>();
   onMount(() => projects.load());
 
   const shown = alive();
@@ -53,6 +55,10 @@
         }
 
         projects.change((listed) => listed.map((other) => (other.id === project.id ? { ...other, asked: true } : other)));
+        // the button that had the focus is gone with the request
+        top?.focus();
+
+        return `You asked to join ${project.name}. A member will answer.`;
       },
       notFound: async () => {
         await projects.load();
@@ -63,7 +69,7 @@
   }
 </script>
 
-<Section label="public projects of others">
+<Section label="public projects of others" bind:top>
   <List resource={projects} failed="frogly can't list them right now." empty="Nobody else has a public project yet.">
     {#snippet children(listed)}
       <!-- not links, a garden opens to its members -->
@@ -88,4 +94,5 @@
     {/snippet}
   </List>
   <Problem text={action.problem} />
+  <Notice text={action.notice} />
 </Section>

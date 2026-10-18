@@ -10,10 +10,12 @@
   import Rows from "../../ui/Rows.svelte";
   import Section from "../../ui/Section.svelte";
 
-  let { projectId, requests, gone }: { projectId: string; requests: Resource<api.WaitingRequest[]>; gone: () => void } = $props();
+  let { projectId, requests }: { projectId: string; requests: Resource<api.WaitingRequest[]> } = $props();
 
   const login = getLogin();
-  const answering = new Action(login, () => gone());
+  // a 404 means the request is gone, and the list says whether the project
+  // is too
+  const answering = new Action(login);
   let top = $state<HTMLElement>();
 
   function answer(request: api.WaitingRequest, reply: "yes" | "no") {

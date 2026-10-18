@@ -123,19 +123,19 @@ function failed<T>(failure: Failure): Result<T> {
   return { ok: false, failure };
 }
 
-// both runs two calls side by side, for a page that needs both, and gives
-// the first failure if either fails
+// both runs two calls side by side, for a page that needs both. If either
+// fails, it gives a lost login first, since nothing else helps until the
+// person logs in again, and otherwise the first failure.
 export async function both<A, B>(a: Promise<Result<A>>, b: Promise<Result<B>>): Promise<Result<[A, B]>> {
   const [first, second] = await Promise.all([a, b]);
-  if (!first.ok) {
-    return first;
+  if (first.ok && second.ok) {
+    return { ok: true, value: [first.value, second.value] };
   }
 
-  if (!second.ok) {
-    return second;
-  }
+  const failures = [first, second].flatMap((result) => (result.ok ? [] : [result.failure]));
+  const ended = failures.find((failure) => failure.kind === "loggedOut" || failure.kind === "notAllowed");
 
-  return { ok: true, value: [first.value, second.value] };
+  return { ok: false, failure: ended ?? failures[0] };
 }
 
 // map changes the value of a call that worked, and keeps a failure as it is

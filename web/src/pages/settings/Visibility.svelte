@@ -32,7 +32,7 @@
   <div class="state">
     <!-- a polite notice, so a screen reader says the new state once the
          change is saved -->
-    <Notice text={visibilityText(project.visibility)} />
+    <Notice tight text={visibilityText(project.visibility)} />
     <Button busy={switching.busy} onclick={toggle}>make it {isPublic ? "private" : "public"}</Button>
   </div>
   <Problem text={switching.problem} />
@@ -44,9 +44,5 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 14px;
-  }
-
-  .state :global(p) {
-    margin: 0;
   }
 </style>

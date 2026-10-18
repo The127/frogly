@@ -18,16 +18,21 @@
   let { projectId }: { projectId: string } = $props();
 
   const login = getLogin();
-  const settings = new Resource(login, () => api.project(login.accessToken, projectId));
-  const gone = () => settings.gone();
+  // the page shows once the requests are there too, so they don't push it
+  // down later
+  const settings: Resource<api.ProjectWithMembers> = new Resource(login, async () => {
+    const [project] = await Promise.all([api.project(login.accessToken, projectId), requests.load()]);
+
+    return project;
+  });
+  const gone = (): void => settings.gone();
   // the requests belong to the project, so when they're not found, it's gone
-  const requests = new Resource(login, () => api.requests(login.accessToken, projectId), gone);
+  const requests: Resource<api.WaitingRequest[]> = new Resource(login, () => api.requests(login.accessToken, projectId), gone);
   // who sees the project and who can join it are saved one at a time, and
   // saving either clears what went wrong with the other
   const saving = new Busy();
 
-  // both at once, so the requests don't push the page down later
-  onMount(() => Promise.all([settings.load(), requests.load()]));
+  onMount(() => settings.load());
 
   function changed(project: api.Project) {
     settings.change((shown) => ({ ...shown, ...project }));
@@ -51,10 +56,10 @@
       <Visibility {project} busy={saving} {changed} {gone} />
       {#if project.visibility === "public"}
         <Joining {project} busy={saving} {changed} {gone} />
-        <Requests {projectId} {requests} {gone} />
+        <Requests {projectId} {requests} />
       {/if}
       <AddPeople {projectId} {gone} />
-      <Leave {project} {gone} />
+      <Leave {project} />
     </Page>
   {/snippet}
 </Loaded>

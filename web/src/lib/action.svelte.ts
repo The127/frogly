@@ -30,7 +30,9 @@ interface Handlers<T> {
 }
 
 // Busy is a group of actions that run one at a time, like a search and
-// adding someone it found. Running one clears what all of them said.
+// adding someone it found. Running one clears what all of them said. It
+// keeps the actions of components that are gone too, which costs a few
+// objects for as long as the page lives.
 export class Busy {
   now = $state(false);
   #actions: Action[] = [];

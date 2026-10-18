@@ -10,13 +10,14 @@
   import Problem from "../../ui/Problem.svelte";
   import Section from "../../ui/Section.svelte";
 
-  let { project, gone }: { project: api.ProjectWithMembers; gone: () => void } = $props();
+  let { project }: { project: api.ProjectWithMembers } = $props();
 
   const login = getLogin();
   // checking what leaving does and leaving run one at a time
   const busy = new Busy();
-  const checking = new Action(login, () => gone(), busy);
-  const leaving = new Action(login, () => gone(), busy);
+  // not found means you aren't a member any more, which both handle
+  const checking = new Action(login, undefined, busy);
+  const leaving = new Action(login, undefined, busy);
 
   // leaving takes two clicks, since you can't get back into a private or
   // closed project on your own
@@ -59,7 +60,10 @@
 
   function askToLeave() {
     // others may have joined, left or changed who can join since the page
-    // loaded, and the note says what leaving does now
+    // loaded, and the note says what leaving does now. A check that fails
+    // falls back to the page, never to an older check.
+    checked = undefined;
+
     return checking.run(() => api.project(login.accessToken, project.id), {
       what: "check what leaving does",
       done: async (now) => {
@@ -101,13 +105,13 @@
   {/if}
   <div class="acts">
     {#if confirming}
-      <Button busy={busy.now} onclick={leave} aria-describedby="coming-back">yes, leave {project.name}</Button>
-      <Button pond busy={busy.now} onclick={stay} aria-describedby="coming-back" bind:ref={stayButton}>stay</Button>
+      <Button busy={leaving.busy} onclick={leave} aria-describedby="coming-back">yes, leave {project.name}</Button>
+      <Button pond busy={leaving.busy} onclick={stay} aria-describedby="coming-back" bind:ref={stayButton}>stay</Button>
     {:else}
-      <Button busy={busy.now} onclick={askToLeave} bind:ref={leaveButton}>leave this project</Button>
+      <Button busy={leaving.busy} onclick={askToLeave} bind:ref={leaveButton}>leave this project</Button>
     {/if}
   </div>
-  <Problem text={leaving.problem || checking.problem} />
+  <Problem text={leaving.problem} />
 </Section>
 
 <style>

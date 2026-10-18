@@ -4,7 +4,10 @@
 
   // busy keeps the button where it is, so the focus stays, and the action
   // refuses a second run itself
+  // a button submits nothing unless it says so, so one placed in a form
+  // doesn't send it by surprise
   let {
+    type = "button",
     busy = false,
     pond = false,
     ref = $bindable(),
@@ -13,7 +16,7 @@
   }: HTMLButtonAttributes & { busy?: boolean; pond?: boolean; ref?: HTMLButtonElement; children: Snippet } = $props();
 </script>
 
-<button class:pond aria-disabled={busy} bind:this={ref} {...rest}>{@render children()}</button>
+<button {type} class:pond aria-disabled={busy} bind:this={ref} {...rest}>{@render children()}</button>
 
 <style>
   button {

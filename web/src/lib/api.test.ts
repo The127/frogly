@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "./api";
 import type { Result } from "./client";
-import { respondWith, token } from "./fake";
+import { respondWith, token } from "./testing";
 
 
 afterEach(() => {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoggedOut, type Result, both, call, map } from "./client";
-import { respondWith, token } from "./fake";
+import { respondWith, token } from "./testing";
 
 
 afterEach(() => {
@@ -196,7 +196,9 @@ describe("both", () => {
   it.each([
     { name: "the first", first: { kind: "notFound" }, second: undefined, failure: { kind: "notFound" } },
     { name: "the second", first: undefined, second: { kind: "failed" }, failure: { kind: "failed" } },
-    { name: "both, the first one's", first: { kind: "loggedOut" }, second: { kind: "failed" }, failure: { kind: "loggedOut" } },
+    { name: "both, the first one's", first: { kind: "notFound" }, second: { kind: "failed" }, failure: { kind: "notFound" } },
+    { name: "both, a lost login first", first: { kind: "failed" }, second: { kind: "loggedOut" }, failure: { kind: "loggedOut" } },
+    { name: "both, a login without frogly's role first", first: { kind: "notFound" }, second: { kind: "notAllowed" }, failure: { kind: "notAllowed" } },
   ])("gives the failure of $name", async ({ first, second, failure }) => {
     // arrange
     const a = Promise.resolve((first ? { ok: false, failure: first } : { ok: true, value: 1 }) as Result<number>);

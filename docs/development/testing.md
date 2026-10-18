@@ -89,9 +89,10 @@ The integration tests run them against the frogly they start, so `frogly`,
 The frontend's tests sit next to the code they test, like
 `web/src/lib/client.ts` and `web/src/lib/client.test.ts`. They use
 [Vitest](https://vitest.dev/) and the same three parts as the Go tests.
-Keep logic that needs a test out of the Svelte components, in plain
-TypeScript modules in `web/src/lib`. `just web-check` runs the tests and
-checks the types.
+Keep logic that needs a test out of the Svelte components, in TypeScript
+modules in `web/src/lib`. A module that holds state with runes, like
+`web/src/lib/action.svelte.ts`, ends in `.svelte.ts`. `just web-check` runs
+the tests and checks the types.
 
 ## Tools
 

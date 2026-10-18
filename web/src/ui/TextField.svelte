@@ -6,14 +6,14 @@
   // label is for screen readers, the placeholder says it to everyone else.
   // Without it, the page labels the field itself. busy makes the field
   // readonly, not disabled, since a disabled field would lose the focus.
-  // The field shows its problem below it, unless problemId says where the
-  // page shows it.
+  // A field that can have a problem shows it below, unless problemId says
+  // where the page shows it.
   let {
     id,
     label,
     value = $bindable(""),
     busy = false,
-    problem = "",
+    problem,
     problemId,
     ref = $bindable(),
     "aria-describedby": describedby,
@@ -28,8 +28,10 @@
     ref?: HTMLInputElement;
   } = $props();
 
-  const ownProblem = $derived(problemId === undefined);
-  const describing = $derived([describedby, problemId ?? `${id}-problem`].filter(Boolean).join(" "));
+  const ownProblem = $derived(problem !== undefined && problemId === undefined);
+  const describing = $derived(
+    [describedby, problemId, ownProblem ? `${id}-problem` : undefined].filter(Boolean).join(" ") || undefined,
+  );
 </script>
 
 {#if label}
@@ -46,7 +48,7 @@
   {...rest}
 />
 {#if ownProblem}
-  <Problem id={`${id}-problem`} text={problem} />
+  <Problem id={`${id}-problem`} text={problem ?? ""} />
 {/if}
 
 <style>
