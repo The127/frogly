@@ -1006,12 +1006,12 @@ func TestOthersSeeThatAPublicProjectIsOpen(t *testing.T) {
 func TestAProjectYouCantJoinIsNotFound(t *testing.T) {
 	tests := []struct {
 		name      string
-		projectID func(http.Handler) string
+		projectID func(*testing.T, http.Handler) string
 	}{
-		{name: "closed", projectID: func(handler http.Handler) string { return createdProjectWith(t, handler, "public") }},
-		{name: "private", projectID: func(handler http.Handler) string { return createdProject(t, handler) }},
-		{name: "no such project", projectID: func(http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
-		{name: "not an ID", projectID: func(http.Handler) string { return "garden" }},
+		{name: "closed", projectID: func(t *testing.T, handler http.Handler) string { return createdProjectWith(t, handler, "public") }},
+		{name: "private", projectID: createdProject},
+		{name: "no such project", projectID: func(*testing.T, http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
+		{name: "not an ID", projectID: func(*testing.T, http.Handler) string { return "garden" }},
 	}
 
 	for _, test := range tests {
@@ -1020,7 +1020,7 @@ func TestAProjectYouCantJoinIsNotFound(t *testing.T) {
 			handler := newServer(t, &bytes.Buffer{})
 
 			// act
-			response := joinProject(t, handler, otherToken, test.projectID(handler))
+			response := joinProject(t, handler, otherToken, test.projectID(t, handler))
 
 			// assert
 			assert.Equal(t, http.StatusNotFound, response.Code)
