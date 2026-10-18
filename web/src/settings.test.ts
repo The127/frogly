@@ -232,7 +232,7 @@ describe("loadRequests", () => {
 describe("answerRequest", () => {
   it("says yes", async () => {
     // arrange
-    vi.mocked(acceptRequest).mockResolvedValue({ id: "u-2", name: "Ana Costa", email: "" });
+    vi.mocked(acceptRequest).mockResolvedValue();
 
     // act
     const outcome = await answerRequest(token, "p-1", "u-2", "yes");

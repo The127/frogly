@@ -363,15 +363,14 @@ describe("fetchRequests", () => {
 });
 
 describe("acceptRequest", () => {
-  it("says yes and gives the new member", async () => {
+  it("says yes", async () => {
     // arrange
     respondWith(200, { id: "u-2", name: "Ana Costa", email: "ana@school.org" });
 
     // act
-    const accepted = await acceptRequest("an-access-token", "p-1", "u-2");
+    await acceptRequest("an-access-token", "p-1", "u-2");
 
     // assert
-    expect(accepted).toEqual({ id: "u-2", name: "Ana Costa", email: "ana@school.org" });
     expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests/u-2/accept", {
       method: "POST",
       headers: { Authorization: "Bearer an-access-token" },

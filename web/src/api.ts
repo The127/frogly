@@ -270,7 +270,7 @@ export async function fetchRequests(accessToken: string, projectId: string): Pro
   return (await response.json()) as WaitingRequest[];
 }
 
-export async function acceptRequest(accessToken: string, projectId: string, userId: string): Promise<Person> {
+export async function acceptRequest(accessToken: string, projectId: string, userId: string): Promise<void> {
   const response = await authorized(requestPath(projectId, userId) + "/accept", accessToken, { method: "POST" });
   // a conflict means the request was answered, or the asker got in, at
   // the same moment, so it's gone
@@ -281,8 +281,6 @@ export async function acceptRequest(accessToken: string, projectId: string, user
   if (!response.ok) {
     throw new Error(`frogly answered ${response.status} when asked to say yes to a request`);
   }
-
-  return (await response.json()) as Person;
 }
 
 export async function declineRequest(accessToken: string, projectId: string, userId: string): Promise<void> {
