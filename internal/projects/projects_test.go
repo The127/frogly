@@ -246,7 +246,8 @@ func TestOthersPublicProjectsAreListed(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	assert.Equal(t, fair.ID(), listed[0].ID())
+	assert.Equal(t, fair.ID(), listed[0].Project.ID())
+	assert.False(t, listed[0].Asked)
 }
 
 func TestAMemberFindsPeopleToAdd(t *testing.T) {

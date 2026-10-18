@@ -36,12 +36,18 @@ func (repository *ProjectRepository) ListForMember(ctx context.Context, userID u
 }
 
 // ListPublicForNonMember lists the public projects the user isn't a
-// member of, in the order of ListForMember.
-func (repository *ProjectRepository) ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]*repositories.Project, error) {
+// member of, each with whether they asked to join it, in the order of
+// ListForMember.
+func (repository *ProjectRepository) ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]repositories.PublicProject, error) {
 	membership := sqlbuilder.Select("1").From("memberships m")
 	membership.Where("m.project_id = p.id", membership.Equal("m.user_id", userID.String()))
 
-	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining").From("projects p")
+	request := sqlbuilder.Select("1").From("join_requests r")
+	request.Where("r.project_id = p.id", request.Equal("r.user_id", userID.String()))
+
+	selection := sqlbuilder.Select("p.id", "p.version", "p.name", "p.visibility", "p.joining")
+	selection.SelectMore(selection.Exists(request))
+	selection.From("projects p")
 	// a constant, not a parameter: the database only uses the partial
 	// index projects_public when it sees the value in the query
 	selection.Where(
@@ -50,7 +56,44 @@ func (repository *ProjectRepository) ListPublicForNonMember(ctx context.Context,
 	)
 	selection.OrderBy("p.name", "p.id")
 
-	return repository.list(ctx, selection, "the public projects for user "+userID.String())
+	query, args := selection.BuildWithFlavor(sqlbuilder.SQLite)
+
+	rows, err := repository.reader.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("listing the public projects for user %s: %w", userID, err)
+	}
+
+	defer func() {
+		_ = rows.Close() // a read-only query, closing can't lose anything
+	}()
+
+	var listed []repositories.PublicProject
+
+	for rows.Next() {
+		var (
+			id         uuid.UUID
+			version    int
+			name       string
+			visibility string
+			joining    string
+			asked      bool
+		)
+
+		err := rows.Scan(&id, &version, &name, &visibility, &joining, &asked)
+		if err != nil {
+			return nil, fmt.Errorf("reading a public project for user %s: %w", userID, err)
+		}
+
+		project := repositories.NewProjectFromDB(repositories.NewBaseFromDB(id, version), name, repositories.Visibility(visibility), repositories.Joining(joining))
+		listed = append(listed, repositories.PublicProject{Project: project, Asked: asked})
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("listing the public projects for user %s: %w", userID, err)
+	}
+
+	return listed, nil
 }
 
 func (repository *ProjectRepository) list(ctx context.Context, selection *sqlbuilder.SelectBuilder, what string) ([]*repositories.Project, error) {

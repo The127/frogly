@@ -34,6 +34,9 @@ type Joining string
 const (
 	// JoiningOpen lets anyone who may use frogly join right away.
 	JoiningOpen Joining = "open"
+	// JoiningRequest lets anyone who may use frogly ask, and a member says
+	// yes or no.
+	JoiningRequest Joining = "request"
 	// JoiningClosed lets only a member add someone.
 	JoiningClosed Joining = "closed"
 )
@@ -42,11 +45,11 @@ const (
 // see it to join.
 func checkJoining(visibility Visibility, joining Joining) error {
 	switch {
-	case joining != JoiningOpen && joining != JoiningClosed:
-		return Invalid("a project is open to join or closed")
+	case joining != JoiningOpen && joining != JoiningRequest && joining != JoiningClosed:
+		return Invalid("a project is open to join, takes requests or is closed")
 
-	case joining == JoiningOpen && visibility != VisibilityPublic:
-		return Invalid("only a public project can be open to join")
+	case joining != JoiningClosed && visibility != VisibilityPublic:
+		return Invalid("only a public project can be open to join or take requests")
 	}
 
 	return nil
@@ -141,6 +144,13 @@ func (project *Project) ChangeVisibility(visibility Visibility) error {
 	return nil
 }
 
+// PublicProject is a public project as someone outside it sees it.
+type PublicProject struct {
+	Project *Project
+	// Asked says whether they asked to join and wait for an answer.
+	Asked bool
+}
+
 // ProjectRepository loads and saves projects.
 type ProjectRepository interface {
 	// ListForMember lists the projects the user is a member of, sorted by
@@ -152,8 +162,9 @@ type ProjectRepository interface {
 	// caller can't tell the two apart.
 	ByIDForMember(ctx context.Context, projectID uuid.UUID, userID uuid.UUID) (*Project, error)
 	// ListPublicForNonMember lists the public projects the user isn't a
-	// member of, in the same order as ListForMember.
-	ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]*Project, error)
+	// member of, each with whether they asked to join it, in the same
+	// order as ListForMember.
+	ListPublicForNonMember(ctx context.Context, userID uuid.UUID) ([]PublicProject, error)
 	Insert(project *Project)
 	Update(project *Project)
 }

@@ -85,6 +85,7 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 	}
 
 	unit.Projects().Update(project)
+	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
@@ -94,8 +95,9 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 	return project, nil
 }
 
-// ListPublicFor lists the public projects user isn't a member of.
-func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]*repositories.Project, error) {
+// ListPublicFor lists the public projects user isn't a member of, each
+// with whether they asked to join it.
+func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]repositories.PublicProject, error) {
 	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
 }
 
@@ -122,10 +124,12 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 }
 
 // AddMember lets a member add someone who has logged in to frogly, and
-// gives them back. Adding a member again changes nothing. When two members
-// add the same person at once, one of them gets
-// repositories.ErrConcurrentModification, and trying again works. Someone
-// who isn't a member gets ErrNotFound, like Get.
+// gives them back. Adding a member again changes nothing. Someone who
+// isn't a member gets ErrNotFound, like Get.
+//
+// If two members add the same person at once, or a member adds someone
+// while their request is answered or dropped, one of them gets
+// repositories.ErrConcurrentModification. Trying again works.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
 	_, err := Get(ctx, unit, user, projectID)
 	if err != nil {
@@ -141,21 +145,10 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 		return nil, err
 	}
 
-	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
-	if err == nil {
-		return added, nil
-	}
-
-	if !errors.Is(err, repositories.ErrNotFound) {
-		return nil, err
-	}
-
-	membership, err := repositories.NewMembership(projectID, userID)
+	err = addMembership(ctx, unit, projectID, userID)
 	if err != nil {
 		return nil, err
 	}
-
-	unit.Memberships().Insert(membership)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
@@ -214,6 +207,7 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 	}
 
 	unit.Projects().Update(project)
+	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
@@ -221,4 +215,31 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 	}
 
 	return project, nil
+}
+
+// addMembership queues a membership for userID, unless they already are a
+// member, and removes their request.
+func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
+	err := dropRequest(ctx, unit, projectID, userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
+	if err == nil {
+		return nil
+	}
+
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return err
+	}
+
+	membership, err := repositories.NewMembership(projectID, userID)
+	if err != nil {
+		return err
+	}
+
+	unit.Memberships().Insert(membership)
+
+	return nil
 }

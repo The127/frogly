@@ -6,13 +6,16 @@ import {
   NotFound,
   type Person,
   type Project,
+  acceptRequest,
   addMember,
   changeJoining,
   changeVisibility,
+  declineRequest,
   fetchProject,
+  fetchRequests,
   searchPeople,
 } from "./api";
-import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
+import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -21,6 +24,9 @@ vi.mock("./api", async (actual) => ({
   searchPeople: vi.fn(),
   addMember: vi.fn(),
   changeJoining: vi.fn(),
+  fetchRequests: vi.fn(),
+  acceptRequest: vi.fn(),
+  declineRequest: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -188,6 +194,89 @@ describe("switchJoining", () => {
 
     // act
     const outcome = await switchJoining(token, "p-1", "open");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("loadRequests", () => {
+  it("gives the waiting requests", async () => {
+    // arrange
+    const waiting = [{ id: "u-2", name: "Ana Costa", email: "ana@school.org", askedAt: "2026-10-18T09:00:00Z" }];
+    vi.mocked(fetchRequests).mockResolvedValue(waiting);
+
+    // act
+    const outcome = await loadRequests(token, "p-1");
+
+    // assert
+    expect(outcome).toEqual({ kind: "listed", requests: waiting });
+  });
+
+  it.each([
+    { name: "they can't be loaded", error: new Error("frogly answered 503"), kind: "failed" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(fetchRequests).mockRejectedValue(error);
+
+    // act
+    const outcome = await loadRequests(token, "p-1");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("answerRequest", () => {
+  it("says yes", async () => {
+    // arrange
+    vi.mocked(acceptRequest).mockResolvedValue();
+
+    // act
+    const outcome = await answerRequest(token, "p-1", "u-2", "yes");
+
+    // assert
+    expect(outcome).toEqual({ kind: "answered" });
+    expect(acceptRequest).toHaveBeenCalledWith("an-access-token", "p-1", "u-2");
+    expect(declineRequest).not.toHaveBeenCalled();
+  });
+
+  it("says when the no failed", async () => {
+    // arrange
+    vi.mocked(declineRequest).mockRejectedValue(new Error("frogly answered 500"));
+
+    // act
+    const outcome = await answerRequest(token, "p-1", "u-2", "no");
+
+    // assert
+    expect(outcome).toEqual({ kind: "notAnswered" });
+  });
+
+  it("says no", async () => {
+    // arrange
+    vi.mocked(declineRequest).mockResolvedValue();
+
+    // act
+    const outcome = await answerRequest(token, "p-1", "u-2", "no");
+
+    // assert
+    expect(outcome).toEqual({ kind: "answered" });
+    expect(declineRequest).toHaveBeenCalledWith("an-access-token", "p-1", "u-2");
+    expect(acceptRequest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "answering failed", error: new Error("frogly answered 500"), kind: "notAnswered" },
+    { name: "the request is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(acceptRequest).mockRejectedValue(error);
+
+    // act
+    const outcome = await answerRequest(token, "p-1", "u-2", "yes");
 
     // assert
     expect(outcome).toEqual({ kind });

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"testing/fstest"
 	"testing/iotest"
+	"time"
 
 	"github.com/The127/ioc"
 
@@ -545,8 +546,8 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 		{name: "no name", body: `{"name": "   ", "visibility": "private"}`, wantDetail: "a project needs a name"},
 		{name: "too long a name", body: `{"name": "` + strings.Repeat("蛙", 101) + `", "visibility": "private"}`, wantDetail: "a project's name has at most 100 characters"},
 		{name: "no visibility", body: `{"name": "Garden"}`, wantDetail: "a project is public or private"},
-		{name: "a public project without how to join", body: `{"name": "Garden", "visibility": "public"}`, wantDetail: "a project is open to join or closed"},
-		{name: "an open private project", body: `{"name": "Garden", "visibility": "private", "joining": "open"}`, wantDetail: "only a public project can be open to join"},
+		{name: "a public project without how to join", body: `{"name": "Garden", "visibility": "public"}`, wantDetail: "a project is open to join, takes requests or is closed"},
+		{name: "an open private project", body: `{"name": "Garden", "visibility": "private", "joining": "open"}`, wantDetail: "only a public project can be open to join or take requests"},
 		{name: "an unknown visibility", body: `{"name": "Garden", "visibility": "secret"}`, wantDetail: "a project is public or private"},
 		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't the JSON this request takes"},
 		{name: "an unknown field", body: `{"name": "Garden", "visibility": "private", "colour": "green"}`, wantDetail: "the body isn't the JSON this request takes"},
@@ -762,7 +763,7 @@ func TestOthersSeeAPublicProjectByItsName(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Garden", "joining": "closed"}]`, response.Body.String())
+	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Garden", "joining": "closed", "asked": false}]`, response.Body.String())
 }
 
 func TestYourOwnPublicProjectIsntAmongTheOthers(t *testing.T) {
@@ -999,7 +1000,7 @@ func TestOthersSeeThatAPublicProjectIsOpen(t *testing.T) {
 	response := get(t, handler, "/api/projects/public", http.Header{"Authorization": {"Bearer " + otherToken}})
 
 	// assert
-	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Summer fair", "joining": "open"}]`, response.Body.String())
+	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Summer fair", "joining": "open", "asked": false}]`, response.Body.String())
 }
 
 func TestAProjectYouCantJoinIsNotFound(t *testing.T) {
@@ -1064,5 +1065,179 @@ func TestAJoiningFroglyCantUseIsABadRequest(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusBadRequest, response.Code)
-	assert.Contains(t, response.Body.String(), "only a public project can be open to join")
+	assert.Contains(t, response.Body.String(), "only a public project can be open to join or take requests")
+}
+
+func requestProject(t *testing.T, handler http.Handler) string {
+	t.Helper()
+
+	created := projects(t, handler, http.MethodPost, validToken, `{"name": "Summer fair", "visibility": "public", "joining": "request"}`)
+	require.Equal(t, http.StatusCreated, created.Code)
+
+	var project struct {
+		ID string `json:"id"`
+	}
+
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &project))
+
+	return project.ID
+}
+
+func anaAsks(t *testing.T, handler http.Handler, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/requests", http.Header{"Authorization": {"Bearer " + otherToken}})
+}
+
+func answer(t *testing.T, handler http.Handler, method string, path string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return request(t, handler, method, path, http.Header{"Authorization": {"Bearer " + validToken}})
+}
+
+// members answer a request by the asker's ID, which only the list of
+// requests gives
+func anaAsked(t *testing.T, handler http.Handler, projectID string) string {
+	t.Helper()
+
+	require.Equal(t, http.StatusOK, anaAsks(t, handler, projectID).Code)
+
+	var waiting []struct {
+		ID string `json:"id"`
+	}
+
+	require.NoError(t, json.Unmarshal(answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests").Body.Bytes(), &waiting))
+	require.Len(t, waiting, 1)
+
+	return waiting[0].ID
+}
+
+func TestTheAskerSeesTheyAsked(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := requestProject(t, handler)
+
+	// act
+	response := anaAsks(t, handler, projectID)
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"asked": true}`, response.Body.String())
+
+	listed := get(t, handler, "/api/projects/public", http.Header{"Authorization": {"Bearer " + otherToken}})
+	assert.JSONEq(t, `[{"id": "`+projectID+`", "name": "Summer fair", "joining": "request", "asked": true}]`, listed.Body.String())
+}
+
+func TestMembersSeeWhoAsked(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := requestProject(t, handler)
+	require.Equal(t, http.StatusOK, anaAsks(t, handler, projectID).Code)
+
+	// act
+	response := answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+
+	var waiting []struct {
+		ID      string    `json:"id"`
+		Name    string    `json:"name"`
+		Email   string    `json:"email"`
+		AskedAt time.Time `json:"askedAt"`
+	}
+
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &waiting))
+	require.Len(t, waiting, 1)
+	assert.NotEmpty(t, waiting[0].ID)
+	assert.Equal(t, "Ana", waiting[0].Name)
+	assert.WithinDuration(t, time.Now(), waiting[0].AskedAt, time.Minute)
+}
+
+func TestAYesAnswersWithTheNewMember(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := requestProject(t, handler)
+	anaID := anaAsked(t, handler, projectID)
+
+	// act
+	response := answer(t, handler, http.MethodPost, "/api/projects/"+projectID+"/requests/"+anaID+"/accept")
+
+	// assert
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"id": "`+anaID+`", "name": "Ana", "email": ""}`, response.Body.String())
+	assert.Contains(t, projects(t, handler, http.MethodGet, otherToken, "").Body.String(), projectID)
+	assert.JSONEq(t, `[]`, answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests").Body.String())
+}
+
+func TestANoAnswersWithNoContent(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := requestProject(t, handler)
+	anaID := anaAsked(t, handler, projectID)
+
+	// act
+	response := answer(t, handler, http.MethodDelete, "/api/projects/"+projectID+"/requests/"+anaID)
+
+	// assert
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Empty(t, response.Body.String())
+	assert.Empty(t, response.Header().Get("Content-Type"))
+	assert.JSONEq(t, `[]`, answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests").Body.String())
+	assert.JSONEq(t, `[]`, projects(t, handler, http.MethodGet, otherToken, "").Body.String())
+}
+
+func TestAProjectThatDoesntTakeRequestsIsNotFoundForAsking(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := openProject(t, handler)
+
+	// act
+	response := anaAsks(t, handler, projectID)
+
+	// assert
+	assert.Equal(t, http.StatusNotFound, response.Code)
+	assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"), "frogly's answer, not a missing route")
+}
+
+func TestAnAnswerNobodyWaitsForIsNotFound(t *testing.T) {
+	for _, userID := range []string{"01a14180-d957-7cc5-af29-7f1fe18d89bb", "ana"} {
+		t.Run(userID, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+			projectID := requestProject(t, handler)
+
+			// act
+			accepted := answer(t, handler, http.MethodPost, "/api/projects/"+projectID+"/requests/"+userID+"/accept")
+			declined := answer(t, handler, http.MethodDelete, "/api/projects/"+projectID+"/requests/"+userID)
+
+			// assert
+			assert.Equal(t, http.StatusNotFound, accepted.Code)
+			assert.Equal(t, http.StatusNotFound, declined.Code)
+			assert.Equal(t, "application/problem+json", accepted.Header().Get("Content-Type"), "frogly's answer, not a missing route")
+			assert.Equal(t, "application/problem+json", declined.Header().Get("Content-Type"))
+		})
+	}
+}
+
+func TestRequestsAreNotFoundForSomeoneOutside(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := requestProject(t, handler)
+	anaID := anaAsked(t, handler, projectID)
+	header := http.Header{"Authorization": {"Bearer " + otherToken}}
+
+	// act
+	listed := get(t, handler, "/api/projects/"+projectID+"/requests", header)
+	accepted := request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/requests/"+anaID+"/accept", header)
+	declined := request(t, handler, http.MethodDelete, "/api/projects/"+projectID+"/requests/"+anaID, header)
+
+	// assert
+	for _, response := range []*httptest.ResponseRecorder{listed, accepted, declined} {
+		assert.Equal(t, http.StatusNotFound, response.Code)
+		assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"), "frogly's answer, not a missing route")
+	}
+
+	waiting := answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests")
+	assert.Contains(t, waiting.Body.String(), anaID, "the request still waits")
 }

@@ -177,10 +177,10 @@ func (s *projectsSuite) TestPublicProjectsAreListedForNonMembers() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(projects, 2)
-	s.Equal(board.ID(), projects[0].ID(), "upper case sorts before lower case")
-	s.Equal("Board", projects[0].Name())
-	s.Equal(repositories.VisibilityPublic, projects[0].Visibility())
-	s.Equal(garden.ID(), projects[1].ID())
+	s.Equal(board.ID(), projects[0].Project.ID(), "upper case sorts before lower case")
+	s.Equal("Board", projects[0].Project.Name())
+	s.Equal(repositories.VisibilityPublic, projects[0].Project.Visibility())
+	s.Equal(garden.ID(), projects[1].Project.ID())
 }
 
 // TestAChangedVisibilityIsSaved checks that an update writes the new
@@ -254,13 +254,13 @@ func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
 	// assert
 	s.Require().NoError(err)
 	s.Require().Len(projects, 1)
-	s.Equal(others.ID(), projects[0].ID())
+	s.Equal(others.ID(), projects[0].Project.ID())
 }
 
 // TestAProjectKeepsHowPeopleJoin checks that a public project loads open
 // or closed, as it was saved, also in the list of public projects.
 func (s *projectsSuite) TestAProjectKeepsHowPeopleJoin() {
-	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest, repositories.JoiningClosed} {
 		s.Run(string(joining), func() {
 			// arrange
 			karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
@@ -276,9 +276,9 @@ func (s *projectsSuite) TestAProjectKeepsHowPeopleJoin() {
 			s.Equal(joining, found.Joining())
 
 			// the subtests share the database, so the list holds the other's project too
-			listed := slices.IndexFunc(public, func(project *repositories.Project) bool { return project.ID() == fair.ID() })
+			listed := slices.IndexFunc(public, func(listed repositories.PublicProject) bool { return listed.Project.ID() == fair.ID() })
 			s.Require().GreaterOrEqual(listed, 0)
-			s.Equal(joining, public[listed].Joining())
+			s.Equal(joining, public[listed].Project.Joining())
 		})
 	}
 }
@@ -347,6 +347,7 @@ func (s *projectsSuite) TestOnlyAnOpenProjectCanBeJoined() {
 		project *repositories.Project
 	}{
 		{name: "closed", project: s.savedProjectJoining("Board", karo, repositories.VisibilityPublic, repositories.JoiningClosed)},
+		{name: "taking requests", project: s.savedProjectJoining("Book club", karo, repositories.VisibilityPublic, repositories.JoiningRequest)},
 		{name: "private", project: s.savedProject("Secret", karo)},
 		{name: "missing", project: nowhere},
 	} {
@@ -378,26 +379,32 @@ func (s *projectsSuite) TestJoiningTwiceIsARace() {
 	s.Require().ErrorIs(err, repositories.ErrConcurrentModification)
 }
 
-// TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
-// what the model never builds, a private project anyone could join.
-func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
-	// arrange
+// TestAPrivateProjectThatOthersCouldGetIntoIsRefused checks that the
+// database refuses what the model never builds, a private project anyone
+// could join or ask.
+func (s *projectsSuite) TestAPrivateProjectThatOthersCouldGetIntoIsRefused() {
 	karo := s.savedUser("Karo")
-	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
-	s.Require().NoError(err)
 
-	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
-	membership, err := repositories.NewMembership(open.ID(), karo.ID())
-	s.Require().NoError(err)
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest} {
+		s.Run(string(joining), func() {
+			// arrange
+			project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
+			s.Require().NoError(err)
 
-	unit := s.database.NewContext()
-	unit.Projects().Insert(open)
-	unit.Memberships().Insert(membership)
+			reachable := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, joining)
+			membership, err := repositories.NewMembership(reachable.ID(), karo.ID())
+			s.Require().NoError(err)
 
-	// act
-	err = unit.SaveChanges(s.T().Context())
+			unit := s.database.NewContext()
+			unit.Projects().Insert(reachable)
+			unit.Memberships().Insert(membership)
 
-	// assert
-	s.Require().Error(err)
-	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+			// act
+			err = unit.SaveChanges(s.T().Context())
+
+			// assert
+			s.Require().Error(err)
+			s.NotErrorIs(err, repositories.ErrConcurrentModification)
+		})
+	}
 }

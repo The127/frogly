@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Person, Project, SessionEnded } from "./api";
+  import type { Joining, Person, Project, SessionEnded, WaitingRequest } from "./api";
   import { getLogin } from "./login";
   import { p } from "./router";
-  import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
+  import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 
   let { projectId }: { projectId: string } = $props();
 
@@ -14,10 +14,18 @@
     kind: "loading",
   });
   const isPublic = $derived(settings.kind === "loaded" && settings.project.visibility === "public");
-  const isOpen = $derived(settings.kind === "loaded" && settings.project.joining === "open");
   let switching = $state(false);
   let problem = $state("");
   let joiningProblem = $state("");
+  // picking a choice and saving it are two steps, since arrow keys walk
+  // through every choice on the way, and saving each would let people in
+  // for a moment
+  let chosenJoining = $state<Joining | undefined>();
+  const joiningChoices: { value: Joining; text: string }[] = [
+    { value: "open", text: "anyone, right away" },
+    { value: "request", text: "people who ask, once a member says yes" },
+    { value: "closed", text: "only people a member adds" },
+  ];
 
   let searchText = $state("");
   let people = $state<Person[] | undefined>();
@@ -32,16 +40,88 @@
     people === undefined ? "" : `${people.length} ${people.length === 1 ? "person" : "people"} found`,
   );
 
+  let requests = $state<WaitingRequest[]>([]);
+  let answering = $state(false);
+  let requestsProblem = $state("");
+  let answered = $state("");
+  let requestsHeading = $state<HTMLElement>();
+
   onMount(async () => {
-    const loaded = await loadSettings(login.accessToken, projectId);
+    // both at once, so the requests don't push the page down later
+    const [loaded, waiting] = await Promise.all([
+      loadSettings(login.accessToken, projectId),
+      loadRequests(login.accessToken, projectId),
+    ]);
     if (loaded.kind === "loggedOut") {
       login.onLoggedOut();
     } else if (loaded.kind === "notAllowed") {
       login.onNotAllowed();
+    } else if (loaded.kind === "loaded") {
+      show(loaded.project);
+      showRequests(waiting);
     } else {
       settings = loaded;
     }
   });
+
+  async function refreshRequests() {
+    showRequests(await loadRequests(login.accessToken, projectId));
+  }
+
+  function showRequests(loaded: Awaited<ReturnType<typeof loadRequests>>) {
+    switch (loaded.kind) {
+      case "listed":
+        requests = loaded.requests;
+        break;
+      case "failed":
+        requestsProblem = "frogly can't show who asked to join right now. Reload the page in a moment.";
+        break;
+      default:
+        handledElsewhere(loaded);
+    }
+  }
+
+  async function answer(request: WaitingRequest, reply: "yes" | "no") {
+    if (answering) {
+      return;
+    }
+
+    answering = true;
+    requestsProblem = "";
+    answered = "";
+
+    const outcome = await answerRequest(login.accessToken, projectId, request.id, reply);
+    answering = false;
+
+    switch (outcome.kind) {
+      case "answered":
+        requests = requests.filter((waiting) => waiting.id !== request.id);
+        answered = reply === "yes" ? `${request.name} is a member now.` : `You said no to ${request.name}.`;
+        // the button that had the focus is gone with the request
+        requestsHeading?.focus();
+        break;
+      case "notAnswered":
+        requestsProblem = `frogly couldn't answer ${request.name}. Try again in a moment.`;
+        break;
+      case "notFound":
+        requestsProblem = `${request.name}'s request was answered already.`;
+        // another member answered it, and the list shows what's left
+        await refreshRequests();
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
+
+  // a fresh project from frogly also starts the pick from what's saved
+  function show(project: Project) {
+    settings = { kind: "loaded", project };
+    chosenJoining = project.joining;
+    // frogly drops the requests of a project that doesn't take them any more
+    if (project.joining !== "request") {
+      requests = [];
+    }
+  }
 
   // what every action does when the project is gone or the session ended,
   // so each one only handles its own outcomes
@@ -72,7 +152,7 @@
 
     switch (outcome.kind) {
       case "changed":
-        settings = { kind: "loaded", project: outcome.project };
+        show(outcome.project);
         break;
       case "notChanged":
         problem = "frogly couldn't change who sees the project. Try again in a moment.";
@@ -82,8 +162,8 @@
     }
   }
 
-  async function toggleJoining() {
-    if (switching || settings.kind !== "loaded") {
+  async function saveJoining() {
+    if (switching || settings.kind !== "loaded" || chosenJoining === undefined) {
       return;
     }
 
@@ -91,12 +171,12 @@
     problem = "";
     joiningProblem = "";
 
-    const outcome = await switchJoining(login.accessToken, projectId, isOpen ? "closed" : "open");
+    const outcome = await switchJoining(login.accessToken, projectId, chosenJoining);
     switching = false;
 
     switch (outcome.kind) {
       case "changed":
-        settings = { kind: "loaded", project: outcome.project };
+        show(outcome.project);
         break;
       case "notChanged":
         joiningProblem = "frogly couldn't change who can join the project. Try again in a moment.";
@@ -196,19 +276,45 @@
   </section>
 
   {#if isPublic}
-    <section aria-labelledby="joining-label">
-      <p class="label" id="joining-label">who can join</p>
-      <p class="quiet visibility">
-        <!-- polite, so a screen reader says the new state once the change is saved -->
-        <span aria-live="polite">
-          {isOpen ? "Anyone who uses frogly can join right away." : "Only people a member adds."}
-        </span>
-        <button class="btn" onclick={toggleJoining} aria-disabled={switching}>
-          {isOpen ? "close it" : "let anyone join"}
-        </button>
-      </p>
+    <section>
+      <fieldset class="choice" aria-describedby="joining-problem">
+        <legend class="label">who can join</legend>
+        {#each joiningChoices as choice (choice.value)}
+          <label><input type="radio" name="joining" value={choice.value} bind:group={chosenJoining} /> {choice.text}</label>
+        {/each}
+      </fieldset>
+      {#if chosenJoining !== settings.project.joining}
+        <div class="acts">
+          <button class="btn pond" onclick={saveJoining} aria-disabled={switching}>save who can join</button>
+        </div>
+      {/if}
       <!-- always there, so screen readers announce the text when it changes -->
-      <p class="problem" role="alert">{joiningProblem}</p>
+      <p class="problem" id="joining-problem" role="alert">{joiningProblem}</p>
+    </section>
+
+    <section aria-labelledby="requests-label">
+      <p class="label" id="requests-label" tabindex="-1" bind:this={requestsHeading}>asked to join</p>
+      {#if requests.length === 0}
+        <p class="quiet">Nobody waits for an answer right now.</p>
+      {/if}
+      <ul class="rows">
+        {#each requests as request (request.id)}
+          <li>
+            <span>{request.name} <span class="meta">{request.email}</span></span>
+            <span>
+              <button class="btn pond" onclick={() => answer(request, "yes")} aria-disabled={answering}>
+                yes <span class="hidden">to {request.name}</span>
+              </button>
+              <button class="btn" onclick={() => answer(request, "no")} aria-disabled={answering}>
+                no <span class="hidden">to {request.name}</span>
+              </button>
+            </span>
+          </li>
+        {/each}
+      </ul>
+      <!-- always there, so screen readers announce the text when it changes -->
+      <p class="problem" role="alert">{requestsProblem}</p>
+      <p class="quiet" aria-live="polite">{answered}</p>
     </section>
   {/if}
 

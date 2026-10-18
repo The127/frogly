@@ -9,7 +9,7 @@ export interface Me {
 
 export type Visibility = "public" | "private";
 
-export type Joining = "open" | "closed";
+export type Joining = "open" | "request" | "closed";
 
 export interface Project {
   id: string;
@@ -23,6 +23,8 @@ export interface PublicProject {
   id: string;
   name: string;
   joining: Joining;
+  // whether you asked to join and wait for an answer
+  asked: boolean;
 }
 
 // Person is someone who has logged in to frogly.
@@ -30,6 +32,15 @@ export interface Person {
   id: string;
   name: string;
   email: string;
+}
+
+// WaitingRequest is someone who asked to join, as members see them.
+export interface WaitingRequest {
+  id: string;
+  name: string;
+  email: string;
+  // an RFC 3339 time in UTC
+  askedAt: string;
 }
 
 // frogly's limit for an idea, in characters
@@ -244,6 +255,67 @@ async function putSetting(accessToken: string, projectId: string, setting: strin
   }
 
   return (await response.json()) as Project;
+}
+
+export async function fetchRequests(accessToken: string, projectId: string): Promise<WaitingRequest[]> {
+  const response = await authorized(requestsPath(projectId), accessToken);
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for the requests to join a project`);
+  }
+
+  return (await response.json()) as WaitingRequest[];
+}
+
+export async function acceptRequest(accessToken: string, projectId: string, userId: string): Promise<void> {
+  const response = await authorized(requestPath(projectId, userId) + "/accept", accessToken, { method: "POST" });
+  // a conflict means the request was answered, or the asker got in, at
+  // the same moment, so it's gone
+  if (response.status === 404 || response.status === 409) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to say yes to a request`);
+  }
+}
+
+export async function declineRequest(accessToken: string, projectId: string, userId: string): Promise<void> {
+  const response = await authorized(requestPath(projectId, userId), accessToken, { method: "DELETE" });
+  // a conflict means the request was answered, or the asker got in, at
+  // the same moment, so it's gone
+  if (response.status === 404 || response.status === 409) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to say no to a request`);
+  }
+}
+
+function requestsPath(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/requests`;
+}
+
+function requestPath(projectId: string, userId: string): string {
+  return `${requestsPath(projectId)}/${encodeURIComponent(userId)}`;
+}
+
+// a member asking has nothing to wait for, so the answer can be false
+export async function askToJoin(accessToken: string, projectId: string): Promise<boolean> {
+  const response = await authorized(requestsPath(projectId), accessToken, { method: "POST" });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked for a request to join a project`);
+  }
+
+  return ((await response.json()) as { asked: boolean }).asked;
 }
 
 export async function joinProject(accessToken: string, projectId: string): Promise<Project> {

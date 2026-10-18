@@ -5,9 +5,10 @@ import {
   type PublicProject,
   type SessionEnded,
   type Visibility,
+  askToJoin,
   createProject,
-  fetchProjects,
   failure,
+  fetchProjects,
   fetchPublicProjects,
   joinProject,
   sessionEnded,
@@ -94,6 +95,19 @@ export async function joinPublicProject(accessToken: AccessToken, projectId: str
     const failed = failure(error);
 
     return failed.kind === "failed" ? { kind: "notJoined" } : failed;
+  }
+}
+
+export type Asked = { kind: "asked"; waiting: boolean } | { kind: "notAsked" } | { kind: "notFound" } | SessionEnded;
+
+// notFound means the project doesn't take requests any more, or is gone
+export async function askPublicProject(accessToken: AccessToken, projectId: string): Promise<Asked> {
+  try {
+    return { kind: "asked", waiting: await askToJoin(await accessToken(), projectId) };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notAsked" } : failed;
   }
 }
 

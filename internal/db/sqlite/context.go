@@ -21,6 +21,7 @@ type Context struct {
 	memberships *repos.MembershipRepository
 	ideas       *repos.IdeaRepository
 	meToos      *repos.MeTooRepository
+	requests    *repos.JoinRequestRepository
 }
 
 func newContext(connection *sql.DB) *Context {
@@ -35,6 +36,7 @@ func newContext(connection *sql.DB) *Context {
 		memberships: repos.NewMembershipRepository(tracker),
 		ideas:       repos.NewIdeaRepository(connection, tracker),
 		meToos:      repos.NewMeTooRepository(connection, tracker),
+		requests:    repos.NewJoinRequestRepository(connection, tracker),
 	}
 }
 
@@ -66,6 +68,11 @@ func (unit *Context) Ideas() repositories.IdeaRepository {
 // MeToos is the unit of work's me too repository.
 func (unit *Context) MeToos() repositories.MeTooRepository {
 	return unit.meToos
+}
+
+// JoinRequests is the unit of work's repository of requests to join.
+func (unit *Context) JoinRequests() repositories.JoinRequestRepository {
+	return unit.requests
 }
 
 // SaveChanges writes every recorded change in one transaction, in the
@@ -109,34 +116,57 @@ func (unit *Context) SaveChanges(ctx context.Context) error {
 var errUnsupportedChange = errors.New("unsupported change")
 
 func (unit *Context) apply(ctx context.Context, tx *sql.Tx, entry *change.Entry) error {
-	switch item := entry.Item().(type) {
+	switch entry.Type() {
+	case change.Added:
+		return unit.insert(ctx, tx, entry.Item())
+	case change.Updated:
+		return unit.update(ctx, tx, entry.Item())
+	case change.Deleted:
+		return unit.delete(ctx, tx, entry.Item())
+	default:
+		return fmt.Errorf("%w: change type %d", errUnsupportedChange, entry.Type())
+	}
+}
+
+func (unit *Context) insert(ctx context.Context, tx *sql.Tx, item any) error {
+	switch item := item.(type) {
 	case *repositories.User:
-		if entry.Type() == change.Updated {
-			return unit.users.ExecuteUpdate(ctx, tx, item)
-		}
-
 		return unit.users.ExecuteInsert(ctx, tx, item)
-
 	case *repositories.Identity:
 		return unit.identities.ExecuteInsert(ctx, tx, item)
-
 	case *repositories.Project:
-		if entry.Type() == change.Updated {
-			return unit.projects.ExecuteUpdate(ctx, tx, item)
-		}
-
 		return unit.projects.ExecuteInsert(ctx, tx, item)
-
 	case *repositories.Membership:
 		return unit.memberships.ExecuteInsert(ctx, tx, item)
-
 	case *repositories.Idea:
 		return unit.ideas.ExecuteInsert(ctx, tx, item)
-
 	case *repositories.MeToo:
 		return unit.meToos.ExecuteInsert(ctx, tx, item)
-
+	case *repositories.JoinRequest:
+		return unit.requests.ExecuteInsert(ctx, tx, item)
 	default:
-		return fmt.Errorf("%w: %T", errUnsupportedChange, entry.Item())
+		return fmt.Errorf("%w: inserting %T", errUnsupportedChange, item)
+	}
+}
+
+func (unit *Context) update(ctx context.Context, tx *sql.Tx, item any) error {
+	switch item := item.(type) {
+	case *repositories.User:
+		return unit.users.ExecuteUpdate(ctx, tx, item)
+	case *repositories.Project:
+		return unit.projects.ExecuteUpdate(ctx, tx, item)
+	default:
+		return fmt.Errorf("%w: updating %T", errUnsupportedChange, item)
+	}
+}
+
+func (unit *Context) delete(ctx context.Context, tx *sql.Tx, item any) error {
+	switch item := item.(type) {
+	case *repositories.JoinRequest:
+		return unit.requests.ExecuteDelete(ctx, tx, item)
+	case repositories.ProjectRequests:
+		return unit.requests.ExecuteDeleteForProject(ctx, tx, item)
+	default:
+		return fmt.Errorf("%w: deleting %T", errUnsupportedChange, item)
 	}
 }

@@ -73,6 +73,7 @@
     <fieldset class="choice" aria-describedby="project-problem">
       <legend class="label">who can join</legend>
       <label><input type="radio" name="joining" value="open" bind:group={joining} /> anyone, right away</label>
+      <label><input type="radio" name="joining" value="request" bind:group={joining} /> people who ask, once a member says yes</label>
       <label><input type="radio" name="joining" value="closed" bind:group={joining} /> only people a member adds</label>
     </fieldset>
   {/if}

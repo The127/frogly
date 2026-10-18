@@ -411,7 +411,7 @@ func TestNewMeTooNeedsAnIdeaAndAUser(t *testing.T) {
 }
 
 func TestNewProjectTakesHowPeopleJoinAPublicProject(t *testing.T) {
-	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest, repositories.JoiningClosed} {
 		t.Run(string(joining), func(t *testing.T) {
 			// act
 			project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, joining)
@@ -441,6 +441,7 @@ func TestNewProjectRefusesAJoiningItCantUse(t *testing.T) {
 		{name: "a public project without", visibility: repositories.VisibilityPublic, joining: ""},
 		{name: "an unknown one", visibility: repositories.VisibilityPublic, joining: "maybe"},
 		{name: "an open private project", visibility: repositories.VisibilityPrivate, joining: repositories.JoiningOpen},
+		{name: "a private project that takes requests", visibility: repositories.VisibilityPrivate, joining: repositories.JoiningRequest},
 	}
 
 	for _, test := range tests {
@@ -518,4 +519,52 @@ func TestNewJoiningMembershipOnlyCountsForAnOpenProject(t *testing.T) {
 	require.NoError(t, addedErr)
 	assert.True(t, joining.OnlyIfOpen())
 	assert.False(t, added.OnlyIfOpen())
+}
+
+func TestMakingAProjectThatTakesRequestsPrivateClosesIt(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPublic, repositories.JoiningRequest)
+	require.NoError(t, err)
+
+	// act
+	require.NoError(t, project.ChangeVisibility(repositories.VisibilityPrivate))
+
+	// assert
+	assert.Equal(t, repositories.JoiningClosed, project.Joining())
+}
+
+func TestNewJoinRequestNeedsAProjectAndAUser(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		userID    uuid.UUID
+	}{
+		{name: "no project", projectID: uuid.Nil, userID: uuid.New()},
+		{name: "no user", projectID: uuid.New(), userID: uuid.Nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewJoinRequest(test.projectID, test.userID)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestNewJoinRequestRemembersWhenItWasAsked(t *testing.T) {
+	// arrange
+	projectID, userID := uuid.New(), uuid.New()
+
+	// act
+	request, err := repositories.NewJoinRequest(projectID, userID)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, projectID, request.ProjectID())
+	assert.Equal(t, userID, request.UserID())
+	assert.WithinDuration(t, time.Now(), request.AskedAt(), time.Minute)
+	assert.Equal(t, time.UTC, request.AskedAt().Location())
 }

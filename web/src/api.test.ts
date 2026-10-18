@@ -4,16 +4,20 @@ import {
   LoggedOut,
   NotAllowed,
   NotFound,
+  acceptRequest,
   addMember,
+  askToJoin,
   changeJoining,
   changeVisibility,
   createProject,
+  declineRequest,
   fetchConfig,
   fetchGarden,
   fetchMe,
   fetchProject,
   fetchProjects,
   fetchPublicProjects,
+  fetchRequests,
   joinProject,
   plantIdea,
   sayMeToo,
@@ -330,6 +334,133 @@ describe("changeJoining", () => {
   });
 });
 
+describe("fetchRequests", () => {
+  it("gives the waiting requests", async () => {
+    // arrange
+    const waiting = [{ id: "u-2", name: "Ana Costa", email: "ana@school.org", askedAt: "2026-10-18T09:00:00Z" }];
+    respondWith(200, waiting);
+
+    // act
+    const requests = await fetchRequests("an-access-token", "p-1");
+
+    // assert
+    expect(requests).toEqual(waiting);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const requests = fetchRequests("an-access-token", "p-1");
+
+    // assert
+    await expect(requests).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("acceptRequest", () => {
+  it("says yes", async () => {
+    // arrange
+    respondWith(200, { id: "u-2", name: "Ana Costa", email: "ana@school.org" });
+
+    // act
+    await acceptRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests/u-2/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it.each([
+    { name: "nobody waits", status: 404 },
+    { name: "it was answered or the asker got in at the same moment", status: 409 },
+  ])("fails as not found when $name", async ({ status }) => {
+    // arrange
+    respondWith(status, { status });
+
+    // act
+    const accepted = acceptRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(accepted).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("declineRequest", () => {
+  it("says no", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    // act
+    await declineRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests/u-2", {
+      method: "DELETE",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it.each([
+    { name: "nobody waits", status: 404 },
+    { name: "it was answered or the asker got in at the same moment", status: 409 },
+  ])("fails as not found when $name", async ({ status }) => {
+    // arrange
+    respondWith(status, { status });
+
+    // act
+    const declined = declineRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(declined).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("askToJoin", () => {
+  it("asks and says whether a request waits", async () => {
+    // arrange
+    respondWith(200, { asked: true });
+
+    // act
+    const asked = await askToJoin("an-access-token", "p-2");
+
+    // assert
+    expect(asked).toBe(true);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-2/requests", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project doesn't take requests", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const asked = askToJoin("an-access-token", "p-2");
+
+    // assert
+    await expect(asked).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const asked = askToJoin("an-access-token", "p-2");
+
+    // assert
+    await expect(asked).rejects.toThrow("503");
+  });
+});
+
 describe("joinProject", () => {
   it("joins and gives the project", async () => {
     // arrange
@@ -373,13 +504,13 @@ describe("joinProject", () => {
 describe("fetchPublicProjects", () => {
   it("gives the public projects of others", async () => {
     // arrange
-    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open" }]);
+    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open", asked: false }]);
 
     // act
     const projects = await fetchPublicProjects("an-access-token");
 
     // assert
-    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open" }]);
+    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open", asked: false }]);
     expect(fetch).toHaveBeenCalledWith("/api/projects/public", {
       headers: { Authorization: "Bearer an-access-token" },
     });

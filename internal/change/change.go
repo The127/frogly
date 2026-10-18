@@ -10,6 +10,8 @@ const (
 	Added Type = iota
 	// Updated is an item the database has, written again as a whole.
 	Updated
+	// Deleted is an item the database has and won't any more.
+	Deleted
 )
 
 // Entry is one item and what happens to it. The item's Go type says which

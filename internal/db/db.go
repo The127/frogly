@@ -31,5 +31,6 @@ type Context interface {
 	Memberships() repositories.MembershipRepository
 	Ideas() repositories.IdeaRepository
 	MeToos() repositories.MeTooRepository
+	JoinRequests() repositories.JoinRequestRepository
 	SaveChanges(ctx context.Context) error
 }
