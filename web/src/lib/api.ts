@@ -1,4 +1,4 @@
-import { type Result, type Token, call } from "./client";
+import { type Result, type Token, call, map } from "./client";
 
 export interface Config {
   issuer: string;
@@ -121,7 +121,7 @@ export function leave(token: Token, projectId: string): Promise<Result<void>> {
 export async function askToJoin(token: Token, projectId: string): Promise<Result<boolean>> {
   const asked = await call<{ asked: boolean }>(requestsPath(projectId), { token, method: "POST" });
 
-  return asked.ok ? { ok: true, value: asked.value.asked } : asked;
+  return map(asked, (answer) => answer.asked);
 }
 
 export function requests(token: Token, projectId: string): Promise<Result<WaitingRequest[]>> {
@@ -132,7 +132,7 @@ export function requests(token: Token, projectId: string): Promise<Result<Waitin
 export async function accept(token: Token, projectId: string, askerId: string): Promise<Result<void>> {
   const accepted = await call(`${requestsPath(projectId)}/${encodeURIComponent(askerId)}/accept`, { token, method: "POST" });
 
-  return accepted.ok ? { ok: true, value: undefined } : accepted;
+  return map(accepted, () => undefined);
 }
 
 export function decline(token: Token, projectId: string, askerId: string): Promise<Result<void>> {

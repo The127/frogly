@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Me } from "./api";
 import type { Result } from "./client";
-import { type Login, type StoredUser, resume } from "./session";
+import { type UserManager, type StoredUser, resume } from "./session";
 
-function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null): Login {
+function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null): UserManager {
   return {
     signinRedirectCallback: vi.fn(async () => undefined),
     getUser: vi.fn(async () => stored),

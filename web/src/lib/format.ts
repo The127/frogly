@@ -23,8 +23,18 @@ export function peopleBehind(people: number): string {
   return `${people} ${people === 1 ? "person" : "people"}`;
 }
 
+// one formatter for every idea of a garden, since making one isn't cheap
+const days = new Map<string, Intl.DateTimeFormat>();
+
 // The day an idea was planted, as the person reads dates. The locale and
 // time zone are the browser's unless a test sets them.
 export function plantedOn(plantedAt: string, locale?: string, timeZone?: string): string {
-  return new Date(plantedAt).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric", timeZone });
+  const key = `${locale}|${timeZone}`;
+  let day = days.get(key);
+  if (!day) {
+    day = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone });
+    days.set(key, day);
+  }
+
+  return day.format(new Date(plantedAt));
 }

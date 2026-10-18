@@ -27,7 +27,7 @@ export class LoggedOut extends Error {
 
 export type Token = () => Promise<string>;
 
-export interface Options {
+interface Options {
   token?: Token;
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
@@ -136,4 +136,9 @@ export async function both<A, B>(a: Promise<Result<A>>, b: Promise<Result<B>>): 
   }
 
   return { ok: true, value: [first.value, second.value] };
+}
+
+// map changes the value of a call that worked, and keeps a failure as it is
+export function map<A, B>(result: Result<A>, change: (value: A) => B): Result<B> {
+  return result.ok ? { ok: true, value: change(result.value) } : result;
 }

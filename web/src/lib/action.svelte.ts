@@ -8,27 +8,43 @@ export interface SessionEnds {
   onNotAllowed(): void;
 }
 
-export interface Handlers<T> {
+// What a handler gives back. A text is shown: as the notice after a
+// success, as the problem after a failure.
+type Said = void | string | Promise<void | string>;
+
+interface Handlers<T> {
   // what the action does, for its problem: "frogly couldn't <what>. Try
   // again in a moment."
   what: string;
-  // what follows a success. A text it gives is shown as the action's
-  // notice.
-  done(value: T): void | string | Promise<void | string>;
-  // the thing is gone. Without this, the whole page is.
-  notFound?(): void | Promise<void>;
+  // what follows a success
+  done(value: T): Said;
+  // the thing is gone. Without this, the page's gone decides, and without
+  // that it's a failure.
+  notFound?(): Said;
   // someone changed the same thing at the same moment. Without this, it's
   // a failure, and trying again works.
-  conflict?(): void | Promise<void>;
+  conflict?(): Said;
   // frogly or the network failed. Without this, the problem says to try
   // again.
-  failed?(): void | Promise<void>;
+  failed?(): Said;
 }
 
-// Busy is one busy flag that several actions share, for actions that must
-// not run at the same time, like a search and adding someone it found.
+// Busy is a group of actions that run one at a time, like a search and
+// adding someone it found. Running one clears what all of them said.
 export class Busy {
   now = $state(false);
+  #actions: Action[] = [];
+
+  join(action: Action): void {
+    this.#actions.push(action);
+  }
+
+  clear(): void {
+    for (const action of this.#actions) {
+      action.problem = "";
+      action.notice = "";
+    }
+  }
 }
 
 // Action is one thing a person can do on a page, like planting an idea. It
@@ -40,52 +56,47 @@ export class Action {
   notice = $state("");
 
   #session: SessionEnds;
-  #gone: () => void;
+  #gone: (() => void) | undefined;
   #busy: Busy;
 
   // gone is what the page does when the thing it's about isn't there any
-  // more. busy is shared with the actions this one must wait for.
-  constructor(session: SessionEnds, gone: () => void, busy = new Busy()) {
+  // more. busy is the group this action runs one at a time with.
+  constructor(session: SessionEnds, gone?: () => void, busy = new Busy()) {
     this.#session = session;
     this.#gone = gone;
     this.#busy = busy;
+    busy.join(this);
   }
 
   get busy(): boolean {
     return this.#busy.now;
   }
 
-  set busy(busy: boolean) {
-    this.#busy.now = busy;
-  }
-
   async run<T>(work: () => Promise<Result<T>>, handlers: Handlers<T>): Promise<void> {
-    if (this.busy) {
+    if (this.#busy.now) {
       return;
     }
 
-    this.busy = true;
-    this.problem = "";
-    this.notice = "";
+    this.#busy.now = true;
+    this.#busy.clear();
 
     // busy until what follows is done too, like reloading a list, so a
     // second click can't run on what's about to change
     try {
       const result = await work();
       if (result.ok) {
-        const notice = await handlers.done(result.value);
-        if (notice) {
-          this.notice = notice;
-        }
+        this.notice = (await handlers.done(result.value)) || "";
       } else {
         await this.#failed(result.failure, handlers);
       }
     } finally {
-      this.busy = false;
+      this.#busy.now = false;
     }
   }
 
   async #failed<T>(failure: Failure, handlers: Handlers<T>): Promise<void> {
+    const failed = `frogly couldn't ${handlers.what}. Try again in a moment.`;
+
     switch (failure.kind) {
       case "loggedOut":
         this.#session.onLoggedOut();
@@ -98,33 +109,29 @@ export class Action {
         return;
       case "notFound":
         if (handlers.notFound) {
-          await handlers.notFound();
-        } else {
+          this.problem = (await handlers.notFound()) || "";
+        } else if (this.#gone) {
           this.#gone();
+        } else {
+          this.problem = failed;
         }
         return;
       case "conflict":
-        if (handlers.conflict) {
-          await handlers.conflict();
-          return;
-        }
-        break;
+        this.problem = handlers.conflict ? (await handlers.conflict()) || "" : failed;
+        return;
       case "failed":
-        if (handlers.failed) {
-          await handlers.failed();
-          return;
-        }
+        this.problem = handlers.failed ? (await handlers.failed()) || "" : failed;
     }
-
-    this.problem = `frogly couldn't ${handlers.what}. Try again in a moment.`;
   }
 }
 
-export type Loaded<T> = { kind: "loading" } | { kind: "loaded"; value: T } | { kind: "notFound" } | { kind: "failed" };
+type Shown<T> = { kind: "loading" } | { kind: "loaded"; value: T } | { kind: "notFound" } | { kind: "failed" };
 
 // Resource is what a page loads from frogly, like a project's garden.
 export class Resource<T> {
-  state = $state<Loaded<T>>({ kind: "loading" });
+  // raw, since what frogly sends is only ever replaced, never changed in
+  // place, so it needs no deep proxy
+  state = $state.raw<Shown<T>>({ kind: "loading" });
   // a load after the first one failed, so what it holds may be old
   stale = $state(false);
 

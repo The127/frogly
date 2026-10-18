@@ -15,7 +15,7 @@ export interface StoredUser {
   refresh_token?: string;
 }
 
-export interface Login {
+export interface UserManager {
   signinRedirectCallback(): Promise<unknown>;
   getUser(): Promise<StoredUser | null>;
   signinSilent(): Promise<StoredUser | null>;
@@ -23,7 +23,7 @@ export interface Login {
 }
 
 export async function resume(
-  login: Login,
+  login: UserManager,
   path: string,
   fetchMe: (accessToken: string) => Promise<Result<Me>>,
 ): Promise<Session> {

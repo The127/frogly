@@ -2,15 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "./api";
 import type { Result } from "./client";
+import { respondWith, token } from "./fake";
 
-const token = async () => "an-access-token";
-
-function respondWith(status: number, body?: unknown): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(body === undefined ? null : JSON.stringify(body), { status })),
-  );
-}
 
 afterEach(() => {
   vi.unstubAllGlobals();

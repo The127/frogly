@@ -14,9 +14,7 @@
   const login = getLogin();
   // a new project belongs to nothing that could be gone, so a 404 is
   // frogly's problem like any other failure
-  const create = new Action(login, () => {
-    create.problem = "frogly couldn't save the project. Try again in a moment.";
-  });
+  const create = new Action(login);
 
   let name = $state(nameFrom(window.location.search));
   // nothing is chosen in advance, the person decides who sees a project

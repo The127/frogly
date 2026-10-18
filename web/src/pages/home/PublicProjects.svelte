@@ -37,8 +37,9 @@
       // a 404 can mean closed, private or gone, and only the list knows
       // which of them still shows
       notFound: async () => {
-        action.problem = `${project.name} can't be joined any more.`;
         await projects.load();
+
+        return `${project.name} can't be joined any more.`;
       },
     });
   }
@@ -57,8 +58,9 @@
         projects.change((listed) => listed.map((other) => (other.id === project.id ? { ...other, asked: true } : other)));
       },
       notFound: async () => {
-        action.problem = `${project.name} doesn't take requests any more.`;
         await projects.load();
+
+        return `${project.name} doesn't take requests any more.`;
       },
     });
   }

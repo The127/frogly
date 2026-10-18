@@ -1,15 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, type Result, both, call } from "./client";
+import { LoggedOut, type Result, both, call, map } from "./client";
+import { respondWith, token } from "./fake";
 
-function respondWith(status: number, body?: unknown): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(body === undefined ? null : JSON.stringify(body), { status })),
-  );
-}
-
-const token = async () => "an-access-token";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -214,5 +207,23 @@ describe("both", () => {
 
     // assert
     expect(result).toEqual({ ok: false, failure });
+  });
+});
+
+describe("map", () => {
+  it("changes the value of a call that worked", () => {
+    // act
+    const result = map({ ok: true, value: { asked: true } }, (answer) => answer.asked);
+
+    // assert
+    expect(result).toEqual({ ok: true, value: true });
+  });
+
+  it("keeps a failure as it is", () => {
+    // act
+    const result = map<{ asked: boolean }, boolean>({ ok: false, failure: { kind: "notFound" } }, (answer) => answer.asked);
+
+    // assert
+    expect(result).toEqual({ ok: false, failure: { kind: "notFound" } });
   });
 });

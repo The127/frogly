@@ -178,23 +178,6 @@ describe("Action, more", () => {
     expect(action.notice).toBe("");
   });
 
-  it("keeps the problem a conflict handler sets", async () => {
-    // arrange
-    const action = new Action(session(), vi.fn());
-
-    // act
-    await action.run(failing({ kind: "conflict" }), {
-      what: "answer Ana",
-      done: () => {},
-      conflict: () => {
-        action.problem = "Ana's request was answered already.";
-      },
-    });
-
-    // assert
-    expect(action.problem).toBe("Ana's request was answered already.");
-  });
-
   it("lets a failure go on its own way", async () => {
     // arrange
     const action = new Action(session(), vi.fn());
@@ -353,5 +336,52 @@ describe("Resource, loaded again", () => {
 
     // assert
     expect(gone).toHaveBeenCalled();
+  });
+});
+
+describe("Action, in a group", () => {
+  it("clears what every action of its group said when one runs", async () => {
+    // arrange
+    const busy = new Busy();
+    const search = new Action(session(), vi.fn(), busy);
+    const add = new Action(session(), vi.fn(), busy);
+    await add.run(failing({ kind: "failed" }), { what: "add Ana", done: () => {} });
+    await add.run(ok(1), { what: "add Ana", done: () => "Ana is a member now." });
+
+    // act
+    await search.run(failing({ kind: "failed" }), { what: "search", done: () => {} });
+
+    // assert
+    expect(add.notice).toBe("");
+    expect(add.problem).toBe("");
+    expect(search.problem).toBe("frogly couldn't search. Try again in a moment.");
+  });
+});
+
+describe("Action, failing its own way", () => {
+  it.each([
+    { failure: { kind: "notFound" } as Failure, handler: "notFound" as const },
+    { failure: { kind: "conflict" } as Failure, handler: "conflict" as const },
+    { failure: { kind: "failed" } as Failure, handler: "failed" as const },
+  ])("shows the problem its $handler handler gives", async ({ failure, handler }) => {
+    // arrange
+    const action = new Action(session());
+
+    // act
+    await action.run(failing(failure), { what: "answer Ana", done: () => {}, [handler]: () => "Ana's request was answered already." });
+
+    // assert
+    expect(action.problem).toBe("Ana's request was answered already.");
+  });
+
+  it("counts a missing thing as a failure when the page has no other answer for it", async () => {
+    // arrange
+    const action = new Action(session());
+
+    // act
+    await action.run(failing({ kind: "notFound" }), { what: "save the project", done: () => {} });
+
+    // assert
+    expect(action.problem).toBe("frogly couldn't save the project. Try again in a moment.");
   });
 });

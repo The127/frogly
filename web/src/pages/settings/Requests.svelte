@@ -22,8 +22,9 @@
     // the request is gone, answered by another member at the same moment
     // or since, and the list shows what's left
     const answeredAlready = async () => {
-      answering.problem = `${request.name}'s request was answered already.`;
       await requests.load();
+
+      return `${request.name}'s request was answered already.`;
     };
 
     return answering.run(() => send(login.accessToken, projectId, request.id), {
