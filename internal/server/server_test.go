@@ -1241,3 +1241,51 @@ func TestRequestsAreNotFoundForSomeoneOutside(t *testing.T) {
 	waiting := answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests")
 	assert.Contains(t, waiting.Body.String(), anaID, "the request still waits")
 }
+
+func leaveProject(t *testing.T, handler http.Handler, token string, projectID string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	return request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/leave", http.Header{"Authorization": {"Bearer " + token}})
+}
+
+func TestAMemberLeavesAProject(t *testing.T) {
+	// arrange
+	handler := newServer(t, &bytes.Buffer{})
+	projectID := createdProject(t, handler)
+
+	// act
+	response := leaveProject(t, handler, validToken, projectID)
+
+	// assert
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Empty(t, response.Body.String())
+
+	listed := projects(t, handler, http.MethodGet, validToken, "")
+	assert.JSONEq(t, `[]`, listed.Body.String())
+}
+
+func TestAProjectYouCantLeaveIsNotFound(t *testing.T) {
+	tests := []struct {
+		name      string
+		token     string
+		projectID func(http.Handler) string
+	}{
+		{name: "not a member", token: otherToken, projectID: func(handler http.Handler) string { return createdProject(t, handler) }},
+		{name: "no such project", token: validToken, projectID: func(http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
+		{name: "not an ID", token: validToken, projectID: func(http.Handler) string { return "garden" }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			handler := newServer(t, &bytes.Buffer{})
+
+			// act
+			response := leaveProject(t, handler, test.token, test.projectID(handler))
+
+			// assert
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assert.JSONEq(t, `{"type": "about:blank", "title": "Not Found", "status": 404}`, response.Body.String())
+		})
+	}
+}

@@ -176,3 +176,17 @@ func joinProject(r *http.Request, caller caller) (int, any, error) {
 
 	return http.StatusOK, toProjectJSON(project), nil
 }
+
+func leaveProject(r *http.Request, caller caller) (int, any, error) {
+	id, err := projectID(r)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	err = projects.Leave(r.Context(), caller.unit, caller.user, id)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return http.StatusNoContent, nil, nil
+}

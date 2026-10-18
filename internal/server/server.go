@@ -60,6 +60,7 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	mux.Handle("PUT /api/projects/{id}/visibility", auth(changeVisibility))
 	mux.Handle("PUT /api/projects/{id}/joining", auth(changeJoining))
 	mux.Handle("POST /api/projects/{id}/join", auth(joinProject))
+	mux.Handle("POST /api/projects/{id}/leave", auth(leaveProject))
 	mux.Handle("POST /api/projects/{id}/requests", auth(askToJoin))
 	mux.Handle("GET /api/projects/{id}/requests", auth(listRequests))
 	mux.Handle("POST /api/projects/{id}/requests/{userId}/accept", auth(acceptRequest))
