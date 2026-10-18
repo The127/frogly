@@ -154,11 +154,12 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 }
 
 // AddMember lets a member add someone who has logged in to frogly, and
-// gives them back. Adding a member again changes nothing. When two members
-// add the same person at once, or a member answers that person's request
-// at the same moment, one of them gets
-// repositories.ErrConcurrentModification, and trying again works. Someone
-// who isn't a member gets ErrNotFound, like Get.
+// gives them back. Adding a member again changes nothing. Someone who
+// isn't a member gets ErrNotFound, like Get.
+//
+// Two members adding the same person at once, or a member adding someone
+// while another answers their request, is a race. One of them gets
+// repositories.ErrConcurrentModification, and trying again works.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
 	_, err := Get(ctx, unit, user, projectID)
 	if err != nil {
@@ -189,13 +190,14 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 
 // Join makes user a member of a public project that is open, and gives the
 // project back. Joining a project you're a member of changes nothing, and
-// so does joining twice at the same moment. When a member answers the
-// user's request at the same moment, Join gives
-// repositories.ErrConcurrentModification, and trying again works. A project that doesn't exist,
+// so does joining twice at the same moment. A project that doesn't exist,
 // isn't public or isn't open gives ErrNotFound, so nobody learns which
 // closed or private projects exist. The database decides that as it saves
 // the membership, so a member closing the project at the same moment
 // can't be outrun.
+//
+// When a member says no to the user's request while they join, Join gives
+// repositories.ErrConcurrentModification, and trying again works.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if !errors.Is(err, repositories.ErrNotFound) {

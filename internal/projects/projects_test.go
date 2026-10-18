@@ -944,20 +944,18 @@ func TestARefusedJoinKeepsTheRequest(t *testing.T) {
 	assert.Len(t, waiting, 1)
 }
 
-// decliningUnit says no to the user's request through another unit of
-// work right before its own save, like a member answering while the asker
+// answeringUnit answers the user's request through another unit of work
+// right before its own save, like a member answering while the asker
 // joins.
-type decliningUnit struct {
+type answeringUnit struct {
 	db.Context
 
-	database  db.Database
-	member    *repositories.User
-	projectID uuid.UUID
-	askerID   uuid.UUID
+	database db.Database
+	answer   func(ctx context.Context, unit db.Context) error
 }
 
-func (unit decliningUnit) SaveChanges(ctx context.Context) error {
-	err := projects.DeclineRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
+func (unit answeringUnit) SaveChanges(ctx context.Context) error {
+	err := unit.answer(ctx, unit.database.NewContext())
 	if err != nil {
 		return err
 	}
@@ -965,16 +963,35 @@ func (unit decliningUnit) SaveChanges(ctx context.Context) error {
 	return unit.Context.SaveChanges(ctx)
 }
 
-func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
+// joiningWhileAnswered opens the project Ana asked to join and gives a
+// unit for her join that sees answer happen right before it saves.
+func joiningWhileAnswered(t *testing.T, database db.Database, answer func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error) (ana *repositories.User, fair *repositories.Project, unit db.Context) {
+	t.Helper()
+
 	karo, ana, fair := askedProject(t, database)
 	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
 	require.NoError(t, err)
-	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
+
+	unit = answeringUnit{
+		Context:  database.NewContext(),
+		database: database,
+		answer: func(ctx context.Context, unit db.Context) error {
+			return answer(ctx, unit, karo, ana, fair)
+		},
+	}
+
+	return ana, fair, unit
+}
+
+func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
+		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
+	})
 
 	// act
-	_, err = projects.Join(t.Context(), unit, ana, fair.ID())
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
 
 	// assert
 	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
@@ -982,4 +999,38 @@ func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
 	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+}
+
+func TestAJoinAfterAConflictWithANoGetsIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
+		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
+	})
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+
+	// act
+	joined, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, fair.ID(), joined.ID())
+}
+
+func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
+		_, err := projects.AcceptRequest(ctx, unit, karo, fair.ID(), ana.ID())
+
+		return err
+	})
+
+	// act
+	joined, err := projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, fair.ID(), joined.ID())
 }
