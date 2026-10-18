@@ -103,7 +103,7 @@ async function failure(response: Response, method: string, path: string, refused
       return { kind: "conflict" };
   }
 
-  if (refused !== undefined && (response.status === 400 || response.status === 413)) {
+  if (refused !== undefined && response.status === 400) {
     return { kind: "refused", problem: await reason(response, refused) };
   }
 

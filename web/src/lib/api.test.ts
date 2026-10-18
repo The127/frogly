@@ -69,8 +69,8 @@ const endpoints: {
   { name: "leave", run: () => api.leave(token, "p-1"), method: "POST", path: "/api/projects/p-1/leave", status: 204, value: undefined },
   { name: "askToJoin", run: () => api.askToJoin(token, "p-1"), method: "POST", path: "/api/projects/p-1/requests", answer: { asked: true }, value: true },
   { name: "requests", run: () => api.requests(token, "p-1"), method: "GET", path: "/api/projects/p-1/requests", answer: [], value: [] },
-  { name: "accept", run: () => api.accept(token, "p-1", "u-2"), method: "POST", path: "/api/projects/p-1/requests/u-2/accept", answer: ana, value: undefined },
-  { name: "decline", run: () => api.decline(token, "p-1", "u-2"), method: "DELETE", path: "/api/projects/p-1/requests/u-2", status: 204, value: undefined },
+  { name: "accept", run: () => api.accept(token, "p-1", "u/2"), method: "POST", path: "/api/projects/p-1/requests/u%2F2/accept", answer: ana, value: undefined },
+  { name: "decline", run: () => api.decline(token, "p-1", "u/2"), method: "DELETE", path: "/api/projects/p-1/requests/u%2F2", status: 204, value: undefined },
   {
     name: "searchPeople",
     run: () => api.searchPeople(token, "p-1", "ana & co"),
@@ -99,10 +99,10 @@ const endpoints: {
     answer: idea,
     value: idea,
   },
-  { name: "meToo", run: () => api.meToo(token, "p-1", "i-1"), method: "POST", path: "/api/projects/p-1/ideas/i-1/metoo", answer: idea, value: idea },
+  { name: "meToo", run: () => api.meToo(token, "p-1", "i/1"), method: "POST", path: "/api/projects/p-1/ideas/i%2F1/metoo", answer: idea, value: idea },
 ];
 
-describe.each(endpoints)("$name", ({ run, method, path, body, status, answer, value }) => {
+describe.each(endpoints)("$name", ({ name, run, method, path, body, status, answer, value }) => {
   it("sends the call and gives frogly's answer", async () => {
     // arrange
     respondWith(status ?? 200, answer);
@@ -116,6 +116,27 @@ describe.each(endpoints)("$name", ({ run, method, path, body, status, answer, va
     expect(sentPath).toBe(path);
     expect(init.method).toBe(method);
     expect(init.body).toBe(body === undefined ? undefined : JSON.stringify(body));
+  });
+
+  it("sends the login, and says when it sends JSON", async () => {
+    // arrange
+    respondWith(status ?? 200, answer);
+
+    // act
+    await run();
+
+    // assert
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    const headers: Record<string, string> = {};
+    if (name !== "config") {
+      headers.Authorization = "Bearer an-access-token";
+    }
+
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    expect(init.headers).toEqual(headers);
   });
 });
 
