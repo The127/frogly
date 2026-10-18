@@ -53,6 +53,8 @@
   let leaveProblem = $state("");
   let leaveButton = $state<HTMLButtonElement>();
   let stayButton = $state<HTMLButtonElement>();
+  // from when the page loaded, which is enough for a note before leaving
+  let members = $state(0);
   // a private project is always closed
   const comingBack: Record<Joining, string> = {
     open: "You can join it again whenever you like.",
@@ -72,6 +74,7 @@
       login.onNotAllowed();
     } else if (loaded.kind === "loaded") {
       show(loaded.project);
+      members = loaded.members;
       showRequests(waiting);
     } else {
       settings = loaded;
@@ -421,7 +424,11 @@
   <section aria-labelledby="leave-label">
     <p class="label" id="leave-label">leave</p>
     {#if confirmingLeave}
-      <p class="quiet" id="coming-back">{comingBack[settings.project.joining]}</p>
+      <p class="quiet" id="coming-back">
+        {members === 1
+          ? "You're its last member. It turns public and open, so anyone in frogly can find it and join."
+          : comingBack[settings.project.joining]}
+      </p>
     {/if}
     <div class="acts">
       {#if confirmingLeave}
