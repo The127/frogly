@@ -237,7 +237,8 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 		return err
 	}
 
-	if members == 1 {
+	opened := members == 1
+	if opened {
 		project.Open()
 	}
 
@@ -246,7 +247,10 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 	// first, like everywhere else, so saves lock in the same order.
 	unit.Projects().Update(project)
 	unit.Memberships().Delete(projectID, user.ID())
-	dropRequestsUnlessTaken(unit, project)
+
+	if opened {
+		dropRequestsUnlessTaken(unit, project)
+	}
 
 	err = unit.SaveChanges(ctx)
 	if errors.Is(err, repositories.ErrConcurrentModification) && hasLeft(ctx, unit, user, projectID) {
