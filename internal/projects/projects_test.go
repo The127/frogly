@@ -813,8 +813,8 @@ func TestARequestNobodyMadeIsNotFound(t *testing.T) {
 	declined := projects.DeclineRequest(t.Context(), database.NewContext(), karo, fair.ID(), tomas.ID())
 
 	// assert
-	require.ErrorIs(t, accepted, projects.ErrNotFound)
-	require.ErrorIs(t, declined, projects.ErrNotFound)
+	require.ErrorIs(t, accepted, projects.ErrNoRequest)
+	require.ErrorIs(t, declined, projects.ErrNoRequest)
 }
 
 func TestSomeoneOutsideCantSeeOrAnswerRequests(t *testing.T) {
@@ -832,4 +832,60 @@ func TestSomeoneOutsideCantSeeOrAnswerRequests(t *testing.T) {
 	require.ErrorIs(t, listed, projects.ErrNotFound)
 	require.ErrorIs(t, accepted, projects.ErrNotFound)
 	require.ErrorIs(t, declined, projects.ErrNotFound, "the asker can't answer their own request")
+}
+
+func TestAfterANoTheAskerMayAskAgain(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+	require.NoError(t, projects.DeclineRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID()))
+
+	listed, err := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.False(t, listed[0].Asked, "nothing tells the asker it was a no")
+
+	// act
+	err = projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Len(t, waiting, 1)
+}
+
+func TestSomeoneElsesRequestDoesntCountAsYours(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	_, _, _ = askedProject(t, database)
+	tomas := savedUser(t, database, "Tomás")
+
+	// act
+	listed, err := projects.ListPublicFor(t.Context(), database.NewContext(), tomas)
+
+	// assert
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.False(t, listed[0].Asked)
+}
+
+func TestAYesForSomeoneWhoIsAMemberByNowRemovesTheRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	accepted, err := projects.AcceptRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, ana.ID(), accepted.ID())
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
 }

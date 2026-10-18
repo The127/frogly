@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -20,8 +19,19 @@ import (
 // of it. It doesn't say which, so nobody learns which projects exist.
 var ErrNotFound = errors.New("project not found")
 
+// ErrNoRequest means the person has no waiting request for the project.
+// It wraps ErrNotFound, so it answers like a project nobody may see.
+var ErrNoRequest = fmt.Errorf("request not found: %w", ErrNotFound)
+
 // ErrUnknownPerson refuses to add someone frogly doesn't know.
 var ErrUnknownPerson = repositories.Invalid("nobody with that ID uses frogly")
+
+// PublicProject is a public project as someone outside it sees it.
+type PublicProject struct {
+	Project *repositories.Project
+	// Asked says whether they asked to join and wait for an answer.
+	Asked bool
+}
 
 // searchLimit keeps a search to a list someone reads at a glance, and
 // stops a short text from listing everyone who uses frogly at once.
@@ -95,13 +105,6 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 	return project, nil
 }
 
-// PublicProject is a public project as someone outside it sees it.
-type PublicProject struct {
-	Project *repositories.Project
-	// Asked says whether they asked to join and wait for an answer.
-	Asked bool
-}
-
 // ListPublicFor lists the public projects user isn't a member of, each
 // with whether they asked to join it.
 func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]PublicProject, error) {
@@ -115,9 +118,14 @@ func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User
 		return nil, err
 	}
 
+	askedSet := make(map[uuid.UUID]bool, len(asked))
+	for _, projectID := range asked {
+		askedSet[projectID] = true
+	}
+
 	listed := make([]PublicProject, 0, len(found))
 	for _, project := range found {
-		listed = append(listed, PublicProject{Project: project, Asked: slices.Contains(asked, project.ID())})
+		listed = append(listed, PublicProject{Project: project, Asked: askedSet[project.ID()]})
 	}
 
 	return listed, nil
@@ -247,10 +255,6 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 	return project, nil
 }
 
-// ErrNoRequest means the person has no waiting request for the project.
-// It wraps ErrNotFound, so it answers like a project nobody may see.
-var ErrNoRequest = fmt.Errorf("request not found: %w", ErrNotFound)
-
 // AskToJoin lets user ask to join a public project that takes requests.
 // Asking again, or as a member, changes nothing. A project that doesn't
 // exist or doesn't take requests gives ErrNotFound, decided by the
@@ -309,12 +313,23 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 		return nil, err
 	}
 
-	membership, err := repositories.NewMembership(projectID, askerID)
-	if err != nil {
+	// the asker may have got in another way since, like a member adding
+	// them, and then the yes only clears the request
+	_, err = unit.Projects().ByIDForMember(ctx, projectID, askerID)
+
+	switch {
+	case errors.Is(err, repositories.ErrNotFound):
+		membership, err := repositories.NewMembership(projectID, askerID)
+		if err != nil {
+			return nil, err
+		}
+
+		unit.Memberships().Insert(membership)
+
+	case err != nil:
 		return nil, err
 	}
 
-	unit.Memberships().Insert(membership)
 	unit.JoinRequests().Delete(request)
 
 	err = unit.SaveChanges(ctx)
