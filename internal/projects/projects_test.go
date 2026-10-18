@@ -847,3 +847,60 @@ func TestTheLastTwoLeavingAtOnceOpenTheProjectOnceOneTriesAgain(t *testing.T) {
 	require.Len(t, public, 1)
 	assert.Equal(t, repositories.JoiningOpen, public[0].Project.Joining())
 }
+
+// addingUnit lets a member add someone through another unit of work right
+// before its own save, like the last member adding Ana in another tab.
+type addingUnit struct {
+	db.Context
+
+	database  db.Database
+	member    *repositories.User
+	added     *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit addingUnit) SaveChanges(ctx context.Context) error {
+	_, err := projects.AddMember(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.added.ID())
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestLeavingAsTheLastMemberWhileAddingSomeoneIsARace(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	unit := addingUnit{Context: database.NewContext(), database: database, member: karo, added: ana, projectID: garden.ID()}
+
+	// act
+	err := projects.Leave(t.Context(), unit, karo, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification, "it counted one member, but Ana got in")
+
+	kept, err := projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, kept.Visibility())
+}
+
+func TestLeavingTwiceAtOnceLeavesOnce(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+	unit := leavingUnit{Context: database.NewContext(), database: database, other: ana, projectID: garden.ID()}
+
+	// act
+	err = projects.Leave(t.Context(), unit, ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}

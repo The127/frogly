@@ -149,11 +149,12 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 // gives them back. Adding a member again changes nothing. Someone who
 // isn't a member gets ErrNotFound, like Get.
 //
-// If two members add the same person at once, or a member adds someone
-// while their request is answered or dropped, one of them gets
+// Adding someone changes the project. If anything else changes it at the
+// same moment, like another member adding the same person, someone
+// leaving or that person's request being answered, one of them gets
 // repositories.ErrConcurrentModification. Trying again works.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
-	_, err := Get(ctx, unit, user, projectID)
+	project, err := Get(ctx, unit, user, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +168,7 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 		return nil, err
 	}
 
-	err = addMembership(ctx, unit, projectID, userID)
+	err = addMembership(ctx, unit, project, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +223,9 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 // gets ErrNotFound, like Get.
 //
 // When two members leave at the same moment, or someone changes the
-// project meanwhile, one of them gets
-// repositories.ErrConcurrentModification, and trying again works.
+// project meanwhile, like adding a member, one of them gets
+// repositories.ErrConcurrentModification, and trying again works. Leaving
+// twice at the same moment leaves once.
 func Leave(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) error {
 	project, err := Get(ctx, unit, user, projectID)
 	if err != nil {
@@ -246,11 +248,23 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
+	if errors.Is(err, repositories.ErrConcurrentModification) && !isMember(ctx, unit, user, projectID) {
+		// the same person left from elsewhere in between, like in another
+		// tab, which is what they asked for
+		return nil
+	}
+
 	if err != nil {
 		return fmt.Errorf("taking user %s out of project %s: %w", user.ID(), projectID, err)
 	}
 
 	return nil
+}
+
+func isMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) bool {
+	_, err := Get(ctx, unit, user, projectID)
+
+	return err == nil
 }
 
 // ChangeJoining lets a member open a public project to join or close it.
@@ -279,7 +293,9 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 
 // addMembership queues a membership for userID, unless they already are a
 // member, and removes their request.
-func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
+func addMembership(ctx context.Context, unit db.Context, project *repositories.Project, userID uuid.UUID) error {
+	projectID := project.ID()
+
 	err := dropRequest(ctx, unit, projectID, userID)
 	if err != nil {
 		return err
@@ -300,6 +316,9 @@ func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, us
 	}
 
 	unit.Memberships().Insert(membership)
+	// a new member changes the project, so a last member leaving at the
+	// same moment can't open it with someone still in it
+	unit.Projects().Update(project)
 
 	return nil
 }
