@@ -718,14 +718,14 @@ func TestAMemberLeavesAProject(t *testing.T) {
 	require.NoError(t, err, "the other member stays")
 }
 
-func TestTheLastMemberLeavesAProject(t *testing.T) {
+func TestTheLastMemberLeavingOpensTheProject(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
-	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
 
 	// act
-	err := projects.Leave(t.Context(), database.NewContext(), karo, fair.ID())
+	err := projects.Leave(t.Context(), database.NewContext(), karo, garden.ID())
 
 	// assert
 	require.NoError(t, err)
@@ -736,8 +736,29 @@ func TestTheLastMemberLeavesAProject(t *testing.T) {
 
 	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
 	require.NoError(t, err)
-	require.Len(t, public, 1, "the project stays")
-	assert.Equal(t, fair.ID(), public[0].Project.ID())
+	require.Len(t, public, 1, "the project stays, for anyone to pick up")
+	assert.Equal(t, garden.ID(), public[0].Project.ID())
+	assert.Equal(t, repositories.JoiningOpen, public[0].Project.Joining())
+}
+
+func TestAProjectSomeoneLeftStaysAsItIsForTheOthers(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	err = projects.Leave(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	kept, err := projects.Get(t.Context(), database.NewContext(), karo, garden.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, kept.Visibility())
+	assert.Equal(t, repositories.JoiningClosed, kept.Joining())
 }
 
 func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
@@ -753,4 +774,176 @@ func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
 		// assert
 		require.ErrorIs(t, err, projects.ErrNotFound)
 	}
+}
+
+func TestAMemberGetsTheProjectWithHowManyAreInIt(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	got, err := projects.GetWithMembers(t.Context(), database.NewContext(), karo, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, garden.ID(), got.Project.ID())
+	assert.Equal(t, 2, got.Members)
+}
+
+func TestSomeoneOutsideDoesntLearnHowManyAreInAProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	// act
+	_, err := projects.GetWithMembers(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+// leavingUnit lets another member leave through another unit of work
+// right before its own save, like the last two members leaving at once.
+type leavingUnit struct {
+	db.Context
+
+	database  db.Database
+	other     *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit leavingUnit) SaveChanges(ctx context.Context) error {
+	err := projects.Leave(ctx, unit.database.NewContext(), unit.other, unit.projectID)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestTheLastTwoLeavingAtOnceOpenTheProjectOnceOneTriesAgain(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, tomas := savedUser(t, database, "Karo"), savedUser(t, database, "Ana"), savedUser(t, database, "Tomás")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	raced := projects.Leave(t.Context(), leavingUnit{Context: database.NewContext(), database: database, other: karo, projectID: garden.ID()}, ana, garden.ID())
+	require.ErrorIs(t, raced, repositories.ErrConcurrentModification, "both counted two members")
+
+	// act
+	err = projects.Leave(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), tomas)
+	require.NoError(t, err)
+	require.Len(t, public, 1)
+	assert.Equal(t, repositories.JoiningOpen, public[0].Project.Joining())
+}
+
+// addingUnit lets a member add someone through another unit of work right
+// before its own save, like the last member adding Ana in another tab.
+type addingUnit struct {
+	db.Context
+
+	database  db.Database
+	member    *repositories.User
+	added     *repositories.User
+	projectID uuid.UUID
+}
+
+func (unit addingUnit) SaveChanges(ctx context.Context) error {
+	_, err := projects.AddMember(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.added.ID())
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestLeavingAsTheLastMemberWhileAddingSomeoneIsARace(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	unit := addingUnit{Context: database.NewContext(), database: database, member: karo, added: ana, projectID: garden.ID()}
+
+	// act
+	err := projects.Leave(t.Context(), unit, karo, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification, "it counted one member, but Ana got in")
+
+	kept, err := projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, kept.Visibility())
+}
+
+func TestLeavingTwiceAtOnceLeavesOnce(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+	unit := leavingUnit{Context: database.NewContext(), database: database, other: ana, projectID: garden.ID()}
+
+	// act
+	err = projects.Leave(t.Context(), unit, ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.ErrorIs(t, err, projects.ErrNotFound)
+}
+
+// brokenAfterSaveUnit refuses its save as a race, and its reads of
+// projects fail after that, like a request cancelled in between.
+type brokenAfterSaveUnit struct {
+	db.Context
+
+	saved *bool
+}
+
+func (unit brokenAfterSaveUnit) SaveChanges(context.Context) error {
+	*unit.saved = true
+
+	return repositories.ErrConcurrentModification
+}
+
+func (unit brokenAfterSaveUnit) Projects() repositories.ProjectRepository {
+	if *unit.saved {
+		return brokenProjects{unit.Context.Projects()}
+	}
+
+	return unit.Context.Projects()
+}
+
+type brokenProjects struct {
+	repositories.ProjectRepository
+}
+
+func (brokenProjects) ByIDForMember(context.Context, uuid.UUID, uuid.UUID) (*repositories.Project, error) {
+	return nil, errors.New("the database is gone")
+}
+
+func TestALeaveThatLostARaceAndCantReadIsNoLeave(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo := savedUser(t, database, "Karo")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	// act
+	err := projects.Leave(t.Context(), brokenAfterSaveUnit{Context: database.NewContext(), saved: new(bool)}, karo, garden.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
 }

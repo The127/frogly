@@ -570,13 +570,13 @@ describe("fetchPublicProjects", () => {
 describe("fetchProject", () => {
   it("gives the project", async () => {
     // arrange
-    respondWith(200, { id: "p-1", name: "Garden" });
+    respondWith(200, { id: "p-1", name: "Garden", members: 2 });
 
     // act
     const project = await fetchProject("an-access-token", "p-1");
 
     // assert
-    expect(project).toEqual({ id: "p-1", name: "Garden" });
+    expect(project).toEqual({ id: "p-1", name: "Garden", members: 2 });
     expect(fetch).toHaveBeenCalledWith("/api/projects/p-1", {
       headers: { Authorization: "Bearer an-access-token" },
     });

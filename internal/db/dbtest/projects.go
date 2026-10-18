@@ -462,3 +462,20 @@ func (s *projectsSuite) TestRemovingAMembershipTwiceIsNoError() {
 	// assert
 	s.Require().NoError(err)
 }
+
+// TestAProjectCountsItsMembers checks the member count, only of that
+// project.
+func (s *projectsSuite) TestAProjectCountsItsMembers() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+	s.savedMember(garden, ana)
+	s.savedProject("Board", karo)
+
+	// act
+	count, err := s.database.NewContext().Projects().MemberCount(s.T().Context(), garden.ID())
+
+	// assert
+	s.Require().NoError(err)
+	s.Equal(2, count)
+}

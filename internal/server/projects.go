@@ -54,18 +54,27 @@ func projectID(r *http.Request) (uuid.UUID, error) {
 	return id, nil
 }
 
+// projectWithMembersJSON is one project with how many members it has,
+// which only the answer for a single project carries, so a list doesn't
+// count for every project in it.
+type projectWithMembersJSON struct {
+	projectJSON
+
+	Members int `json:"members"`
+}
+
 func getProject(r *http.Request, caller caller) (int, any, error) {
 	id, err := projectID(r)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	project, err := projects.Get(r.Context(), caller.unit, caller.user, id)
+	got, err := projects.GetWithMembers(r.Context(), caller.unit, caller.user, id)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return http.StatusOK, toProjectJSON(project), nil
+	return http.StatusOK, projectWithMembersJSON{projectJSON: toProjectJSON(got.Project), Members: got.Members}, nil
 }
 
 func listProjects(r *http.Request, caller caller) (int, any, error) {

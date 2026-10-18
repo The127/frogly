@@ -18,6 +18,12 @@ export interface Project {
   joining: Joining;
 }
 
+// ProjectWithMembers is one project as its members see it, with how many
+// they are.
+export interface ProjectWithMembers extends Project {
+  members: number;
+}
+
 // PublicProject is what someone outside a public project sees of it.
 export interface PublicProject {
   id: string;
@@ -351,7 +357,7 @@ export async function fetchPublicProjects(accessToken: string): Promise<PublicPr
   return (await response.json()) as PublicProject[];
 }
 
-export async function fetchProject(accessToken: string, projectId: string): Promise<Project> {
+export async function fetchProject(accessToken: string, projectId: string): Promise<ProjectWithMembers> {
   const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}`, accessToken);
   if (response.status === 404) {
     throw new NotFound();
@@ -361,7 +367,7 @@ export async function fetchProject(accessToken: string, projectId: string): Prom
     throw new Error(`frogly answered ${response.status} when asked for a project`);
   }
 
-  return (await response.json()) as Project;
+  return (await response.json()) as ProjectWithMembers;
 }
 
 // Either the new project, or frogly's reason for refusing the name, which

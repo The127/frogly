@@ -53,6 +53,10 @@
   let leaveProblem = $state("");
   let leaveButton = $state<HTMLButtonElement>();
   let stayButton = $state<HTMLButtonElement>();
+  // loaded again when someone asks to leave, apart from the project the
+  // page shows, so an unsaved pick of who can join stays
+  let members = $state(0);
+  let leavingJoining = $state<Joining>("closed");
   // a private project is always closed
   const comingBack: Record<Joining, string> = {
     open: "You can join it again whenever you like.",
@@ -72,6 +76,8 @@
       login.onNotAllowed();
     } else if (loaded.kind === "loaded") {
       show(loaded.project);
+      members = loaded.members;
+      leavingJoining = loaded.project.joining;
       showRequests(waiting);
     } else {
       settings = loaded;
@@ -259,6 +265,34 @@
   }
 
   async function askToLeave() {
+    if (leaving) {
+      return;
+    }
+
+    // others may have joined, left or changed who can join since the page
+    // loaded, and the note says what leaving does now
+    leaving = true;
+    const loaded = await loadSettings(login.accessToken, projectId);
+    leaving = false;
+
+    switch (loaded.kind) {
+      case "loaded":
+        members = loaded.members;
+        leavingJoining = loaded.project.joining;
+        break;
+      // what the page knew from before still makes a fair note
+      case "failed":
+        break;
+      // not a member any more, like after leaving in another tab, is what
+      // leaving was for
+      case "notFound":
+        void navigate("/");
+        return;
+      default:
+        handledElsewhere(loaded);
+        return;
+    }
+
     confirmingLeave = true;
     await tick();
     stayButton?.focus();
@@ -421,14 +455,18 @@
   <section aria-labelledby="leave-label">
     <p class="label" id="leave-label">leave</p>
     {#if confirmingLeave}
-      <p class="quiet" id="coming-back">{comingBack[settings.project.joining]}</p>
+      <p class="quiet" id="coming-back">
+        {members === 1
+          ? "You're its last member. It turns public and open, so anyone in frogly can find it and join."
+          : comingBack[leavingJoining]}
+      </p>
     {/if}
     <div class="acts">
       {#if confirmingLeave}
         <button class="btn" onclick={leaveForGood} aria-disabled={leaving} aria-describedby="coming-back">yes, leave {settings.project.name}</button>
         <button class="btn pond" bind:this={stayButton} onclick={stay} aria-disabled={leaving} aria-describedby="coming-back">stay</button>
       {:else}
-        <button class="btn" bind:this={leaveButton} onclick={askToLeave}>leave this project</button>
+        <button class="btn" bind:this={leaveButton} onclick={askToLeave} aria-disabled={leaving}>leave this project</button>
       {/if}
     </div>
     <!-- always there, so screen readers announce the text when it changes -->

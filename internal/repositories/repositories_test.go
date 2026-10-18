@@ -568,3 +568,16 @@ func TestNewJoinRequestRemembersWhenItWasAsked(t *testing.T) {
 	assert.WithinDuration(t, time.Now(), request.AskedAt(), time.Minute)
 	assert.Equal(t, time.UTC, request.AskedAt().Location())
 }
+
+func TestOpeningAProjectMakesItPublicAndOpen(t *testing.T) {
+	// arrange
+	project, err := repositories.NewProject("Garden", repositories.VisibilityPrivate, "")
+	require.NoError(t, err)
+
+	// act
+	project.Open()
+
+	// assert
+	assert.Equal(t, repositories.VisibilityPublic, project.Visibility())
+	assert.Equal(t, repositories.JoiningOpen, project.Joining())
+}

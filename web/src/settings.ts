@@ -19,11 +19,17 @@ import {
 
 type AccessToken = () => Promise<string>;
 
-export type SettingsLoaded = { kind: "loaded"; project: Project } | { kind: "notFound" } | { kind: "failed" } | SessionEnded;
+export type SettingsLoaded =
+  | { kind: "loaded"; project: Project; members: number }
+  | { kind: "notFound" }
+  | { kind: "failed" }
+  | SessionEnded;
 
 export async function loadSettings(accessToken: AccessToken, projectId: string): Promise<SettingsLoaded> {
   try {
-    return { kind: "loaded", project: await fetchProject(await accessToken(), projectId) };
+    const { members, ...project } = await fetchProject(await accessToken(), projectId);
+
+    return { kind: "loaded", project, members };
   } catch (error) {
     return failure(error);
   }

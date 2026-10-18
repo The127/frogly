@@ -105,11 +105,12 @@ func dropRequestsUnlessTaken(unit db.Context, project *repositories.Project) {
 // AcceptRequest lets a member say yes to a request, which makes the asker
 // a member and removes the request in the same save. It gives the asker
 // back. Someone who isn't a member gets ErrNotFound, and a request that
-// doesn't wait ErrNoRequest. If the request is answered, the asker gets in
-// another way or the project stops taking requests at the same moment,
-// AcceptRequest gives repositories.ErrConcurrentModification.
+// doesn't wait ErrNoRequest. If the request is answered or the project
+// changes at the same moment, like the asker getting in another way or a
+// member leaving, AcceptRequest gives
+// repositories.ErrConcurrentModification.
 func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.User, error) {
-	_, err := waitingRequest(ctx, unit, user, projectID, askerID)
+	project, _, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 		return nil, err
 	}
 
-	err = addMembership(ctx, unit, projectID, askerID)
+	err = addMembership(ctx, unit, project, askerID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 // answered, the asker gets in or the project stops taking requests at the
 // same moment, DeclineRequest gives repositories.ErrConcurrentModification.
 func DeclineRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) error {
-	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
+	_, request, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {
 		return err
 	}
@@ -155,16 +156,20 @@ func DeclineRequest(ctx context.Context, unit db.Context, user *repositories.Use
 
 // waitingRequest checks that user is a member before it looks for the
 // request, so someone outside learns nothing about who asked.
-func waitingRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.JoinRequest, error) {
-	_, err := Get(ctx, unit, user, projectID)
+func waitingRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.Project, *repositories.JoinRequest, error) {
+	project, err := Get(ctx, unit, user, projectID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	request, err := unit.JoinRequests().ByProjectAndUser(ctx, projectID, askerID)
 	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, fmt.Errorf("request of user %s for project %s: %w", askerID, projectID, ErrNoRequest)
+		return nil, nil, fmt.Errorf("request of user %s for project %s: %w", askerID, projectID, ErrNoRequest)
 	}
 
-	return request, err
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return project, request, nil
 }

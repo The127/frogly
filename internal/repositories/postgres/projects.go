@@ -176,6 +176,23 @@ func (repository *ProjectRepository) Update(project *repositories.Project) {
 	repository.tracker.Add(change.NewEntry(change.Updated, project))
 }
 
+// MemberCount counts the project's memberships.
+func (repository *ProjectRepository) MemberCount(ctx context.Context, projectID uuid.UUID) (int, error) {
+	selection := sqlbuilder.Select("count(*)").From("memberships")
+	selection.Where(selection.Equal("project_id", projectID))
+
+	query, args := selection.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	var count int
+
+	err := repository.reader.QueryRowContext(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("counting the members of project %s: %w", projectID, err)
+	}
+
+	return count, nil
+}
+
 // ExecuteInsert writes the project as version 1.
 func (repository *ProjectRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, project *repositories.Project) error {
 	insert := sqlbuilder.InsertInto("projects").
