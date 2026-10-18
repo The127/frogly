@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { Action, Resource } from "./action.svelte";
+import { Action, Busy, Resource } from "./action.svelte";
 import type { Failure, Result } from "./client";
 
 function session() {
@@ -149,6 +149,87 @@ describe("Action", () => {
   });
 });
 
+describe("Action, more", () => {
+  it("is not busy any more when the work throws", async () => {
+    // arrange
+    const action = new Action(session(), vi.fn());
+
+    // act
+    const run = action.run(
+      async () => {
+        throw new Error("a bug");
+      },
+      { what: "plant", done: () => {} },
+    );
+
+    // assert
+    await expect(run).rejects.toThrow("a bug");
+    expect(action.busy).toBe(false);
+  });
+
+  it("shows no notice for an empty text", async () => {
+    // arrange
+    const action = new Action(session(), vi.fn());
+
+    // act
+    await action.run(ok(1), { what: "plant", done: () => "" });
+
+    // assert
+    expect(action.notice).toBe("");
+  });
+
+  it("keeps the problem a conflict handler sets", async () => {
+    // arrange
+    const action = new Action(session(), vi.fn());
+
+    // act
+    await action.run(failing({ kind: "conflict" }), {
+      what: "answer Ana",
+      done: () => {},
+      conflict: () => {
+        action.problem = "Ana's request was answered already.";
+      },
+    });
+
+    // assert
+    expect(action.problem).toBe("Ana's request was answered already.");
+  });
+
+  it("lets a failure go on its own way", async () => {
+    // arrange
+    const action = new Action(session(), vi.fn());
+    const failed = vi.fn();
+
+    // act
+    await action.run(failing({ kind: "failed" }), { what: "count the members", done: () => {}, failed });
+
+    // assert
+    expect(failed).toHaveBeenCalled();
+    expect(action.problem).toBe("");
+  });
+
+  it("waits for another action that shares its busy flag", async () => {
+    // arrange
+    const busy = new Busy();
+    const search = new Action(session(), vi.fn(), busy);
+    const add = new Action(session(), vi.fn(), busy);
+    let finish: (result: Result<number>) => void = () => {};
+    const work = vi.fn(async () => ({ ok: true, value: 1 }) as Result<number>);
+
+    // act
+    const searching = search.run(() => new Promise<Result<number>>((resolve) => (finish = resolve)), { what: "search", done: () => {} });
+    const addBusy = add.busy;
+    await add.run(work, { what: "add", done: () => {} });
+    finish({ ok: true, value: 1 });
+    await searching;
+
+    // assert
+    expect(addBusy).toBe(true);
+    expect(work).not.toHaveBeenCalled();
+    expect(add.busy).toBe(false);
+  });
+});
+
 describe("Resource", () => {
   it("starts loading and then holds what it loaded", async () => {
     // arrange
@@ -211,5 +292,66 @@ describe("Resource", () => {
 
     // assert
     expect(resource.state.kind).toBe("notFound");
+  });
+});
+
+describe("Resource, loaded again", () => {
+  it("keeps what it had when loading again fails, and says it's stale", async () => {
+    // arrange
+    let answer: Result<number[]> = { ok: true, value: [1] };
+    const resource = new Resource(session(), async () => answer);
+    await resource.load();
+    answer = { ok: false, failure: { kind: "failed" } };
+
+    // act
+    await resource.load();
+
+    // assert
+    expect(resource.state).toEqual({ kind: "loaded", value: [1] });
+    expect(resource.stale).toBe(true);
+  });
+
+  it("is fresh again after a load that works", async () => {
+    // arrange
+    let answer: Result<number[]> = { ok: false, failure: { kind: "failed" } };
+    const resource = new Resource(session(), async () => answer);
+    await resource.load();
+    answer = { ok: true, value: [2] };
+
+    // act
+    await resource.load();
+
+    // assert
+    expect(resource.state).toEqual({ kind: "loaded", value: [2] });
+    expect(resource.stale).toBe(false);
+  });
+
+  it("holds the latest load when an earlier one finishes last", async () => {
+    // arrange
+    const finishes: ((result: Result<string>) => void)[] = [];
+    const resource = new Resource(session(), () => new Promise<Result<string>>((resolve) => finishes.push(resolve)));
+
+    // act
+    const first = resource.load();
+    const second = resource.load();
+    finishes[1]({ ok: true, value: "new" });
+    await second;
+    finishes[0]({ ok: true, value: "old" });
+    await first;
+
+    // assert
+    expect(resource.state).toEqual({ kind: "loaded", value: "new" });
+  });
+
+  it("tells the page when what it loads belongs to something gone", async () => {
+    // arrange
+    const gone = vi.fn();
+    const resource = new Resource(session(), failing({ kind: "notFound" }), gone);
+
+    // act
+    await resource.load();
+
+    // assert
+    expect(gone).toHaveBeenCalled();
   });
 });

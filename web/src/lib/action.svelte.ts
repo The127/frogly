@@ -20,12 +20,20 @@ export interface Handlers<T> {
   // someone changed the same thing at the same moment. Without this, it's
   // a failure, and trying again works.
   conflict?(): void | Promise<void>;
+  // frogly or the network failed. Without this, the problem says to try
+  // again.
+  failed?(): void | Promise<void>;
+}
+
+// Busy is one busy flag that several actions share, for actions that must
+// not run at the same time, like a search and adding someone it found.
+export class Busy {
+  now = $state(false);
 }
 
 // Action is one thing a person can do on a page, like planting an idea. It
 // runs once at a time, and holds what the page shows about it.
 export class Action {
-  busy = $state(false);
   // what went wrong, for a role="alert" line
   problem = $state("");
   // what worked, for a polite live region
@@ -33,12 +41,22 @@ export class Action {
 
   #session: SessionEnds;
   #gone: () => void;
+  #busy: Busy;
 
   // gone is what the page does when the thing it's about isn't there any
-  // more
-  constructor(session: SessionEnds, gone: () => void) {
+  // more. busy is shared with the actions this one must wait for.
+  constructor(session: SessionEnds, gone: () => void, busy = new Busy()) {
     this.#session = session;
     this.#gone = gone;
+    this.#busy = busy;
+  }
+
+  get busy(): boolean {
+    return this.#busy.now;
+  }
+
+  set busy(busy: boolean) {
+    this.#busy.now = busy;
   }
 
   async run<T>(work: () => Promise<Result<T>>, handlers: Handlers<T>): Promise<void> {
@@ -90,6 +108,12 @@ export class Action {
           await handlers.conflict();
           return;
         }
+        break;
+      case "failed":
+        if (handlers.failed) {
+          await handlers.failed();
+          return;
+        }
     }
 
     this.problem = `frogly couldn't ${handlers.what}. Try again in a moment.`;
@@ -101,19 +125,33 @@ export type Loaded<T> = { kind: "loading" } | { kind: "loaded"; value: T } | { k
 // Resource is what a page loads from frogly, like a project's garden.
 export class Resource<T> {
   state = $state<Loaded<T>>({ kind: "loading" });
+  // a load after the first one failed, so what it holds may be old
+  stale = $state(false);
 
   #session: SessionEnds;
   #fetch: () => Promise<Result<T>>;
+  #gone: (() => void) | undefined;
+  #loads = 0;
 
-  constructor(session: SessionEnds, fetch: () => Promise<Result<T>>) {
+  // gone is for what belongs to something else, like a project's requests:
+  // when they aren't there, the whole page is gone
+  constructor(session: SessionEnds, fetch: () => Promise<Result<T>>, gone?: () => void) {
     this.#session = session;
     this.#fetch = fetch;
+    this.#gone = gone;
   }
 
   async load(): Promise<void> {
+    const load = ++this.#loads;
     const result = await this.#fetch();
+    // a later load started meanwhile and knows better
+    if (load !== this.#loads) {
+      return;
+    }
+
     if (result.ok) {
       this.state = { kind: "loaded", value: result.value };
+      this.stale = false;
       return;
     }
 
@@ -126,9 +164,14 @@ export class Resource<T> {
         return;
       case "notFound":
         this.state = { kind: "notFound" };
+        this.#gone?.();
         return;
-      default:
-        this.state = { kind: "failed" };
+    }
+
+    if (this.state.kind === "loaded") {
+      this.stale = true;
+    } else {
+      this.state = { kind: "failed" };
     }
   }
 
