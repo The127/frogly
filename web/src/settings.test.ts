@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   LoggedOut,
-  acceptRequest,
-  declineRequest,
-  fetchRequests,
   NotAllowed,
   NotFound,
   type Person,
   type Project,
+  acceptRequest,
   addMember,
   changeJoining,
   changeVisibility,
+  declineRequest,
   fetchProject,
+  fetchRequests,
   searchPeople,
 } from "./api";
 import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
