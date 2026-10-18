@@ -9,7 +9,7 @@ export { Router } from "sv-router";
 // the pages exist.
 export const { p, navigate, route } = createRouter({
   "/": () => import("./pages/Home.svelte"),
-  "/projects/new": () => import("./NewProject.svelte"),
+  "/projects/new": () => import("./pages/NewProject.svelte"),
   "/projects/:id": () => import("./GardenPage.svelte"),
   "/projects/:id/settings": () => import("./SettingsPage.svelte"),
   "*": () => import("./Lost.svelte"),

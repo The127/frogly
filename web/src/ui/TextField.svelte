@@ -2,6 +2,7 @@
   import type { HTMLInputAttributes } from "svelte/elements";
 
   // label is for screen readers, the placeholder says it to everyone else.
+  // Without it, the page labels the field itself.
   // busy makes the field readonly, not disabled, since a disabled field
   // would lose the focus.
   let {
@@ -15,7 +16,7 @@
     ...rest
   }: HTMLInputAttributes & {
     id: string;
-    label: string;
+    label?: string;
     value?: string;
     busy?: boolean;
     problem?: string;
@@ -24,7 +25,9 @@
   } = $props();
 </script>
 
-<label class="hidden" for={id}>{label}</label>
+{#if label}
+  <label class="hidden" for={id}>{label}</label>
+{/if}
 <input
   {id}
   bind:value
