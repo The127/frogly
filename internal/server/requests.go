@@ -34,12 +34,12 @@ func askToJoin(r *http.Request, caller caller) (int, any, error) {
 		return 0, nil, err
 	}
 
-	err = projects.AskToJoin(r.Context(), caller.unit, caller.user, id)
+	asked, err := projects.AskToJoin(r.Context(), caller.unit, caller.user, id)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return http.StatusOK, map[string]bool{"asked": true}, nil
+	return http.StatusOK, map[string]bool{"asked": asked}, nil
 }
 
 func listRequests(r *http.Request, caller caller) (int, any, error) {

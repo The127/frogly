@@ -703,7 +703,9 @@ func askedProject(t *testing.T, database db.Database) (karo, ana *repositories.U
 
 	karo, ana = savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
 	fair = createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningRequest)
-	require.NoError(t, projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID()))
+	asked, err := projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID())
+	require.NoError(t, err)
+	require.True(t, asked)
 
 	return karo, ana, fair
 }
@@ -732,12 +734,16 @@ func TestAskingAgainOrAsAMemberMakesNoNewRequest(t *testing.T) {
 	database := sqlitetest.Open(t)
 	karo, ana, fair := askedProject(t, database)
 
-	for _, who := range []*repositories.User{ana, karo} {
+	for _, test := range []struct {
+		who   *repositories.User
+		asked bool
+	}{{ana, true}, {karo, false}} {
 		// act
-		err := projects.AskToJoin(t.Context(), database.NewContext(), who, fair.ID())
+		asked, err := projects.AskToJoin(t.Context(), database.NewContext(), test.who, fair.ID())
 
 		// assert
-		require.NoError(t, err, who.Name())
+		require.NoError(t, err, test.who.Name())
+		assert.Equal(t, test.asked, asked, "%s waits for an answer", test.who.Name())
 	}
 
 	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
@@ -755,7 +761,7 @@ func TestAProjectThatDoesntTakeRequestsCantBeAsked(t *testing.T) {
 			project := createdProject(t, database, karo, repositories.VisibilityPublic, joining)
 
 			// act
-			err := projects.AskToJoin(t.Context(), database.NewContext(), ana, project.ID())
+			_, err := projects.AskToJoin(t.Context(), database.NewContext(), ana, project.ID())
 
 			// assert
 			require.ErrorIs(t, err, projects.ErrNotFound)
@@ -846,7 +852,7 @@ func TestAfterANoTheAskerMayAskAgain(t *testing.T) {
 	assert.False(t, listed[0].Asked, "nothing tells the asker it was a no")
 
 	// act
-	err = projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID())
+	_, err = projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID())
 
 	// assert
 	require.NoError(t, err)

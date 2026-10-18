@@ -1095,7 +1095,8 @@ func answer(t *testing.T, handler http.Handler, method string, path string) *htt
 	return request(t, handler, method, path, http.Header{"Authorization": {"Bearer " + validToken}})
 }
 
-// anaAsked has Ana ask to join and gives her ID as members see it
+// members answer a request by the asker's ID, which only the list of
+// requests gives
 func anaAsked(t *testing.T, handler http.Handler, projectID string) string {
 	t.Helper()
 
@@ -1166,6 +1167,7 @@ func TestAYesAnswersWithTheNewMember(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code)
 	assert.JSONEq(t, `{"id": "`+anaID+`", "name": "Ana", "email": ""}`, response.Body.String())
 	assert.Contains(t, projects(t, handler, http.MethodGet, otherToken, "").Body.String(), projectID)
+	assert.JSONEq(t, `[]`, answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests").Body.String())
 }
 
 func TestANoAnswersWithNoContent(t *testing.T) {
@@ -1181,6 +1183,8 @@ func TestANoAnswersWithNoContent(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, response.Code)
 	assert.Empty(t, response.Body.String())
 	assert.Empty(t, response.Header().Get("Content-Type"))
+	assert.JSONEq(t, `[]`, answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests").Body.String())
+	assert.JSONEq(t, `[]`, projects(t, handler, http.MethodGet, otherToken, "").Body.String())
 }
 
 func TestAProjectThatDoesntTakeRequestsIsNotFoundForAsking(t *testing.T) {
@@ -1193,6 +1197,7 @@ func TestAProjectThatDoesntTakeRequestsIsNotFoundForAsking(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusNotFound, response.Code)
+	assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"), "frogly's answer, not a missing route")
 }
 
 func TestAnAnswerNobodyWaitsForIsNotFound(t *testing.T) {
@@ -1209,6 +1214,8 @@ func TestAnAnswerNobodyWaitsForIsNotFound(t *testing.T) {
 			// assert
 			assert.Equal(t, http.StatusNotFound, accepted.Code)
 			assert.Equal(t, http.StatusNotFound, declined.Code)
+			assert.Equal(t, "application/problem+json", accepted.Header().Get("Content-Type"), "frogly's answer, not a missing route")
+			assert.Equal(t, "application/problem+json", declined.Header().Get("Content-Type"))
 		})
 	}
 }
@@ -1223,8 +1230,14 @@ func TestRequestsAreNotFoundForSomeoneOutside(t *testing.T) {
 	// act
 	listed := get(t, handler, "/api/projects/"+projectID+"/requests", header)
 	accepted := request(t, handler, http.MethodPost, "/api/projects/"+projectID+"/requests/"+anaID+"/accept", header)
+	declined := request(t, handler, http.MethodDelete, "/api/projects/"+projectID+"/requests/"+anaID, header)
 
 	// assert
-	assert.Equal(t, http.StatusNotFound, listed.Code)
-	assert.Equal(t, http.StatusNotFound, accepted.Code)
+	for _, response := range []*httptest.ResponseRecorder{listed, accepted, declined} {
+		assert.Equal(t, http.StatusNotFound, response.Code)
+		assert.Equal(t, "application/problem+json", response.Header().Get("Content-Type"), "frogly's answer, not a missing route")
+	}
+
+	waiting := answer(t, handler, http.MethodGet, "/api/projects/"+projectID+"/requests")
+	assert.Contains(t, waiting.Body.String(), anaID, "the request still waits")
 }

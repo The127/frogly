@@ -9,13 +9,13 @@ id: jsonpath "$.id"
 [Asserts]
 jsonpath "$.joining" == "request"
 
-# asking as a member changes nothing
+# a member asking has nothing to wait for
 POST {{frogly}}/api/projects/{{id}}/requests
 Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
 header "Content-Type" == "application/json"
-jsonpath "$.asked" == true
+jsonpath "$.asked" == false
 
 # so nobody waits
 GET {{frogly}}/api/projects/{{id}}/requests
