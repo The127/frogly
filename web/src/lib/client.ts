@@ -1,0 +1,109 @@
+// Failure is how a call to frogly went wrong, in the terms a page acts on.
+export type Failure =
+  // the login ended, and only logging in again helps
+  | { kind: "loggedOut" }
+  // the login works, but it doesn't give the person frogly's role
+  | { kind: "notAllowed" }
+  // the thing isn't there, or the person may not see it. frogly doesn't
+  // say which.
+  | { kind: "notFound" }
+  // someone changed the same thing at the same moment
+  | { kind: "conflict" }
+  // frogly refused what the person sent, for a reason they can act on
+  | { kind: "refused"; problem: string }
+  // frogly or the network failed, and trying again later may work
+  | { kind: "failed" };
+
+export type Result<T> = { ok: true; value: T } | { ok: false; failure: Failure };
+
+// LoggedOut is what a token getter throws when the login ended, before
+// anything is sent.
+export class LoggedOut extends Error {
+  constructor() {
+    super("the login ended");
+    this.name = "LoggedOut";
+  }
+}
+
+export type Token = () => Promise<string>;
+
+export interface Options {
+  token?: Token;
+  method?: "GET" | "POST" | "PUT" | "DELETE";
+  body?: unknown;
+  // the reason to give when frogly refuses without one. A call without it
+  // sends only what frogly made itself, so a refusal is frogly's problem.
+  refused?: string;
+}
+
+// call is the only way the frontend talks to frogly. It never throws: every
+// answer becomes a Result.
+export async function call<T>(path: string, options: Options = {}): Promise<Result<T>> {
+  const { token, method = "GET", body, refused } = options;
+
+  let response: Response;
+  try {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${await token()}`;
+    }
+
+    const init: RequestInit = { method, headers };
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(body);
+    }
+
+    response = await fetch(path, init);
+  } catch (error) {
+    if (error instanceof LoggedOut) {
+      return failed({ kind: "loggedOut" });
+    }
+
+    console.error(`calling ${method} ${path} failed`, error);
+
+    return failed({ kind: "failed" });
+  }
+
+  if (response.ok) {
+    // a 204 has no body to read
+    const value = response.status === 204 ? undefined : await response.json();
+
+    return { ok: true, value: value as T };
+  }
+
+  return failed(await failure(response, method, path, refused));
+}
+
+async function failure(response: Response, method: string, path: string, refused: string | undefined): Promise<Failure> {
+  switch (response.status) {
+    case 401:
+      return { kind: "loggedOut" };
+    case 403:
+      return { kind: "notAllowed" };
+    case 404:
+      return { kind: "notFound" };
+    case 409:
+      return { kind: "conflict" };
+  }
+
+  // 413 is frogly refusing to read a body that's far too long
+  if (refused !== undefined && (response.status === 400 || response.status === 413)) {
+    return { kind: "refused", problem: await reason(response, refused) };
+  }
+
+  console.error(`frogly answered ${response.status} to ${method} ${path}`);
+
+  return { kind: "failed" };
+}
+
+// the reason in frogly's problem, or fallback when it has none
+async function reason(response: Response, fallback: string): Promise<string> {
+  const problem = (await response.json().catch(() => ({}))) as { detail?: string };
+
+  return problem.detail ?? fallback;
+}
+
+function failed<T>(failure: Failure): Result<T> {
+  return { ok: false, failure };
+}
