@@ -1,5 +1,9 @@
 import {
   type Joining,
+  type WaitingRequest,
+  acceptRequest,
+  declineRequest,
+  fetchRequests,
   type Person,
   type Project,
   type SessionEnded,
@@ -70,5 +74,40 @@ export async function addPerson(accessToken: AccessToken, projectId: string, use
     const failed = failure(error);
 
     return failed.kind === "failed" ? { kind: "notAdded" } : failed;
+  }
+}
+
+export type RequestsLoaded = { kind: "listed"; requests: WaitingRequest[] } | { kind: "failed" } | { kind: "notFound" } | SessionEnded;
+
+export async function loadRequests(accessToken: AccessToken, projectId: string): Promise<RequestsLoaded> {
+  try {
+    return { kind: "listed", requests: await fetchRequests(await accessToken(), projectId) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export type RequestAnswered = { kind: "answered" } | { kind: "notAnswered" } | { kind: "notFound" } | SessionEnded;
+
+// notFound means the request is gone, answered by another member or since
+export async function answerRequest(
+  accessToken: AccessToken,
+  projectId: string,
+  userId: string,
+  answer: "yes" | "no",
+): Promise<RequestAnswered> {
+  try {
+    const token = await accessToken();
+    if (answer === "yes") {
+      await acceptRequest(token, projectId, userId);
+    } else {
+      await declineRequest(token, projectId, userId);
+    }
+
+    return { kind: "answered" };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notAnswered" } : failed;
   }
 }

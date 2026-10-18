@@ -4,17 +4,20 @@ import {
   LoggedOut,
   NotAllowed,
   NotFound,
+  acceptRequest,
   addMember,
   askToJoin,
   changeJoining,
   changeVisibility,
   createProject,
+  declineRequest,
   fetchConfig,
   fetchGarden,
   fetchMe,
   fetchProject,
   fetchProjects,
   fetchPublicProjects,
+  fetchRequests,
   joinProject,
   plantIdea,
   sayMeToo,
@@ -328,6 +331,89 @@ describe("changeJoining", () => {
 
     // assert
     await expect(changed).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("fetchRequests", () => {
+  it("gives the waiting requests", async () => {
+    // arrange
+    const waiting = [{ id: "u-2", name: "Ana Costa", email: "ana@school.org", askedAt: "2026-10-18T09:00:00Z" }];
+    respondWith(200, waiting);
+
+    // act
+    const requests = await fetchRequests("an-access-token", "p-1");
+
+    // assert
+    expect(requests).toEqual(waiting);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests", {
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project isn't there", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const requests = fetchRequests("an-access-token", "p-1");
+
+    // assert
+    await expect(requests).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("acceptRequest", () => {
+  it("says yes and gives the new member", async () => {
+    // arrange
+    respondWith(200, { id: "u-2", name: "Ana Costa", email: "ana@school.org" });
+
+    // act
+    const accepted = await acceptRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    expect(accepted).toEqual({ id: "u-2", name: "Ana Costa", email: "ana@school.org" });
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests/u-2/accept", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when nobody waits", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const accepted = acceptRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(accepted).rejects.toBeInstanceOf(NotFound);
+  });
+});
+
+describe("declineRequest", () => {
+  it("says no", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    // act
+    await declineRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/requests/u-2", {
+      method: "DELETE",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when nobody waits", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const declined = declineRequest("an-access-token", "p-1", "u-2");
+
+    // assert
+    await expect(declined).rejects.toBeInstanceOf(NotFound);
   });
 });
 

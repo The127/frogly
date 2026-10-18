@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Joining, Person, Project, SessionEnded } from "./api";
+  import type { Joining, Person, Project, SessionEnded, WaitingRequest } from "./api";
   import { getLogin } from "./login";
   import { p } from "./router";
-  import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
+  import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 
   let { projectId }: { projectId: string } = $props();
 
@@ -48,19 +48,69 @@
       login.onNotAllowed();
     } else if (loaded.kind === "loaded") {
       show(loaded.project);
+      await refreshRequests();
     } else {
       settings = loaded;
     }
   });
 
-  // what every action does when the project is gone or the session ended,
-  // so each one only handles its own outcomes
+  let requests = $state<WaitingRequest[]>([]);
+  let answering = $state(false);
+  let requestsProblem = $state("");
+  let answered = $state("");
+
+  async function refreshRequests() {
+    const loaded = await loadRequests(login.accessToken, projectId);
+    switch (loaded.kind) {
+      case "listed":
+        requests = loaded.requests;
+        break;
+      case "failed":
+        requestsProblem = "frogly can't show who asked to join right now. Reload the page in a moment.";
+        break;
+      default:
+        handledElsewhere(loaded);
+    }
+  }
+
+  async function answer(request: WaitingRequest, reply: "yes" | "no") {
+    if (answering) {
+      return;
+    }
+
+    answering = true;
+    requestsProblem = "";
+    answered = "";
+
+    const outcome = await answerRequest(login.accessToken, projectId, request.id, reply);
+    answering = false;
+
+    switch (outcome.kind) {
+      case "answered":
+        requests = requests.filter((waiting) => waiting.id !== request.id);
+        answered = reply === "yes" ? `${request.name} is a member now.` : `You said no to ${request.name}.`;
+        break;
+      case "notAnswered":
+        requestsProblem = `frogly couldn't answer ${request.name}. Try again in a moment.`;
+        break;
+      case "notFound":
+        requestsProblem = `${request.name}'s request was answered already.`;
+        // another member answered it, and the list shows what's left
+        await refreshRequests();
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
+
   // a fresh project from frogly also starts the pick from what's saved
   function show(project: Project) {
     settings = { kind: "loaded", project };
     chosenJoining = project.joining;
   }
 
+  // what every action does when the project is gone or the session ended,
+  // so each one only handles its own outcomes
   function handledElsewhere(outcome: { kind: "notFound" } | SessionEnded) {
     switch (outcome.kind) {
       case "notFound":
@@ -226,6 +276,30 @@
       {/if}
       <!-- always there, so screen readers announce the text when it changes -->
       <p class="problem" id="joining-problem" role="alert">{joiningProblem}</p>
+    </section>
+  {/if}
+
+  {#if requests.length > 0 || requestsProblem || answered}
+    <section aria-labelledby="requests-label">
+      <p class="label" id="requests-label">asked to join</p>
+      <ul class="rows">
+        {#each requests as request (request.id)}
+          <li>
+            <span>{request.name} <span class="meta">{request.email}</span></span>
+            <span>
+              <button class="btn pond" onclick={() => answer(request, "yes")} aria-disabled={answering}>
+                yes <span class="hidden">to {request.name}</span>
+              </button>
+              <button class="btn" onclick={() => answer(request, "no")} aria-disabled={answering}>
+                no <span class="hidden">to {request.name}</span>
+              </button>
+            </span>
+          </li>
+        {/each}
+      </ul>
+      <!-- always there, so screen readers announce the text when it changes -->
+      <p class="problem" role="alert">{requestsProblem}</p>
+      <p class="quiet" aria-live="polite">{answered}</p>
     </section>
   {/if}
 
