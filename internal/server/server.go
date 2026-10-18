@@ -60,6 +60,10 @@ func New(oidc config.OIDC, verifier Verifier, logger *slog.Logger, frontend fs.F
 	mux.Handle("PUT /api/projects/{id}/visibility", auth(changeVisibility))
 	mux.Handle("PUT /api/projects/{id}/joining", auth(changeJoining))
 	mux.Handle("POST /api/projects/{id}/join", auth(joinProject))
+	mux.Handle("POST /api/projects/{id}/requests", auth(askToJoin))
+	mux.Handle("GET /api/projects/{id}/requests", auth(listRequests))
+	mux.Handle("POST /api/projects/{id}/requests/{userId}/accept", auth(acceptRequest))
+	mux.Handle("DELETE /api/projects/{id}/requests/{userId}", auth(declineRequest))
 	mux.Handle("GET /api/projects/{id}/people", auth(findPeople))
 	mux.Handle("POST /api/projects/{id}/members", auth(addMember))
 	mux.Handle("GET /api/projects/{id}/ideas", auth(listGarden))
@@ -344,6 +348,13 @@ func writeProblemDetail(w http.ResponseWriter, status int, detail string) {
 }
 
 func write(w http.ResponseWriter, contentType string, status int, body any) {
+	// a 204 has no body, so it has no type either
+	if status == http.StatusNoContent {
+		w.WriteHeader(status)
+
+		return
+	}
+
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
 	// an error here means the client hung up, nobody is left to tell

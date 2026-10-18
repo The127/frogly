@@ -33,7 +33,7 @@ var _ = Describe("making a project public or private", func() {
 			fair := createProject(ctx, accessToken, "Summer fair", "public")
 			Expect(fair.Visibility).To(Equal("public"))
 
-			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair", "joining": "closed"}))
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(map[string]any{"id": fair.ID, "name": "Summer fair", "joining": "closed", "asked": false}))
 		}, SpecTimeout(10*time.Second))
 
 		It("doesn't list a private project", func(ctx SpecContext) {

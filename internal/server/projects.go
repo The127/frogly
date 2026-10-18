@@ -31,10 +31,16 @@ type publicProjectJSON struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Joining string `json:"joining"`
+	Asked   bool   `json:"asked"`
 }
 
-func toPublicProjectJSON(project *repositories.Project) publicProjectJSON {
-	return publicProjectJSON{ID: project.ID().String(), Name: project.Name(), Joining: string(project.Joining())}
+func toPublicProjectJSON(public projects.PublicProject) publicProjectJSON {
+	return publicProjectJSON{
+		ID:      public.Project.ID().String(),
+		Name:    public.Project.Name(),
+		Joining: string(public.Project.Joining()),
+		Asked:   public.Asked,
+	}
 }
 
 // projectID reads the project's ID from the path. An ID that can't be one
@@ -128,7 +134,7 @@ func listPublicProjects(r *http.Request, caller caller) (int, any, error) {
 
 	listed := make([]publicProjectJSON, 0, len(found))
 	for _, public := range found {
-		listed = append(listed, toPublicProjectJSON(public.Project))
+		listed = append(listed, toPublicProjectJSON(public))
 	}
 
 	return http.StatusOK, listed, nil
