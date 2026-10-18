@@ -123,6 +123,20 @@ var _ = Describe("asking to join a public project", func() {
 			Expect(requestsFor(ctx, accessToken, fair.ID)).To(BeEmpty())
 		}, SpecTimeout(10*time.Second))
 
+		It("drops the requests once it doesn't take them any more", func(ctx SpecContext) {
+			fair := createPublicProject(ctx, accessToken, "Summer fair", "request")
+			waitingRequest(ctx, fair.ID)
+
+			Expect(changeJoining(ctx, accessToken, fair.ID, "closed")).To(HaveHTTPStatus(http.StatusOK))
+			Expect(changeJoining(ctx, accessToken, fair.ID, "request")).To(HaveHTTPStatus(http.StatusOK))
+
+			Expect(requestsFor(ctx, accessToken, fair.ID)).To(BeEmpty())
+			Expect(publicProjectsFor(ctx, otherAccessToken)).To(ContainElement(SatisfyAll(
+				HaveKeyWithValue("id", fair.ID),
+				HaveKeyWithValue("asked", false),
+			)))
+		}, SpecTimeout(10*time.Second))
+
 		It("has no request to say yes to for someone who never asked", func(ctx SpecContext) {
 			fair := createPublicProject(ctx, accessToken, "Summer fair", "request")
 

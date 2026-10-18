@@ -77,7 +77,7 @@ func Requests(ctx context.Context, unit db.Context, user *repositories.User, pro
 }
 
 // dropRequest queues the removal of userID's request, if one waits. A
-// member has nothing to wait for, however they got in.
+// member has nothing to wait for.
 func dropRequest(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
 	request, err := unit.JoinRequests().ByProjectAndUser(ctx, projectID, userID)
 	if errors.Is(err, repositories.ErrNotFound) {
@@ -91,6 +91,15 @@ func dropRequest(ctx context.Context, unit db.Context, projectID uuid.UUID, user
 	unit.JoinRequests().Delete(request)
 
 	return nil
+}
+
+// dropRequestsUnlessTaken queues the removal of the project's requests
+// when it doesn't take requests any more, so none wait for an answer
+// nobody can give, and none come back if it takes requests again.
+func dropRequestsUnlessTaken(unit db.Context, project *repositories.Project) {
+	if project.Joining() != repositories.JoiningRequest {
+		unit.JoinRequests().DeleteForProject(project.ID())
+	}
 }
 
 // AcceptRequest lets a member say yes to a request, which makes the asker

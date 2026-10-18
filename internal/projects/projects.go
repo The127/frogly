@@ -85,6 +85,7 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 	}
 
 	unit.Projects().Update(project)
+	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
@@ -164,19 +165,10 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 // closed or private projects exist. The database decides that as it saves
 // the membership, so a member closing the project at the same moment
 // can't be outrun.
-//
-// If a member says no to the user's waiting request while they join, Join
-// gives repositories.ErrConcurrentModification. Trying again works. A yes
-// at the same moment lets the join through.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if !errors.Is(err, repositories.ErrNotFound) {
 		return member, err
-	}
-
-	err = dropRequest(ctx, unit, projectID, user.ID())
-	if err != nil {
-		return nil, err
 	}
 
 	membership, err := repositories.NewJoiningMembership(projectID, user.ID())
@@ -192,19 +184,13 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 	case errors.Is(err, repositories.ErrNotFound):
 		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
 
+	// the same person joined from elsewhere in between, which the unique
+	// membership refuses as a race, and they're a member either way
 	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// a race is the same person getting in from elsewhere, a yes to their
-	// request included, and then they're a member, or a member saying no
-	// to it in between, and then they aren't and may try again
-	joined, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
-	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, fmt.Errorf("joining project %s: %w", projectID, repositories.ErrConcurrentModification)
-	}
-
-	return joined, err
+	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 }
 
 // ChangeJoining lets a member open a public project to join or close it.
@@ -221,6 +207,7 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 	}
 
 	unit.Projects().Update(project)
+	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -252,136 +251,57 @@ func TestAddingSomeoneWhoAskedRemovesTheirRequest(t *testing.T) {
 	assert.Empty(t, waiting)
 }
 
-func TestJoiningAfterAskingRemovesTheRequest(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
-	karo, ana, fair := openedAskedProject(t, database)
+func TestAProjectThatStopsTakingRequestsDropsThem(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		change func(ctx context.Context, unit db.Context, karo *repositories.User, fair *repositories.Project) error
+	}{
+		{name: "closed", change: func(ctx context.Context, unit db.Context, karo *repositories.User, fair *repositories.Project) error {
+			_, err := projects.ChangeJoining(ctx, unit, karo, fair.ID(), repositories.JoiningClosed)
 
-	// act
-	_, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+			return err
+		}},
+		{name: "open", change: func(ctx context.Context, unit db.Context, karo *repositories.User, fair *repositories.Project) error {
+			_, err := projects.ChangeJoining(ctx, unit, karo, fair.ID(), repositories.JoiningOpen)
 
-	// assert
-	require.NoError(t, err)
+			return err
+		}},
+		{name: "private", change: func(ctx context.Context, unit db.Context, karo *repositories.User, fair *repositories.Project) error {
+			_, err := projects.ChangeVisibility(ctx, unit, karo, fair.ID(), repositories.VisibilityPrivate)
 
-	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
-	require.NoError(t, err)
-	assert.Empty(t, waiting)
+			return err
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			// arrange
+			database := sqlitetest.Open(t)
+			karo, _, fair := askedProject(t, database)
+
+			// act
+			err := test.change(t.Context(), database.NewContext(), karo, fair)
+
+			// assert
+			require.NoError(t, err)
+
+			waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+			require.NoError(t, err)
+			assert.Empty(t, waiting)
+		})
+	}
 }
 
-func TestARefusedJoinKeepsTheRequest(t *testing.T) {
+func TestAProjectThatStillTakesRequestsKeepsThem(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	karo, ana, fair := askedProject(t, database)
+	karo, _, fair := askedProject(t, database)
 
 	// act
-	_, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningRequest)
 
 	// assert
-	require.ErrorIs(t, err, projects.ErrNotFound)
+	require.NoError(t, err)
 
 	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
 	require.NoError(t, err)
 	assert.Len(t, waiting, 1)
-}
-
-// decliningUnit says no to the asker's request through another unit of
-// work right before each of its saves, like a member answering while the
-// asker joins.
-type decliningUnit struct {
-	db.Context
-
-	database  db.Database
-	member    *repositories.User
-	projectID uuid.UUID
-	askerID   uuid.UUID
-}
-
-func (unit decliningUnit) SaveChanges(ctx context.Context) error {
-	err := projects.DeclineRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
-	if err != nil {
-		return err
-	}
-
-	return unit.Context.SaveChanges(ctx)
-}
-
-// acceptingUnit is decliningUnit with a yes.
-type acceptingUnit struct {
-	db.Context
-
-	database  db.Database
-	member    *repositories.User
-	projectID uuid.UUID
-	askerID   uuid.UUID
-}
-
-func (unit acceptingUnit) SaveChanges(ctx context.Context) error {
-	_, err := projects.AcceptRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
-	if err != nil {
-		return err
-	}
-
-	return unit.Context.SaveChanges(ctx)
-}
-
-// openedAskedProject is askedProject, opened to join since Ana asked.
-func openedAskedProject(t *testing.T, database db.Database) (karo, ana *repositories.User, fair *repositories.Project) {
-	t.Helper()
-
-	karo, ana, fair = askedProject(t, database)
-	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
-	require.NoError(t, err)
-
-	return karo, ana, fair
-}
-
-func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
-	karo, ana, fair := openedAskedProject(t, database)
-	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
-
-	// act
-	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
-
-	// assert
-	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
-
-	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
-	require.NoError(t, err)
-	assert.Empty(t, listed)
-}
-
-func TestAJoinAfterAConflictWithANoGetsIn(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
-	karo, ana, fair := openedAskedProject(t, database)
-	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
-	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
-	require.ErrorIs(t, err, repositories.ErrConcurrentModification, "the conflict to try again after")
-
-	// act
-	joined, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
-
-	// assert
-	require.NoError(t, err)
-	assert.Equal(t, fair.ID(), joined.ID())
-}
-
-func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
-	karo, ana, fair := openedAskedProject(t, database)
-	unit := acceptingUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
-
-	// act
-	joined, err := projects.Join(t.Context(), unit, ana, fair.ID())
-
-	// assert
-	require.NoError(t, err)
-	assert.Equal(t, fair.ID(), joined.ID())
-
-	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
-	require.NoError(t, err)
-	assert.Empty(t, waiting)
 }
