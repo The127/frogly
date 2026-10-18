@@ -28,7 +28,7 @@ func (repository *MembershipRepository) Insert(membership *repositories.Membersh
 
 // Delete records the user's membership of the project to be removed.
 func (repository *MembershipRepository) Delete(projectID uuid.UUID, userID uuid.UUID) {
-	repository.tracker.Add(change.NewEntry(change.Deleted, repositories.MembershipOf{ProjectID: projectID, UserID: userID}))
+	repository.tracker.Add(change.NewEntry(change.Deleted, membershipDeletion{projectID: projectID, userID: userID}))
 }
 
 // ExecuteInsert writes the membership as version 1. A joining membership
@@ -76,14 +76,21 @@ func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *s
 	return written(err, what)
 }
 
-// ExecuteDelete removes the membership, if there is one.
-func (repository *MembershipRepository) ExecuteDelete(ctx context.Context, tx *sql.Tx, membership repositories.MembershipOf) error {
-	deletion := sqlbuilder.DeleteFrom("memberships")
-	deletion.Where(deletion.Equal("project_id", membership.ProjectID.String()), deletion.Equal("user_id", membership.UserID.String()))
+// membershipDeletion removes one user's membership of one project, if
+// there is one.
+type membershipDeletion struct {
+	projectID uuid.UUID
+	userID    uuid.UUID
+}
 
-	query, args := deletion.BuildWithFlavor(sqlbuilder.SQLite)
+// Execute removes the membership.
+func (deletion membershipDeletion) Execute(ctx context.Context, tx *sql.Tx) error {
+	statement := sqlbuilder.DeleteFrom("memberships")
+	statement.Where(statement.Equal("project_id", deletion.projectID.String()), statement.Equal("user_id", deletion.userID.String()))
+
+	query, args := statement.BuildWithFlavor(sqlbuilder.SQLite)
 
 	_, err := tx.ExecContext(ctx, query, args...)
 
-	return written(err, "deleting the membership of user "+membership.UserID.String()+" in project "+membership.ProjectID.String())
+	return written(err, "deleting the membership of user "+deletion.userID.String()+" in project "+deletion.projectID.String())
 }

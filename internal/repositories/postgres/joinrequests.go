@@ -118,7 +118,7 @@ func (repository *JoinRequestRepository) Delete(request *repositories.JoinReques
 
 // DeleteForProject records the project's requests to be removed.
 func (repository *JoinRequestRepository) DeleteForProject(projectID uuid.UUID) {
-	repository.tracker.Add(change.NewEntry(change.Deleted, repositories.ProjectRequests{ProjectID: projectID}))
+	repository.tracker.Add(change.NewEntry(change.Deleted, requestsDeletion{projectID: projectID}))
 }
 
 // ExecuteInsert writes the request as version 1, only while its project
@@ -184,16 +184,21 @@ func (repository *JoinRequestRepository) ExecuteDelete(ctx context.Context, tx *
 	return nil
 }
 
-// ExecuteDeleteForProject removes every request of the project. Unlike
-// ExecuteDelete it doesn't check versions, and a project without
+// requestsDeletion removes every request of one project. Unlike a
+// request's own delete it doesn't check versions, and a project without
 // requests is fine.
-func (repository *JoinRequestRepository) ExecuteDeleteForProject(ctx context.Context, tx *sql.Tx, requests repositories.ProjectRequests) error {
-	deletion := sqlbuilder.DeleteFrom("join_requests")
-	deletion.Where(deletion.Equal("project_id", requests.ProjectID))
+type requestsDeletion struct {
+	projectID uuid.UUID
+}
 
-	query, args := deletion.BuildWithFlavor(sqlbuilder.PostgreSQL)
+// Execute removes the requests.
+func (deletion requestsDeletion) Execute(ctx context.Context, tx *sql.Tx) error {
+	statement := sqlbuilder.DeleteFrom("join_requests")
+	statement.Where(statement.Equal("project_id", deletion.projectID))
+
+	query, args := statement.BuildWithFlavor(sqlbuilder.PostgreSQL)
 
 	_, err := tx.ExecContext(ctx, query, args...)
 
-	return written(err, "deleting the requests of project "+requests.ProjectID.String())
+	return written(err, "deleting the requests of project "+deletion.projectID.String())
 }

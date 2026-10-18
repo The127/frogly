@@ -15,7 +15,7 @@ const (
 )
 
 // Entry is one item and what happens to it. The item's Go type says which
-// repository writes it.
+// repository writes it, or the item is a statement that writes itself.
 type Entry struct {
 	changeType Type
 	item       any
@@ -34,7 +34,7 @@ func (entry *Entry) Type() Type {
 	return entry.changeType
 }
 
-// Item is the model the entry is about.
+// Item is the model the entry is about, or the statement to run.
 func (entry *Entry) Item() any {
 	return entry.item
 }

@@ -61,13 +61,6 @@ type WaitingRequest struct {
 	Asker   *User
 }
 
-// ProjectRequests stands for all the waiting requests of one project. It
-// isn't a stored model, only the item of the change DeleteForProject
-// records, so a single change can remove them together.
-type ProjectRequests struct {
-	ProjectID uuid.UUID
-}
-
 // JoinRequestRepository loads and saves requests to join.
 type JoinRequestRepository interface {
 	// ByProjectAndUser returns ErrNotFound when the user has no request
