@@ -409,13 +409,16 @@ func (s *projectsSuite) TestAPrivateProjectThatOthersCouldGetIntoIsRefused() {
 	}
 }
 
-// TestARemovedMembershipIsGone checks that a member who is taken out
-// doesn't find the project any more, and the others still do.
+// TestARemovedMembershipIsGone checks that a member who is taken out of
+// one project doesn't find it any more, while the others still do and
+// their other projects stay.
 func (s *projectsSuite) TestARemovedMembershipIsGone() {
 	// arrange
 	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
 	garden := s.savedProject("Garden", karo)
 	s.savedMember(garden, ana)
+	board := s.savedProject("Board", karo)
+	s.savedMember(board, ana)
 
 	unit := s.database.NewContext()
 	unit.Memberships().Delete(garden.ID(), ana.ID())
@@ -432,21 +435,29 @@ func (s *projectsSuite) TestARemovedMembershipIsGone() {
 
 	_, err = projects.ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
 	s.Require().NoError(err, "the other member stays")
+
+	_, err = projects.ByIDForMember(s.T().Context(), board.ID(), ana.ID())
+	s.Require().NoError(err, "her other project stays")
 }
 
-// TestRemovingAMembershipThatIsGoneIsNoError checks that taking out
-// someone who isn't a member doesn't fail, so leaving twice at once
+// TestRemovingAMembershipTwiceIsNoError checks that taking out someone
+// who isn't a member any more doesn't fail, so leaving twice at once
 // leaves once.
-func (s *projectsSuite) TestRemovingAMembershipThatIsGoneIsNoError() {
+func (s *projectsSuite) TestRemovingAMembershipTwiceIsNoError() {
 	// arrange
 	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
 	garden := s.savedProject("Garden", karo)
+	s.savedMember(garden, ana)
 
-	unit := s.database.NewContext()
-	unit.Memberships().Delete(garden.ID(), ana.ID())
+	first := s.database.NewContext()
+	first.Memberships().Delete(garden.ID(), ana.ID())
+	s.save(first)
+
+	again := s.database.NewContext()
+	again.Memberships().Delete(garden.ID(), ana.ID())
 
 	// act
-	err := unit.SaveChanges(s.T().Context())
+	err := again.SaveChanges(s.T().Context())
 
 	// assert
 	s.Require().NoError(err)
