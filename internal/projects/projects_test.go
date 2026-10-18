@@ -718,14 +718,14 @@ func TestAMemberLeavesAProject(t *testing.T) {
 	require.NoError(t, err, "the other member stays")
 }
 
-func TestTheLastMemberLeavesAProject(t *testing.T) {
+func TestTheLastMemberLeavingOpensTheProject(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
-	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
 
 	// act
-	err := projects.Leave(t.Context(), database.NewContext(), karo, fair.ID())
+	err := projects.Leave(t.Context(), database.NewContext(), karo, garden.ID())
 
 	// assert
 	require.NoError(t, err)
@@ -736,8 +736,29 @@ func TestTheLastMemberLeavesAProject(t *testing.T) {
 
 	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
 	require.NoError(t, err)
-	require.Len(t, public, 1, "the project stays")
-	assert.Equal(t, fair.ID(), public[0].Project.ID())
+	require.Len(t, public, 1, "the project stays, for anyone to pick up")
+	assert.Equal(t, garden.ID(), public[0].Project.ID())
+	assert.Equal(t, repositories.JoiningOpen, public[0].Project.Joining())
+}
+
+func TestAProjectSomeoneLeftStaysAsItIsForTheOthers(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	err = projects.Leave(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	kept, err := projects.Get(t.Context(), database.NewContext(), karo, garden.ID())
+	require.NoError(t, err)
+	assert.Equal(t, repositories.VisibilityPrivate, kept.Visibility())
+	assert.Equal(t, repositories.JoiningClosed, kept.Joining())
 }
 
 func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
