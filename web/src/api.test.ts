@@ -380,7 +380,7 @@ describe("acceptRequest", () => {
 
   it.each([
     { name: "nobody waits", status: 404 },
-    { name: "another member answers at the same moment", status: 409 },
+    { name: "it was answered or the asker got in at the same moment", status: 409 },
   ])("fails as not found when $name", async ({ status }) => {
     // arrange
     respondWith(status, { status });
@@ -410,7 +410,7 @@ describe("declineRequest", () => {
 
   it.each([
     { name: "nobody waits", status: 404 },
-    { name: "another member answers at the same moment", status: 409 },
+    { name: "it was answered or the asker got in at the same moment", status: 409 },
   ])("fails as not found when $name", async ({ status }) => {
     // arrange
     respondWith(status, { status });
