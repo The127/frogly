@@ -55,7 +55,17 @@
 
     switch (outcome.kind) {
       case "asked":
-        projects = projects?.map((listed) => (listed.id === project.id ? { ...listed, asked: outcome.waiting } : listed));
+        // nothing waits for someone who is a member by now, like after a
+        // member added them while this list was open
+        if (!outcome.waiting) {
+          if (!gone) {
+            void navigate("/projects/:id", { params: { id: project.id } });
+          }
+
+          break;
+        }
+
+        projects = projects?.map((listed) => (listed.id === project.id ? { ...listed, asked: true } : listed));
         break;
       case "notAsked":
         problem = `frogly couldn't ask to join ${project.name}. Try again in a moment.`;
