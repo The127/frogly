@@ -1268,11 +1268,11 @@ func TestAProjectYouCantLeaveIsNotFound(t *testing.T) {
 	tests := []struct {
 		name      string
 		token     string
-		projectID func(http.Handler) string
+		projectID func(*testing.T, http.Handler) string
 	}{
-		{name: "not a member", token: otherToken, projectID: func(handler http.Handler) string { return createdProject(t, handler) }},
-		{name: "no such project", token: validToken, projectID: func(http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
-		{name: "not an ID", token: validToken, projectID: func(http.Handler) string { return "garden" }},
+		{name: "not a member", token: otherToken, projectID: createdProject},
+		{name: "no such project", token: validToken, projectID: func(*testing.T, http.Handler) string { return "01a14180-d957-7cc5-af29-7f1fe18d89bb" }},
+		{name: "not an ID", token: validToken, projectID: func(*testing.T, http.Handler) string { return "garden" }},
 	}
 
 	for _, test := range tests {
@@ -1281,7 +1281,7 @@ func TestAProjectYouCantLeaveIsNotFound(t *testing.T) {
 			handler := newServer(t, &bytes.Buffer{})
 
 			// act
-			response := leaveProject(t, handler, test.token, test.projectID(handler))
+			response := leaveProject(t, handler, test.token, test.projectID(t, handler))
 
 			// assert
 			assert.Equal(t, http.StatusNotFound, response.Code)
