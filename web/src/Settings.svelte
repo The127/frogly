@@ -21,11 +21,6 @@
   // through every choice on the way, and saving each would let people in
   // for a moment
   let chosenJoining = $state<Joining | undefined>();
-  $effect(() => {
-    if (settings.kind === "loaded") {
-      chosenJoining = settings.project.joining;
-    }
-  });
   const joiningChoices: { value: Joining; text: string }[] = [
     { value: "open", text: "anyone, right away" },
     { value: "request", text: "people who ask, once a member says yes" },
@@ -51,6 +46,8 @@
       login.onLoggedOut();
     } else if (loaded.kind === "notAllowed") {
       login.onNotAllowed();
+    } else if (loaded.kind === "loaded") {
+      show(loaded.project);
     } else {
       settings = loaded;
     }
@@ -58,6 +55,12 @@
 
   // what every action does when the project is gone or the session ended,
   // so each one only handles its own outcomes
+  // a fresh project from frogly also starts the pick from what's saved
+  function show(project: Project) {
+    settings = { kind: "loaded", project };
+    chosenJoining = project.joining;
+  }
+
   function handledElsewhere(outcome: { kind: "notFound" } | SessionEnded) {
     switch (outcome.kind) {
       case "notFound":
@@ -85,7 +88,7 @@
 
     switch (outcome.kind) {
       case "changed":
-        settings = { kind: "loaded", project: outcome.project };
+        show(outcome.project);
         break;
       case "notChanged":
         problem = "frogly couldn't change who sees the project. Try again in a moment.";
@@ -109,7 +112,7 @@
 
     switch (outcome.kind) {
       case "changed":
-        settings = { kind: "loaded", project: outcome.project };
+        show(outcome.project);
         break;
       case "notChanged":
         joiningProblem = "frogly couldn't change who can join the project. Try again in a moment.";

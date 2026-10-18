@@ -248,7 +248,7 @@ async function putSetting(accessToken: string, projectId: string, setting: strin
   return (await response.json()) as Project;
 }
 
-// says whether a request of yours waits now, which isn't so for a member
+// a member asking has nothing to wait for, so the answer can be false
 export async function askToJoin(accessToken: string, projectId: string): Promise<boolean> {
   const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/requests`, accessToken, { method: "POST" });
   if (response.status === 404) {
@@ -256,7 +256,7 @@ export async function askToJoin(accessToken: string, projectId: string): Promise
   }
 
   if (!response.ok) {
-    throw new Error(`frogly answered ${response.status} when asked to ask to join a project`);
+    throw new Error(`frogly answered ${response.status} when asked for a request to join a project`);
   }
 
   return ((await response.json()) as { asked: boolean }).asked;
