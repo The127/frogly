@@ -259,7 +259,6 @@
   }
 
   async function askToLeave() {
-    leaveProblem = "";
     confirmingLeave = true;
     await tick();
     stayButton?.focus();
@@ -420,15 +419,15 @@
     <p class="label" id="leave-label">leave</p>
     {#if confirmingLeave}
       <p class="quiet" id="coming-back">{comingBack[settings.project.joining]}</p>
-      <div class="acts">
+    {/if}
+    <div class="acts">
+      {#if confirmingLeave}
         <button class="btn" onclick={leaveForGood} aria-disabled={leaving} aria-describedby="coming-back">yes, leave {settings.project.name}</button>
         <button class="btn pond" bind:this={stayButton} onclick={stay} aria-disabled={leaving} aria-describedby="coming-back">stay</button>
-      </div>
-    {:else}
-      <div class="acts">
+      {:else}
         <button class="btn" bind:this={leaveButton} onclick={askToLeave}>leave this project</button>
-      </div>
-    {/if}
+      {/if}
+    </div>
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" role="alert">{leaveProblem}</p>
   </section>
