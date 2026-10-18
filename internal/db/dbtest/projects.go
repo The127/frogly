@@ -347,6 +347,7 @@ func (s *projectsSuite) TestOnlyAnOpenProjectCanBeJoined() {
 		project *repositories.Project
 	}{
 		{name: "closed", project: s.savedProjectJoining("Board", karo, repositories.VisibilityPublic, repositories.JoiningClosed)},
+		{name: "taking requests", project: s.savedProjectJoining("Book club", karo, repositories.VisibilityPublic, repositories.JoiningRequest)},
 		{name: "private", project: s.savedProject("Secret", karo)},
 		{name: "missing", project: nowhere},
 	} {
@@ -390,12 +391,12 @@ func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
 			project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
 			s.Require().NoError(err)
 
-			open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, joining)
-			membership, err := repositories.NewMembership(open.ID(), karo.ID())
+			reachable := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, joining)
+			membership, err := repositories.NewMembership(reachable.ID(), karo.ID())
 			s.Require().NoError(err)
 
 			unit := s.database.NewContext()
-			unit.Projects().Insert(open)
+			unit.Projects().Insert(reachable)
 			unit.Memberships().Insert(membership)
 
 			// act

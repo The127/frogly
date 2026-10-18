@@ -15,6 +15,9 @@ alter table projects rename column joining_new to joining;
 
 -- +migrate Down
 
+-- a project that took requests becomes closed, not open, so nobody gets
+-- in without a member
+
 alter table projects
     add column joining_old text not null default 'closed'
         check (joining_old in ('open', 'closed') and (joining_old = 'closed' or visibility = 'public'));

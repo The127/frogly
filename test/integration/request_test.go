@@ -43,6 +43,14 @@ func waitingRequest(ctx context.Context, projectID string) person {
 	return asked[0]
 }
 
+func neverAsked(ctx context.Context, projectID string) person {
+	loggedInOnce(ctx, otherAccessToken)
+	found := search(ctx, accessToken, projectID, "frogly-tests-2")
+	Expect(found).To(HaveLen(1))
+
+	return found[0]
+}
+
 var _ = Describe("asking to join a public project", func() {
 	Context("that takes requests", func() {
 		It("shows the asker that they asked", func(ctx SpecContext) {
@@ -115,15 +123,17 @@ var _ = Describe("asking to join a public project", func() {
 			Expect(requestsFor(ctx, accessToken, fair.ID)).To(BeEmpty())
 		}, SpecTimeout(10*time.Second))
 
-		It("has no request to answer for someone who never asked", func(ctx SpecContext) {
+		It("has no request to say yes to for someone who never asked", func(ctx SpecContext) {
 			fair := createPublicProject(ctx, accessToken, "Summer fair", "request")
-			loggedInOnce(ctx, otherAccessToken)
-			found := search(ctx, accessToken, fair.ID, "frogly-tests-2")
-			Expect(found).To(HaveLen(1))
 
-			Expect(accept(ctx, accessToken, fair.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusNotFound))
-			Expect(decline(ctx, accessToken, fair.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusNotFound))
+			Expect(accept(ctx, accessToken, fair.ID, neverAsked(ctx, fair.ID).ID)).To(HaveHTTPStatus(http.StatusNotFound))
 			Expect(projectsOf(ctx, otherAccessToken)).NotTo(ContainElement(HaveField("ID", fair.ID)))
+		}, SpecTimeout(10*time.Second))
+
+		It("has no request to say no to for someone who never asked", func(ctx SpecContext) {
+			fair := createPublicProject(ctx, accessToken, "Summer fair", "request")
+
+			Expect(decline(ctx, accessToken, fair.ID, neverAsked(ctx, fair.ID).ID)).To(HaveHTTPStatus(http.StatusNotFound))
 		}, SpecTimeout(10*time.Second))
 
 		It("can't be asked any more once a member closes it", func(ctx SpecContext) {
