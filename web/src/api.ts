@@ -258,7 +258,7 @@ async function putSetting(accessToken: string, projectId: string, setting: strin
 }
 
 export async function fetchRequests(accessToken: string, projectId: string): Promise<WaitingRequest[]> {
-  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/requests`, accessToken);
+  const response = await authorized(requestsPath(projectId), accessToken);
   if (response.status === 404) {
     throw new NotFound();
   }
@@ -294,13 +294,17 @@ export async function declineRequest(accessToken: string, projectId: string, use
   }
 }
 
+function requestsPath(projectId: string): string {
+  return `/api/projects/${encodeURIComponent(projectId)}/requests`;
+}
+
 function requestPath(projectId: string, userId: string): string {
-  return `/api/projects/${encodeURIComponent(projectId)}/requests/${encodeURIComponent(userId)}`;
+  return `${requestsPath(projectId)}/${encodeURIComponent(userId)}`;
 }
 
 // a member asking has nothing to wait for, so the answer can be false
 export async function askToJoin(accessToken: string, projectId: string): Promise<boolean> {
-  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/requests`, accessToken, { method: "POST" });
+  const response = await authorized(requestsPath(projectId), accessToken, { method: "POST" });
   if (response.status === 404) {
     throw new NotFound();
   }
