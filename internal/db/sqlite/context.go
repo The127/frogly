@@ -21,6 +21,7 @@ type Context struct {
 	memberships *repos.MembershipRepository
 	ideas       *repos.IdeaRepository
 	meToos      *repos.MeTooRepository
+	requests    *repos.JoinRequestRepository
 }
 
 func newContext(connection *sql.DB) *Context {
@@ -35,6 +36,7 @@ func newContext(connection *sql.DB) *Context {
 		memberships: repos.NewMembershipRepository(tracker),
 		ideas:       repos.NewIdeaRepository(connection, tracker),
 		meToos:      repos.NewMeTooRepository(connection, tracker),
+		requests:    repos.NewJoinRequestRepository(connection, tracker),
 	}
 }
 
@@ -66,6 +68,11 @@ func (unit *Context) Ideas() repositories.IdeaRepository {
 // MeToos is the unit of work's me too repository.
 func (unit *Context) MeToos() repositories.MeTooRepository {
 	return unit.meToos
+}
+
+// JoinRequests is the unit of work's repository of requests to join.
+func (unit *Context) JoinRequests() repositories.JoinRequestRepository {
+	return unit.requests
 }
 
 // SaveChanges writes every recorded change in one transaction, in the
@@ -135,6 +142,13 @@ func (unit *Context) apply(ctx context.Context, tx *sql.Tx, entry *change.Entry)
 
 	case *repositories.MeToo:
 		return unit.meToos.ExecuteInsert(ctx, tx, item)
+
+	case *repositories.JoinRequest:
+		if entry.Type() == change.Deleted {
+			return unit.requests.ExecuteDelete(ctx, tx, item)
+		}
+
+		return unit.requests.ExecuteInsert(ctx, tx, item)
 
 	default:
 		return fmt.Errorf("%w: %T", errUnsupportedChange, entry.Item())

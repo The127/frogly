@@ -27,6 +27,7 @@ func Run(t *testing.T, open Opener) {
 	t.Run("projects", func(t *testing.T) { suite.Run(t, &projectsSuite{base{open: open}}) })
 	t.Run("ideas", func(t *testing.T) { suite.Run(t, &ideasSuite{base{open: open}}) })
 	t.Run("me toos", func(t *testing.T) { suite.Run(t, &meToosSuite{base{open: open}}) })
+	t.Run("join requests", func(t *testing.T) { suite.Run(t, &joinRequestsSuite{base{open: open}}) })
 }
 
 // base is what every suite shares: a fresh database for each test, and

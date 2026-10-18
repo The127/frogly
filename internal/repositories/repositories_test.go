@@ -532,3 +532,39 @@ func TestMakingAProjectThatTakesRequestsPrivateClosesIt(t *testing.T) {
 	// assert
 	assert.Equal(t, repositories.JoiningClosed, project.Joining())
 }
+
+func TestNewJoinRequestNeedsAProjectAndAUser(t *testing.T) {
+	tests := []struct {
+		name      string
+		projectID uuid.UUID
+		userID    uuid.UUID
+	}{
+		{name: "no project", projectID: uuid.Nil, userID: uuid.New()},
+		{name: "no user", projectID: uuid.New(), userID: uuid.Nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// act
+			_, err := repositories.NewJoinRequest(test.projectID, test.userID)
+
+			// assert
+			require.ErrorAs(t, err, new(*repositories.InvalidError))
+		})
+	}
+}
+
+func TestNewJoinRequestRemembersWhenItWasAsked(t *testing.T) {
+	// arrange
+	projectID, userID := uuid.New(), uuid.New()
+
+	// act
+	request, err := repositories.NewJoinRequest(projectID, userID)
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, projectID, request.ProjectID())
+	assert.Equal(t, userID, request.UserID())
+	assert.WithinDuration(t, time.Now(), request.AskedAt(), time.Minute)
+	assert.Equal(t, time.UTC, request.AskedAt().Location())
+}
