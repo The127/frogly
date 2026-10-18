@@ -127,8 +127,8 @@ func listPublicProjects(r *http.Request, caller caller) (int, any, error) {
 	}
 
 	listed := make([]publicProjectJSON, 0, len(found))
-	for _, project := range found {
-		listed = append(listed, toPublicProjectJSON(project))
+	for _, public := range found {
+		listed = append(listed, toPublicProjectJSON(public.Project))
 	}
 
 	return http.StatusOK, listed, nil

@@ -246,7 +246,8 @@ func TestOthersPublicProjectsAreListed(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	assert.Equal(t, fair.ID(), listed[0].ID())
+	assert.Equal(t, fair.ID(), listed[0].Project.ID())
+	assert.False(t, listed[0].Asked)
 }
 
 func TestAMemberFindsPeopleToAdd(t *testing.T) {
@@ -694,4 +695,141 @@ func TestTwoPeopleJoiningAtOnceBothGetIn(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, listed, 1, who.Name())
 	}
+}
+
+// askedProject is a project that takes requests, which Ana asked to join.
+func askedProject(t *testing.T, database db.Database) (karo, ana *repositories.User, fair *repositories.Project) {
+	t.Helper()
+
+	karo, ana = savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	fair = createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningRequest)
+	require.NoError(t, projects.AskToJoin(t.Context(), database.NewContext(), ana, fair.ID()))
+
+	return karo, ana, fair
+}
+
+func TestSomeoneAsksToJoinAProjectThatTakesRequests(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	// act
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	listed, listErr := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
+
+	// assert
+	require.NoError(t, err)
+	require.Len(t, waiting, 1)
+	assert.Equal(t, ana.ID(), waiting[0].Asker.ID())
+
+	require.NoError(t, listErr)
+	require.Len(t, listed, 1)
+	assert.True(t, listed[0].Asked)
+}
+
+func TestAskingAgainOrAsAMemberMakesNoNewRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	for _, who := range []*repositories.User{ana, karo} {
+		// act
+		err := projects.AskToJoin(t.Context(), database.NewContext(), who, fair.ID())
+
+		// assert
+		require.NoError(t, err, who.Name())
+	}
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Len(t, waiting, 1)
+}
+
+func TestAProjectThatDoesntTakeRequestsCantBeAsked(t *testing.T) {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+		t.Run(string(joining), func(t *testing.T) {
+			// arrange
+			database := sqlitetest.Open(t)
+			karo := savedUser(t, database, "Karo")
+			ana := savedUser(t, database, "Ana")
+			project := createdProject(t, database, karo, repositories.VisibilityPublic, joining)
+
+			// act
+			err := projects.AskToJoin(t.Context(), database.NewContext(), ana, project.ID())
+
+			// assert
+			require.ErrorIs(t, err, projects.ErrNotFound)
+		})
+	}
+}
+
+func TestAYesMakesTheAskerAMember(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	// act
+	accepted, err := projects.AcceptRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.Equal(t, ana.ID(), accepted.ID())
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, fair.ID())
+	require.NoError(t, err)
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
+}
+
+func TestANoRemovesTheRequestAndKeepsTheAskerOut(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	// act
+	err := projects.DeclineRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, fair.ID())
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
+}
+
+func TestARequestNobodyMadeIsNotFound(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, _, fair := askedProject(t, database)
+	tomas := savedUser(t, database, "Tomás")
+
+	// act
+	_, accepted := projects.AcceptRequest(t.Context(), database.NewContext(), karo, fair.ID(), tomas.ID())
+	declined := projects.DeclineRequest(t.Context(), database.NewContext(), karo, fair.ID(), tomas.ID())
+
+	// assert
+	require.ErrorIs(t, accepted, projects.ErrNotFound)
+	require.ErrorIs(t, declined, projects.ErrNotFound)
+}
+
+func TestSomeoneOutsideCantSeeOrAnswerRequests(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	_, ana, fair := askedProject(t, database)
+	tomas := savedUser(t, database, "Tomás")
+
+	// act
+	_, listed := projects.Requests(t.Context(), database.NewContext(), tomas, fair.ID())
+	_, accepted := projects.AcceptRequest(t.Context(), database.NewContext(), tomas, fair.ID(), ana.ID())
+	declined := projects.DeclineRequest(t.Context(), database.NewContext(), ana, fair.ID(), ana.ID())
+
+	// assert
+	require.ErrorIs(t, listed, projects.ErrNotFound)
+	require.ErrorIs(t, accepted, projects.ErrNotFound)
+	require.ErrorIs(t, declined, projects.ErrNotFound, "the asker can't answer their own request")
 }

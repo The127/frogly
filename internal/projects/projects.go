@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -94,9 +95,32 @@ func ChangeVisibility(ctx context.Context, unit db.Context, user *repositories.U
 	return project, nil
 }
 
-// ListPublicFor lists the public projects user isn't a member of.
-func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]*repositories.Project, error) {
-	return unit.Projects().ListPublicForNonMember(ctx, user.ID())
+// PublicProject is a public project as someone outside it sees it.
+type PublicProject struct {
+	Project *repositories.Project
+	// Asked says whether they asked to join and wait for an answer.
+	Asked bool
+}
+
+// ListPublicFor lists the public projects user isn't a member of, each
+// with whether they asked to join it.
+func ListPublicFor(ctx context.Context, unit db.Context, user *repositories.User) ([]PublicProject, error) {
+	found, err := unit.Projects().ListPublicForNonMember(ctx, user.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	asked, err := unit.JoinRequests().ProjectsAskedBy(ctx, user.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	listed := make([]PublicProject, 0, len(found))
+	for _, project := range found {
+		listed = append(listed, PublicProject{Project: project, Asked: slices.Contains(asked, project.ID())})
+	}
+
+	return listed, nil
 }
 
 // FindPeople lets a member find the people who could join the project, by
@@ -221,4 +245,117 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 	}
 
 	return project, nil
+}
+
+// ErrNoRequest means the person has no waiting request for the project.
+// It wraps ErrNotFound, so it answers like a project nobody may see.
+var ErrNoRequest = fmt.Errorf("request not found: %w", ErrNotFound)
+
+// AskToJoin lets user ask to join a public project that takes requests.
+// Asking again, or as a member, changes nothing. A project that doesn't
+// exist or doesn't take requests gives ErrNotFound, decided by the
+// database as it saves the request.
+func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) error {
+	_, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
+	if !errors.Is(err, repositories.ErrNotFound) {
+		return err
+	}
+
+	request, err := repositories.NewJoinRequest(projectID, user.ID())
+	if err != nil {
+		return err
+	}
+
+	unit.JoinRequests().Insert(request)
+
+	err = unit.SaveChanges(ctx)
+
+	switch {
+	case errors.Is(err, repositories.ErrNotFound):
+		return fmt.Errorf("project %s to ask: %w", projectID, ErrNotFound)
+
+	// a request of theirs exists already, which the unique pair refuses
+	// like a race, and they asked either way
+	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
+		return fmt.Errorf("saving the request of user %s for project %s: %w", user.ID(), projectID, err)
+	}
+
+	return nil
+}
+
+// Requests lists the project's waiting requests for one of its members,
+// the oldest first. Someone who isn't a member gets ErrNotFound, like Get.
+func Requests(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) ([]repositories.WaitingRequest, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	return unit.JoinRequests().ListForProject(ctx, projectID)
+}
+
+// AcceptRequest lets a member say yes to a request, which makes the asker
+// a member and removes the request in the same save. It gives the asker
+// back. Someone who isn't a member gets ErrNotFound, and a request that
+// doesn't wait ErrNoRequest.
+func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.User, error) {
+	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
+	if err != nil {
+		return nil, err
+	}
+
+	asker, err := unit.Users().ByID(ctx, askerID)
+	if err != nil {
+		return nil, err
+	}
+
+	membership, err := repositories.NewMembership(projectID, askerID)
+	if err != nil {
+		return nil, err
+	}
+
+	unit.Memberships().Insert(membership)
+	unit.JoinRequests().Delete(request)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("saying yes to user %s for project %s: %w", askerID, projectID, err)
+	}
+
+	return asker, nil
+}
+
+// DeclineRequest lets a member say no to a request, which removes it, so
+// the asker may ask again. Someone who isn't a member gets ErrNotFound,
+// and a request that doesn't wait ErrNoRequest.
+func DeclineRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) error {
+	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
+	if err != nil {
+		return err
+	}
+
+	unit.JoinRequests().Delete(request)
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return fmt.Errorf("saying no to user %s for project %s: %w", askerID, projectID, err)
+	}
+
+	return nil
+}
+
+// waitingRequest checks that user is a member before it looks for the
+// request, so someone outside learns nothing about who asked.
+func waitingRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.JoinRequest, error) {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := unit.JoinRequests().ByProjectAndUser(ctx, projectID, askerID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return nil, fmt.Errorf("request of user %s for project %s: %w", askerID, projectID, ErrNoRequest)
+	}
+
+	return request, err
 }
