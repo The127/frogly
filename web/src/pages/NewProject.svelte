@@ -71,5 +71,6 @@
 
   label {
     display: block;
+    margin-bottom: 4px;
   }
 </style>

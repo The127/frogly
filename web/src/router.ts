@@ -12,5 +12,5 @@ export const { p, navigate, route } = createRouter({
   "/projects/new": () => import("./pages/NewProject.svelte"),
   "/projects/:id": () => import("./pages/garden/Route.svelte"),
   "/projects/:id/settings": () => import("./pages/settings/Route.svelte"),
-  "*": () => import("./Lost.svelte"),
+  "*": () => import("./pages/Lost.svelte"),
 });
