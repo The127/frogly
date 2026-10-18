@@ -102,7 +102,6 @@ describe("call", () => {
   it.each([
     { name: "a refusal without a reason", status: 400, body: { status: 400 } },
     { name: "a refusal that isn't JSON", status: 400, body: undefined },
-    { name: "a body too large to read", status: 413, body: undefined },
   ])("gives the fallback reason for $name", async ({ status, body }) => {
     // arrange
     respondWith(status, body);
@@ -112,6 +111,34 @@ describe("call", () => {
 
     // assert
     expect(result).toEqual({ ok: false, failure: { kind: "refused", problem: "frogly can't create that project" } });
+  });
+
+  it("gives its own reason for a body too large for frogly to read", async () => {
+    // arrange
+    respondWith(413, { status: 413 });
+
+    // act
+    const result = await call("/api/projects/p-1/ideas", {
+      token,
+      method: "POST",
+      refused: "frogly can't use that idea",
+      tooLarge: "an idea has at most 500 characters",
+    });
+
+    // assert
+    expect(result).toEqual({ ok: false, failure: { kind: "refused", problem: "an idea has at most 500 characters" } });
+  });
+
+  it("counts an answer frogly can't have sent as failed", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>a proxy's page</html>", { status: 200 })));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // act
+    const result = await call("/api/projects", { token });
+
+    // assert
+    expect(result).toEqual({ ok: false, failure: { kind: "failed" } });
   });
 
   it("counts a refusal as failed when the call says nothing about refusals", async () => {

@@ -34,12 +34,15 @@ export interface Options {
   // the reason to give when frogly refuses without one. A call without it
   // sends only what frogly made itself, so a refusal is frogly's problem.
   refused?: string;
+  // the reason to give when what was sent is far too long for frogly to
+  // read, which it answers without a reason
+  tooLarge?: string;
 }
 
 // call is the only way the frontend talks to frogly. It never throws: every
 // answer becomes a Result.
 export async function call<T>(path: string, options: Options = {}): Promise<Result<T>> {
-  const { token, method = "GET", body, refused } = options;
+  const { token, method = "GET", body, refused, tooLarge } = options;
 
   let response: Response;
   try {
@@ -67,9 +70,22 @@ export async function call<T>(path: string, options: Options = {}): Promise<Resu
 
   if (response.ok) {
     // a 204 has no body to read
-    const value = response.status === 204 ? undefined : await response.json();
+    if (response.status === 204) {
+      return { ok: true, value: undefined as T };
+    }
 
-    return { ok: true, value: value as T };
+    try {
+      return { ok: true, value: (await response.json()) as T };
+    } catch (error) {
+      // something between the browser and frogly answered, like a proxy
+      console.error(`frogly's answer to ${method} ${path} isn't JSON`, error);
+
+      return failed({ kind: "failed" });
+    }
+  }
+
+  if (response.status === 413 && tooLarge !== undefined) {
+    return failed({ kind: "refused", problem: tooLarge });
   }
 
   return failed(await failure(response, method, path, refused));
@@ -87,7 +103,6 @@ async function failure(response: Response, method: string, path: string, refused
       return { kind: "conflict" };
   }
 
-  // 413 is frogly refusing to read a body that's far too long
   if (refused !== undefined && (response.status === 400 || response.status === 413)) {
     return { kind: "refused", problem: await reason(response, refused) };
   }
