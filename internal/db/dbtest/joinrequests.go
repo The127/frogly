@@ -202,6 +202,55 @@ func (s *joinRequestsSuite) TestAnAnsweredRequestIsGone() {
 	s.Require().NoError(err, "asking again")
 }
 
+// TestAProjectsRequestsAreRemovedAtOnce checks that removing a project's
+// requests removes all of them and only them.
+func (s *joinRequestsSuite) TestAProjectsRequestsAreRemovedAtOnce() {
+	// arrange
+	karo, ana, tomas := s.savedUser("Karo"), s.savedUser("Ana"), s.savedUser("Tomás")
+	fair := s.takingRequests("Summer fair", karo)
+	club := s.takingRequests("Book club", karo)
+
+	for _, asked := range []struct {
+		project *repositories.Project
+		user    *repositories.User
+	}{{fair, ana}, {fair, tomas}, {club, ana}} {
+		_, err := s.asking(asked.project, asked.user)
+		s.Require().NoError(err)
+	}
+
+	unit := s.database.NewContext()
+	unit.JoinRequests().DeleteForProject(fair.ID())
+
+	// act
+	err := unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+
+	requests := s.database.NewContext().JoinRequests()
+	fairWaiting, fairErr := requests.ListForProject(s.T().Context(), fair.ID())
+	clubWaiting, clubErr := requests.ListForProject(s.T().Context(), club.ID())
+	s.Require().NoError(fairErr)
+	s.Require().NoError(clubErr)
+	s.Empty(fairWaiting)
+	s.Len(clubWaiting, 1, "another project's request stays")
+}
+
+// TestRemovingTheRequestsOfAProjectNobodyAskedIsFine checks that there is
+// no race to lose when nothing waits.
+func (s *joinRequestsSuite) TestRemovingTheRequestsOfAProjectNobodyAskedIsFine() {
+	// arrange
+	fair := s.takingRequests("Summer fair", s.savedUser("Karo"))
+	unit := s.database.NewContext()
+	unit.JoinRequests().DeleteForProject(fair.ID())
+
+	// act
+	err := unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+}
+
 // TestDeletingARequestThatIsGoneIsARace checks that a request someone else
 // answered in between can't be answered again.
 func (s *joinRequestsSuite) TestDeletingARequestThatIsGoneIsARace() {

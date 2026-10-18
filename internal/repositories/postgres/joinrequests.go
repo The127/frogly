@@ -116,6 +116,11 @@ func (repository *JoinRequestRepository) Delete(request *repositories.JoinReques
 	repository.tracker.Add(change.NewEntry(change.Deleted, request))
 }
 
+// DeleteForProject records the project's requests to be removed.
+func (repository *JoinRequestRepository) DeleteForProject(projectID uuid.UUID) {
+	repository.tracker.Add(change.NewEntry(change.Deleted, repositories.ProjectRequests{ProjectID: projectID}))
+}
+
 // ExecuteInsert writes the request as version 1, only while its project
 // takes requests and the user isn't a member, checked in the same
 // statement. It gives repositories.ErrNotFound otherwise.
@@ -177,4 +182,18 @@ func (repository *JoinRequestRepository) ExecuteDelete(ctx context.Context, tx *
 	}
 
 	return nil
+}
+
+// ExecuteDeleteForProject removes every request of the project. Unlike
+// ExecuteDelete it doesn't check versions, since it removes whatever
+// waits, however many that are.
+func (repository *JoinRequestRepository) ExecuteDeleteForProject(ctx context.Context, tx *sql.Tx, requests repositories.ProjectRequests) error {
+	deletion := sqlbuilder.DeleteFrom("join_requests")
+	deletion.Where(deletion.Equal("project_id", requests.ProjectID))
+
+	query, args := deletion.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	_, err := tx.ExecContext(ctx, query, args...)
+
+	return written(err, "deleting the requests of project "+requests.ProjectID.String())
 }

@@ -164,6 +164,8 @@ func (unit *Context) delete(ctx context.Context, tx *sql.Tx, item any) error {
 	switch item := item.(type) {
 	case *repositories.JoinRequest:
 		return unit.requests.ExecuteDelete(ctx, tx, item)
+	case repositories.ProjectRequests:
+		return unit.requests.ExecuteDeleteForProject(ctx, tx, item)
 	default:
 		return fmt.Errorf("%w: deleting %T", errUnsupportedChange, item)
 	}

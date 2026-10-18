@@ -61,6 +61,12 @@ type WaitingRequest struct {
 	Asker   *User
 }
 
+// ProjectRequests stands for all the waiting requests of one project, so
+// a single change can remove them together.
+type ProjectRequests struct {
+	ProjectID uuid.UUID
+}
+
 // JoinRequestRepository loads and saves requests to join.
 type JoinRequestRepository interface {
 	// ByProjectAndUser returns ErrNotFound when the user has no request
@@ -71,4 +77,7 @@ type JoinRequestRepository interface {
 	ListForProject(ctx context.Context, projectID uuid.UUID) ([]WaitingRequest, error)
 	Insert(request *JoinRequest)
 	Delete(request *JoinRequest)
+	// DeleteForProject removes every waiting request of the project, for
+	// a project that doesn't take requests any more.
+	DeleteForProject(projectID uuid.UUID)
 }
