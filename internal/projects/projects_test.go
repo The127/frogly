@@ -902,6 +902,9 @@ func TestAddingSomeoneWhoAskedRemovesTheirRequest(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, fair.ID())
+	require.NoError(t, err)
+
 	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
 	require.NoError(t, err)
 	assert.Empty(t, waiting)
@@ -923,4 +926,60 @@ func TestJoiningAfterAskingRemovesTheRequest(t *testing.T) {
 	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
 	require.NoError(t, err)
 	assert.Empty(t, waiting)
+}
+
+func TestARefusedJoinKeepsTheRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	// act
+	_, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Len(t, waiting, 1)
+}
+
+// decliningUnit says no to the user's request through another unit of
+// work right before its own save, like a member answering while the asker
+// joins.
+type decliningUnit struct {
+	db.Context
+
+	database  db.Database
+	member    *repositories.User
+	projectID uuid.UUID
+	askerID   uuid.UUID
+}
+
+func (unit decliningUnit) SaveChanges(ctx context.Context) error {
+	err := projects.DeclineRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
+	require.NoError(t, err)
+	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
+
+	// act
+	_, err = projects.Join(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
 }
