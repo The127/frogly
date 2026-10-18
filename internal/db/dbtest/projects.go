@@ -408,3 +408,46 @@ func (s *projectsSuite) TestAPrivateProjectThatOthersCouldGetIntoIsRefused() {
 		})
 	}
 }
+
+// TestARemovedMembershipIsGone checks that a member who is taken out
+// doesn't find the project any more, and the others still do.
+func (s *projectsSuite) TestARemovedMembershipIsGone() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+	s.savedMember(garden, ana)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Delete(garden.ID(), ana.ID())
+
+	// act
+	err := unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+
+	projects := s.database.NewContext().Projects()
+	_, err = projects.ByIDForMember(s.T().Context(), garden.ID(), ana.ID())
+	s.Require().ErrorIs(err, repositories.ErrNotFound)
+
+	_, err = projects.ByIDForMember(s.T().Context(), garden.ID(), karo.ID())
+	s.Require().NoError(err, "the other member stays")
+}
+
+// TestRemovingAMembershipThatIsGoneIsNoError checks that taking out
+// someone who isn't a member doesn't fail, so leaving twice at once
+// leaves once.
+func (s *projectsSuite) TestRemovingAMembershipThatIsGoneIsNoError() {
+	// arrange
+	karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
+	garden := s.savedProject("Garden", karo)
+
+	unit := s.database.NewContext()
+	unit.Memberships().Delete(garden.ID(), ana.ID())
+
+	// act
+	err := unit.SaveChanges(s.T().Context())
+
+	// assert
+	s.Require().NoError(err)
+}

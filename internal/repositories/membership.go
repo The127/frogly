@@ -58,7 +58,18 @@ func (membership *Membership) UserID() uuid.UUID {
 	return membership.userID
 }
 
+// MembershipOf stands for one user's membership of one project. It isn't
+// a stored model, only the item of the change Delete records, so a
+// membership can be removed without loading it first.
+type MembershipOf struct {
+	ProjectID uuid.UUID
+	UserID    uuid.UUID
+}
+
 // MembershipRepository saves memberships.
 type MembershipRepository interface {
 	Insert(membership *Membership)
+	// Delete takes the user out of the project. A user who isn't a member
+	// is no error.
+	Delete(projectID uuid.UUID, userID uuid.UUID)
 }

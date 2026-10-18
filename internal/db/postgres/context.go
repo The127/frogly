@@ -166,6 +166,8 @@ func (unit *Context) delete(ctx context.Context, tx *sql.Tx, item any) error {
 		return unit.requests.ExecuteDelete(ctx, tx, item)
 	case repositories.ProjectRequests:
 		return unit.requests.ExecuteDeleteForProject(ctx, tx, item)
+	case repositories.MembershipOf:
+		return unit.memberships.ExecuteDelete(ctx, tx, item)
 	default:
 		return fmt.Errorf("%w: deleting %T", errUnsupportedChange, item)
 	}
