@@ -1,3 +1,5 @@
+import { LoggedOut } from "./lib/client";
+
 export interface Config {
   issuer: string;
   clientId: string;
@@ -62,14 +64,9 @@ export interface Idea {
   people: number;
 }
 
-// LoggedOut means the login ended, and trying again won't help until the
-// person logs in again.
-export class LoggedOut extends Error {
-  constructor() {
-    super("the login ended");
-    this.name = "LoggedOut";
-  }
-}
+// LoggedOut comes from the new client, so the pages that still use this
+// file and the ones that moved recognize the same ended login.
+export { LoggedOut };
 
 // NotAllowed means the login works, but it doesn't give the person frogly's
 // role, so only whoever runs frogly can help.

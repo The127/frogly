@@ -3,7 +3,7 @@
 
   import { type Idea, type Project, type SessionEnded, maxIdeaLength } from "./api";
   import { addIdea, loadGarden, meToo, peopleBehind, plantedOn } from "./garden";
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import { p } from "./router";
 
   let { projectId }: { projectId: string } = $props();

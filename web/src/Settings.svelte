@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
 
   import type { Joining, Person, Project, SessionEnded, WaitingRequest } from "./api";
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import { navigate, p } from "./router";
   import { addPerson, answerRequest, findPeople, leave, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 

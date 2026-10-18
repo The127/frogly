@@ -1,6 +1,8 @@
 <script lang="ts">
   import { p } from "./router";
+  import Page from "./ui/Page.svelte";
 </script>
 
-<h1>There's nothing here.</h1>
-<p class="quiet"><a href={p("/")}>Back to your projects</a></p>
+<Page title="Nothing here" heading="There's nothing here.">
+  <p class="quiet"><a href={p("/")}>Back to your projects</a></p>
+</Page>

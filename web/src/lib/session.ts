@@ -1,5 +1,6 @@
-import { type Me, NotAllowed } from "./api";
+import type { Me } from "./api";
 import { callbackPath } from "./auth";
+import type { Result } from "./client";
 
 export type Session =
   | { kind: "loggedOut"; loginFailed?: boolean }
@@ -24,7 +25,7 @@ export interface Login {
 export async function resume(
   login: Login,
   path: string,
-  fetchMe: (accessToken: string) => Promise<Me | null>,
+  fetchMe: (accessToken: string) => Promise<Result<Me>>,
 ): Promise<Session> {
   if (path === callbackPath) {
     try {
@@ -48,23 +49,21 @@ export async function resume(
     return { kind: "loggedOut" };
   }
 
-  let me: Me | null;
-  try {
-    me = await fetchMe(user.access_token);
-  } catch (error) {
-    // the login stays, logging out of the issuer needs it
-    if (error instanceof NotAllowed) {
+  const me = await fetchMe(user.access_token);
+  if (me.ok) {
+    return { kind: "loggedIn", name: me.value.name };
+  }
+
+  switch (me.failure.kind) {
+    case "loggedOut":
+      // frogly refused the token, so it's no use keeping it
+      await login.removeUser();
+
+      return { kind: "loggedOut" };
+    case "notAllowed":
+      // the login stays, logging out of the issuer needs it
       return { kind: "notAllowed" };
-    }
-
-    throw error;
+    default:
+      throw new Error("frogly can't say who is logged in");
   }
-
-  if (me === null) {
-    await login.removeUser();
-
-    return { kind: "loggedOut" };
-  }
-
-  return { kind: "loggedIn", name: me.name };
 }

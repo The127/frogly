@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Joining, Visibility } from "./api";
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import { addProject, nameFrom } from "./projects";
   import { navigate, p } from "./router";
 

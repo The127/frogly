@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
 
   import type { PublicProject, SessionEnded } from "./api";
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import { askPublicProject, joinPublicProject, loadPublicProjects } from "./projects";
   import { navigate } from "./router";
 

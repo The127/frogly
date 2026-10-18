@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import Projects from "./Projects.svelte";
   import PublicProjects from "./PublicProjects.svelte";
 

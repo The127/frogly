@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
 
   import type { Project } from "./api";
-  import { getLogin } from "./login";
+  import { getLogin } from "./lib/login";
   import { loadProjects } from "./projects";
   import { navigate, p } from "./router";
 
