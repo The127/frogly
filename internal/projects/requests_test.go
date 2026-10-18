@@ -305,16 +305,3 @@ func TestAProjectThatStillTakesRequestsKeepsThem(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, waiting, 1)
 }
-
-func TestAnAskWhoseSaveWasStoppedIsARace(t *testing.T) {
-	// arrange
-	database := sqlitetest.Open(t)
-	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
-	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningRequest)
-
-	// act
-	_, err := projects.AskToJoin(t.Context(), conflictingUnit{database.NewContext()}, ana, fair.ID())
-
-	// assert
-	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
-}

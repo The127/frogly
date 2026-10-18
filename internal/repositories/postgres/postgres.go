@@ -27,9 +27,8 @@ type scanner interface {
 }
 
 // Postgres answers a stale update with the version trigger's serialization
-// failure, a taken unique value with a unique violation, and two saves
-// waiting on each other's locks with a deadlock it breaks by stopping one.
-// All of them mean someone else got there first.
+// failure, and a taken unique value with a unique violation. Both mean
+// someone else got there first.
 func written(err error, what string) error {
 	if err == nil {
 		return nil
@@ -37,7 +36,7 @@ func written(err error, what string) error {
 
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		switch pgErr.Code {
-		case pgerrcode.SerializationFailure, pgerrcode.UniqueViolation, pgerrcode.DeadlockDetected:
+		case pgerrcode.SerializationFailure, pgerrcode.UniqueViolation:
 			return fmt.Errorf("%w: %s: %w", repositories.ErrConcurrentModification, what, err)
 		}
 	}

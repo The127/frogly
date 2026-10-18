@@ -186,8 +186,7 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 // isn't public or isn't open gives ErrNotFound, so nobody learns which
 // closed or private projects exist. The database decides that as it saves
 // the membership, so a member closing the project at the same moment
-// can't be outrun. A save the database stops, like to break a deadlock,
-// gives repositories.ErrConcurrentModification, and trying again works.
+// can't be outrun.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if !errors.Is(err, repositories.ErrNotFound) {
@@ -207,19 +206,13 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 	case errors.Is(err, repositories.ErrNotFound):
 		return nil, fmt.Errorf("project %s to join: %w", projectID, ErrNotFound)
 
+	// the same person joined from elsewhere in between, which the unique
+	// membership refuses as a race, and they're a member either way
 	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// a race is mostly the same person joining from elsewhere, and then
-	// they're a member. A save the database stopped saved nothing, and
-	// then they may try again.
-	joined, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
-	if errors.Is(err, repositories.ErrNotFound) {
-		return nil, fmt.Errorf("joining project %s: %w", projectID, repositories.ErrConcurrentModification)
-	}
-
-	return joined, err
+	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 }
 
 // Leave takes user out of a project they're a member of. The project and

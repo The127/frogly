@@ -20,8 +20,7 @@ var ErrNoRequest = fmt.Errorf("request not found: %w", ErrNotFound)
 // nothing, and a member asking has nothing to wait for, including someone
 // who joined a moment before. A project that doesn't exist or doesn't
 // take requests gives ErrNotFound, decided by the database as it saves
-// the request. A save the database stops, like to break a deadlock, gives
-// repositories.ErrConcurrentModification, and trying again works.
+// the request.
 func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (bool, error) {
 	_, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if err == nil {
@@ -45,23 +44,10 @@ func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, pr
 	case errors.Is(err, repositories.ErrNotFound):
 		return askedAsMember(ctx, unit, user, projectID)
 
-	case err == nil:
-		return true, nil
-
-	case !errors.Is(err, repositories.ErrConcurrentModification):
+	// a request of theirs exists already, which the unique pair refuses
+	// like a race, and they asked either way
+	case err != nil && !errors.Is(err, repositories.ErrConcurrentModification):
 		return false, fmt.Errorf("saving the request of user %s for project %s: %w", user.ID(), projectID, err)
-	}
-
-	// a race is mostly a request of theirs that exists already, which the
-	// unique pair refuses, and they asked either way. A save the database
-	// stopped saved nothing, and then they may try again.
-	_, err = unit.JoinRequests().ByProjectAndUser(ctx, projectID, user.ID())
-	if errors.Is(err, repositories.ErrNotFound) {
-		return false, fmt.Errorf("asking to join project %s: %w", projectID, repositories.ErrConcurrentModification)
-	}
-
-	if err != nil {
-		return false, err
 	}
 
 	return true, nil
