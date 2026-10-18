@@ -9,6 +9,7 @@
   import { type Session, resume } from "./lib/session";
   import { Router, p } from "./router";
   import Button from "./ui/Button.svelte";
+  import Loading from "./ui/Loading.svelte";
   import Page from "./ui/Page.svelte";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
@@ -79,20 +80,20 @@
 
 <main>
   {#if session.kind === "loading"}
-    <p class="quiet" aria-busy="true">…</p>
+    <Loading />
   {:else if session.kind === "failed"}
-    <Page title="" heading="frogly can't be reached right now.">
+    <Page heading="frogly can't be reached right now.">
       <p class="quiet">Try again in a moment.</p>
     </Page>
   {:else if session.kind === "loggedIn"}
     <Router />
   {:else if session.kind === "notAllowed"}
-    <Page title="" heading="This account can't use frogly.">
+    <Page heading="This account can't use frogly.">
       <p class="quiet">Ask whoever runs frogly to let you in, or log in with another account.</p>
       <Button onclick={() => login?.signoutRedirect()}>log out</Button>
     </Page>
   {:else}
-    <Page title="" heading="A quiet place for your team's work.">
+    <Page heading="A quiet place for your team's work.">
       {#if session.loginFailed}
         <p class="quiet">The login didn't work. Try again.</p>
       {/if}

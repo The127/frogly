@@ -42,10 +42,10 @@
   }
 </script>
 
-<Section label="asked to join" id="requests-label" bind:top>
+<Section label="asked to join" bind:top>
   <List
     resource={requests}
-    failed="frogly can't show who asked to join right now. Reload the page in a moment."
+    failed="frogly can't show who asked to join right now."
     empty="Nobody waits for an answer right now."
   >
     {#snippet children(waiting)}

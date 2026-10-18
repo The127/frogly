@@ -2,6 +2,7 @@
   import { tick } from "svelte";
 
   import { Action, Busy } from "../../lib/action.svelte";
+  import { alive } from "../../lib/alive";
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import { navigate } from "../../router";
@@ -9,7 +10,7 @@
   import Problem from "../../ui/Problem.svelte";
   import Section from "../../ui/Section.svelte";
 
-  let { projectId, project, gone }: { projectId: string; project: api.ProjectWithMembers; gone: () => void } = $props();
+  let { project, gone }: { project: api.ProjectWithMembers; gone: () => void } = $props();
 
   const login = getLogin();
   // checking what leaving does and leaving run one at a time
@@ -25,8 +26,8 @@
 
   // loaded again when someone asks to leave, apart from the project the
   // page shows, so an unsaved pick of who can join stays
-  let checked = $state<{ members: number; joining: api.Joining }>();
-  const known = $derived(checked ?? { members: project.members, joining: project.joining });
+  let checked = $state.raw<api.ProjectWithMembers>();
+  const known = $derived(checked ?? project);
 
   // a private project is always closed
   const comingBack: Record<api.Joining, string> = {
@@ -46,19 +47,23 @@
     stayButton?.focus();
   }
 
+  const shown = alive();
+
   // not a member any more, like after leaving in another tab, is what
   // leaving was for
   async function home() {
-    await navigate("/");
+    if (shown()) {
+      await navigate("/");
+    }
   }
 
   function askToLeave() {
     // others may have joined, left or changed who can join since the page
     // loaded, and the note says what leaving does now
-    return checking.run(() => api.project(login.accessToken, projectId), {
+    return checking.run(() => api.project(login.accessToken, project.id), {
       what: "check what leaving does",
       done: async (now) => {
-        checked = { members: now.members, joining: now.joining };
+        checked = now;
         await confirm();
       },
       // what the page knew from before still makes a fair note
@@ -73,7 +78,7 @@
       return;
     }
 
-    leaving.problem = "";
+    busy.clear();
     confirming = false;
     await tick();
     leaveButton?.focus();
@@ -82,7 +87,7 @@
   function leave() {
     // still busy until the home page shows, so a second click can't send
     // another leave
-    return leaving.run(() => api.leave(login.accessToken, projectId), {
+    return leaving.run(() => api.leave(login.accessToken, project.id), {
       what: "take you out of this project",
       done: home,
       notFound: home,
@@ -90,7 +95,7 @@
   }
 </script>
 
-<Section label="leave" id="leave-label">
+<Section label="leave">
   {#if confirming}
     <p class="quiet" id="coming-back">{note}</p>
   {/if}

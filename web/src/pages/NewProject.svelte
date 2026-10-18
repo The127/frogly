@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Action } from "../lib/action.svelte";
+  import { alive } from "../lib/alive";
   import * as api from "../lib/api";
   import { joiningChoices, nameFrom, visibilityChoices } from "../lib/format";
   import { getLogin } from "../lib/login";
@@ -15,6 +16,7 @@
   // a new project belongs to nothing that could be gone, so a 404 is
   // frogly's problem like any other failure
   const create = new Action(login);
+  const shown = alive();
 
   let name = $state(nameFrom(window.location.search));
   // nothing is chosen in advance, the person decides who sees a project
@@ -30,7 +32,9 @@
     return create.run(() => api.createProject(login.accessToken, name, visibility, join), {
       what: "save the project",
       done: async (project) => {
-        await navigate("/projects/:id", { params: { id: project.id } });
+        if (shown()) {
+          await navigate("/projects/:id", { params: { id: project.id } });
+        }
       },
     });
   }
@@ -42,7 +46,7 @@
   <form onsubmit={submit}>
     <div class="field">
       <label class="label" for="project-name">name</label>
-      <TextField id="project-name" bind:value={name} busy={create.busy} problem={create.problem} describedby="project-problem" />
+      <TextField id="project-name" bind:value={name} busy={create.busy} problem={create.problem} problemId="project-problem" />
     </div>
 
     <div class="field">

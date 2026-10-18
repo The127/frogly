@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount, type Snippet } from "svelte";
 
-  // title names the page in the tab. heading is what it says on top, and
-  // what a screen reader announces once the page shows.
-  let { title, heading, children }: { title: string; heading: string; children?: Snippet } = $props();
+  import { showTitle } from "../lib/title";
+
+  // title names the page in the tab, or just frogly without it. heading is
+  // what it says on top, and what a screen reader announces once the page
+  // shows.
+  let { title, heading, children }: { title?: string; heading: string; children?: Snippet } = $props();
 
   let top = $state<HTMLHeadingElement>();
 
   $effect(() => {
-    document.title = title ? `${title} · frogly` : "frogly";
+    showTitle(title);
   });
 
   // the router swaps pages without loading a new one, so the focus would

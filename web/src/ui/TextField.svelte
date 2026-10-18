@@ -1,18 +1,22 @@
 <script lang="ts">
   import type { HTMLInputAttributes } from "svelte/elements";
 
+  import Problem from "./Problem.svelte";
+
   // label is for screen readers, the placeholder says it to everyone else.
-  // Without it, the page labels the field itself.
-  // busy makes the field readonly, not disabled, since a disabled field
-  // would lose the focus.
+  // Without it, the page labels the field itself. busy makes the field
+  // readonly, not disabled, since a disabled field would lose the focus.
+  // The field shows its problem below it, unless problemId says where the
+  // page shows it.
   let {
     id,
     label,
     value = $bindable(""),
     busy = false,
     problem = "",
-    describedby,
+    problemId,
     ref = $bindable(),
+    "aria-describedby": describedby,
     ...rest
   }: HTMLInputAttributes & {
     id: string;
@@ -20,9 +24,12 @@
     value?: string;
     busy?: boolean;
     problem?: string;
-    describedby?: string;
+    problemId?: string;
     ref?: HTMLInputElement;
   } = $props();
+
+  const ownProblem = $derived(problemId === undefined);
+  const describing = $derived([describedby, problemId ?? `${id}-problem`].filter(Boolean).join(" "));
 </script>
 
 {#if label}
@@ -35,9 +42,12 @@
   readonly={busy}
   aria-busy={busy}
   aria-invalid={problem ? "true" : undefined}
-  aria-describedby={describedby}
+  aria-describedby={describing}
   {...rest}
 />
+{#if ownProblem}
+  <Problem id={`${id}-problem`} text={problem} />
+{/if}
 
 <style>
   input {

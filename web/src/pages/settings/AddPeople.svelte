@@ -26,16 +26,14 @@
 
   function search(event: SubmitEvent) {
     event.preventDefault();
-    if (busy.now) {
-      return;
-    }
 
-    adding.problem = "";
-    adding.notice = "";
-    // empties the count, so the same number found again is announced again
-    people = undefined;
+    return searching.run(() => {
+      // empties the count, so the same number found again is announced
+      // again
+      people = undefined;
 
-    return searching.run(() => api.searchPeople(login.accessToken, projectId, text), {
+      return api.searchPeople(login.accessToken, projectId, text);
+    }, {
       what: "search right now",
       done: (found) => {
         people = found;
@@ -57,7 +55,7 @@
   }
 </script>
 
-<Section label="add someone" id="people-label">
+<Section label="add someone">
   <form onsubmit={search}>
     <TextField
       id="people-search"
@@ -67,10 +65,8 @@
       placeholder="find someone by name or email…"
       busy={searching.busy}
       problem={searching.problem}
-      describedby="people-problem"
     />
   </form>
-  <Problem id="people-problem" text={searching.problem} />
 
   <!-- polite, so a screen reader hears what the search found -->
   <p class="hidden" aria-live="polite">{people === undefined ? "" : `${peopleBehind(people.length)} found`}</p>

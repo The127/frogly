@@ -1,8 +1,9 @@
 <script lang="ts">
   import { p } from "../router";
+  import Back from "../ui/Back.svelte";
   import Page from "../ui/Page.svelte";
 </script>
 
 <Page title="Nothing here" heading="There's nothing here.">
-  <p class="quiet"><a href={p("/")}>Back to your projects</a></p>
+  <Back href={p("/")} text="your projects" />
 </Page>

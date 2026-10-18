@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
 
   import type { Resource } from "../lib/action.svelte";
+  import Loading from "./Loading.svelte";
   import Page from "./Page.svelte";
 
   // Loaded shows a page's resource: the page once it's there, or what to
@@ -19,17 +20,10 @@
     failed: string;
     children: Snippet<[T]>;
   } = $props();
-
-  // Page names the tab once there's something to show
-  $effect(() => {
-    if (resource.state.kind === "loading") {
-      document.title = `${title} · frogly`;
-    }
-  });
 </script>
 
 {#if resource.state.kind === "loading"}
-  <p class="quiet" aria-busy="true">…</p>
+  <Loading {title} />
 {:else if resource.state.kind === "notFound"}
   <Page {title} heading={notFound.heading}>
     <p class="quiet">{notFound.text}</p>

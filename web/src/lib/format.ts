@@ -13,6 +13,16 @@ export const joiningChoices: { value: Joining; text: string }[] = [
   { value: "closed", text: "only people a member adds" },
 ];
 
+// visibilityText says who sees a project, as a sentence of its own
+export function visibilityText(visibility: Visibility): string {
+  const text = visibilityChoices.find((choice) => choice.value === visibility)?.text ?? visibility;
+
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
+
+// what a project's pages say when the project isn't there for the person
+export const projectGone = { heading: "This project isn't here.", text: "It doesn't exist, or you aren't a member of it." };
+
 // nameFrom reads the name the home page passed on. sv-router's route.search
 // would turn a name like "2024" or "true" into a number or a boolean.
 export function nameFrom(search: string): string {

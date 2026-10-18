@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onDestroy, onMount } from "svelte";
+  import { onMount } from "svelte";
 
   import { Action, Resource } from "../../lib/action.svelte";
+  import { alive } from "../../lib/alive";
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import { navigate } from "../../router";
@@ -18,14 +19,10 @@
   const action = new Action(login, () => projects.load());
   onMount(() => projects.load());
 
-  // a join can finish after the person moved on, and mustn't pull them back
-  let gone = false;
-  onDestroy(() => {
-    gone = true;
-  });
+  const shown = alive();
 
   async function open(projectId: string) {
-    if (!gone) {
+    if (shown()) {
       await navigate("/projects/:id", { params: { id: projectId } });
     }
   }
@@ -66,8 +63,8 @@
   }
 </script>
 
-<Section label="public projects of others" id="public-label">
-  <List resource={projects} failed="frogly can't list them right now. Reload the page in a moment." empty="Nobody else has a public project yet.">
+<Section label="public projects of others">
+  <List resource={projects} failed="frogly can't list them right now." empty="Nobody else has a public project yet.">
     {#snippet children(listed)}
       <!-- not links, a garden opens to its members -->
       <Rows>

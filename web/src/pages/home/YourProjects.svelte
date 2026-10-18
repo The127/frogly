@@ -25,8 +25,8 @@
   }
 </script>
 
-<Section label="your projects" id="projects-label">
-  <List resource={projects} failed="frogly can't list your projects right now. Reload the page in a moment." empty="No projects yet. Name your first one below.">
+<Section label="your projects">
+  <List resource={projects} failed="frogly can't list your projects right now." empty="No projects yet. Name your first one below.">
     {#snippet children(listed)}
       <Rows>
         {#each listed as project (project.id)}

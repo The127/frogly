@@ -3,8 +3,8 @@
 
   import { Action, Resource } from "../../lib/action.svelte";
   import * as api from "../../lib/api";
-  import { both } from "../../lib/client";
-  import { peopleBehind, plantedOn } from "../../lib/format";
+  import { both, map } from "../../lib/client";
+  import { peopleBehind, plantedOn, projectGone } from "../../lib/format";
   import { getLogin } from "../../lib/login";
   import { p } from "../../router";
   import Back from "../../ui/Back.svelte";
@@ -23,7 +23,7 @@
   const garden = new Resource(login, async () => {
     const loaded = await both(api.project(login.accessToken, projectId), api.garden(login.accessToken, projectId));
 
-    return loaded.ok ? { ok: true as const, value: { project: loaded.value[0], ideas: loaded.value[1] } } : loaded;
+    return map(loaded, ([project, ideas]) => ({ project, ideas }));
   });
   const planting = new Action(login, () => garden.gone());
   const sayingMeToo = new Action(login, () => garden.gone());
@@ -58,7 +58,7 @@
 <Loaded
   resource={garden}
   title="Garden"
-  notFound={{ heading: "This project isn't here.", text: "It doesn't exist, or you aren't a member of it." }}
+  notFound={projectGone}
   failed="This garden can't be shown right now."
 >
   {#snippet children(shown)}
@@ -76,13 +76,12 @@
           maxlength={api.maxIdeaLength}
           busy={planting.busy}
           problem={planting.problem}
-          describedby="idea-count idea-problem"
+          aria-describedby="idea-count"
         />
-        <p class="count" id="idea-count">{text.length} / {api.maxIdeaLength}</p>
-        <Problem id="idea-problem" text={planting.problem} />
+        <p class="quiet small count" id="idea-count">{text.length} / {api.maxIdeaLength}</p>
       </form>
 
-      <Section label="the garden" id="garden-label">
+      <Section label="the garden">
         {#if shown.ideas.length === 0}
           <p class="quiet">Nothing planted yet. Write down the first idea above.</p>
         {:else}
@@ -105,8 +104,6 @@
 
 <style>
   .count {
-    font-size: 13px;
-    color: var(--ink-3);
     text-align: right;
     margin: 4px 0 0;
   }
