@@ -53,7 +53,7 @@
   let leaveProblem = $state("");
   let leaveButton = $state<HTMLButtonElement>();
   let stayButton = $state<HTMLButtonElement>();
-  // from when the page loaded, which is enough for a note before leaving
+  // counted again when someone asks to leave
   let members = $state(0);
   // a private project is always closed
   const comingBack: Record<Joining, string> = {
@@ -262,6 +262,28 @@
   }
 
   async function askToLeave() {
+    if (leaving) {
+      return;
+    }
+
+    // others may have joined or left since the page loaded, and the note
+    // tells the last member that the project opens
+    leaving = true;
+    const loaded = await loadSettings(login.accessToken, projectId);
+    leaving = false;
+
+    switch (loaded.kind) {
+      case "loaded":
+        members = loaded.members;
+        break;
+      // the count from before still makes a fair note
+      case "failed":
+        break;
+      default:
+        handledElsewhere(loaded);
+        return;
+    }
+
     confirmingLeave = true;
     await tick();
     stayButton?.focus();
@@ -435,7 +457,7 @@
         <button class="btn" onclick={leaveForGood} aria-disabled={leaving} aria-describedby="coming-back">yes, leave {settings.project.name}</button>
         <button class="btn pond" bind:this={stayButton} onclick={stay} aria-disabled={leaving} aria-describedby="coming-back">stay</button>
       {:else}
-        <button class="btn" bind:this={leaveButton} onclick={askToLeave}>leave this project</button>
+        <button class="btn" bind:this={leaveButton} onclick={askToLeave} aria-disabled={leaving}>leave this project</button>
       {/if}
     </div>
     <!-- always there, so screen readers announce the text when it changes -->
