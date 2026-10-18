@@ -227,9 +227,9 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// a race is the same person getting in from elsewhere, and then
-	// they're a member, or a member saying no to their request in between,
-	// and then they aren't and may try again
+	// a race is the same person getting in from elsewhere, a yes to their
+	// request included, and then they're a member, or a member saying no
+	// to it in between, and then they aren't and may try again
 	joined, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if errors.Is(err, repositories.ErrNotFound) {
 		return nil, fmt.Errorf("joining project %s: %w", projectID, repositories.ErrConcurrentModification)

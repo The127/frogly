@@ -942,18 +942,39 @@ func TestARefusedJoinKeepsTheRequest(t *testing.T) {
 	assert.Len(t, waiting, 1)
 }
 
-// answeringUnit answers the user's request through another unit of work
-// right before each of its saves, like a member answering while the asker
-// joins.
-type answeringUnit struct {
+// decliningUnit says no to the asker's request through another unit of
+// work right before each of its saves, like a member answering while the
+// asker joins.
+type decliningUnit struct {
 	db.Context
 
-	database db.Database
-	answer   func(ctx context.Context, unit db.Context) error
+	database  db.Database
+	member    *repositories.User
+	projectID uuid.UUID
+	askerID   uuid.UUID
 }
 
-func (unit answeringUnit) SaveChanges(ctx context.Context) error {
-	err := unit.answer(ctx, unit.database.NewContext())
+func (unit decliningUnit) SaveChanges(ctx context.Context) error {
+	err := projects.DeclineRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
+	if err != nil {
+		return err
+	}
+
+	return unit.Context.SaveChanges(ctx)
+}
+
+// acceptingUnit is decliningUnit with a yes.
+type acceptingUnit struct {
+	db.Context
+
+	database  db.Database
+	member    *repositories.User
+	projectID uuid.UUID
+	askerID   uuid.UUID
+}
+
+func (unit acceptingUnit) SaveChanges(ctx context.Context) error {
+	_, err := projects.AcceptRequest(ctx, unit.database.NewContext(), unit.member, unit.projectID, unit.askerID)
 	if err != nil {
 		return err
 	}
@@ -972,19 +993,14 @@ func openedAskedProject(t *testing.T, database db.Database) (karo, ana *reposito
 	return karo, ana, fair
 }
 
-func decliningUnit(database db.Database, karo, ana *repositories.User, fair *repositories.Project) answeringUnit {
-	return answeringUnit{Context: database.NewContext(), database: database, answer: func(ctx context.Context, unit db.Context) error {
-		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
-	}}
-}
-
 func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana, fair := openedAskedProject(t, database)
+	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
 
 	// act
-	_, err := projects.Join(t.Context(), decliningUnit(database, karo, ana, fair), ana, fair.ID())
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
 
 	// assert
 	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
@@ -998,7 +1014,8 @@ func TestAJoinAfterAConflictWithANoGetsIn(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana, fair := openedAskedProject(t, database)
-	_, err := projects.Join(t.Context(), decliningUnit(database, karo, ana, fair), ana, fair.ID())
+	unit := decliningUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
+	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
 	require.ErrorIs(t, err, repositories.ErrConcurrentModification, "the conflict to try again after")
 
 	// act
@@ -1013,11 +1030,7 @@ func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana, fair := openedAskedProject(t, database)
-	unit := answeringUnit{Context: database.NewContext(), database: database, answer: func(ctx context.Context, unit db.Context) error {
-		_, err := projects.AcceptRequest(ctx, unit, karo, fair.ID(), ana.ID())
-
-		return err
-	}}
+	unit := acceptingUnit{Context: database.NewContext(), database: database, member: karo, projectID: fair.ID(), askerID: ana.ID()}
 
 	// act
 	joined, err := projects.Join(t.Context(), unit, ana, fair.ID())
@@ -1026,7 +1039,7 @@ func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fair.ID(), joined.ID())
 
-	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
 	require.NoError(t, err)
-	assert.Len(t, listed, 1)
+	assert.Empty(t, waiting)
 }
