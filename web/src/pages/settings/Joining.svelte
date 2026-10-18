@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Action, type Busy } from "../../lib/action.svelte";
+  import type { Action } from "../../lib/action.svelte";
   import * as api from "../../lib/api";
   import { joiningChoices } from "../../lib/format";
   import { getLogin } from "../../lib/login";
@@ -10,14 +10,12 @@
   let {
     projectId,
     project,
-    busy,
+    action,
+    other,
     changed,
-    gone,
-  }: { projectId: string; project: api.Project; busy: Busy; changed: (project: api.Project) => void; gone: () => void } = $props();
+  }: { projectId: string; project: api.Project; action: Action; other: Action; changed: (project: api.Project) => void } = $props();
 
   const login = getLogin();
-  // svelte-ignore state_referenced_locally (the page hands in one Busy for its whole life)
-  const saving = new Action(login, () => gone(), busy);
 
   // picking a choice and saving it are two steps, since arrow keys walk
   // through every choice on the way, and saving each would let people in
@@ -34,7 +32,9 @@
       return;
     }
 
-    return saving.run(() => api.changeJoining(login.accessToken, projectId, joining), {
+    other.problem = "";
+
+    return action.run(() => api.changeJoining(login.accessToken, projectId, joining), {
       what: "change who can join the project",
       done: changed,
     });
@@ -45,10 +45,10 @@
   <Choice legend="who can join" name="joining" choices={joiningChoices} bind:group={chosen} describedby="joining-problem" />
   {#if chosen !== project.joining}
     <div class="save">
-      <Button pond busy={saving.busy} onclick={save}>save who can join</Button>
+      <Button pond busy={action.busy} onclick={save}>save who can join</Button>
     </div>
   {/if}
-  <Problem id="joining-problem" text={saving.problem} />
+  <Problem id="joining-problem" text={action.problem} />
 </section>
 
 <style>

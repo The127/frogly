@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Action, type Busy } from "../../lib/action.svelte";
+  import type { Action } from "../../lib/action.svelte";
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import Button from "../../ui/Button.svelte";
@@ -9,18 +9,18 @@
   let {
     projectId,
     project,
-    busy,
+    action,
+    other,
     changed,
-    gone,
-  }: { projectId: string; project: api.Project; busy: Busy; changed: (project: api.Project) => void; gone: () => void } = $props();
+  }: { projectId: string; project: api.Project; action: Action; other: Action; changed: (project: api.Project) => void } = $props();
 
   const login = getLogin();
-  // svelte-ignore state_referenced_locally (the page hands in one Busy for its whole life)
-  const switching = new Action(login, () => gone(), busy);
   const isPublic = $derived(project.visibility === "public");
 
   function toggle() {
-    return switching.run(() => api.changeVisibility(login.accessToken, projectId, isPublic ? "private" : "public"), {
+    other.problem = "";
+
+    return action.run(() => api.changeVisibility(login.accessToken, projectId, isPublic ? "private" : "public"), {
       what: "change who sees the project",
       done: changed,
     });
@@ -33,9 +33,9 @@
     <span class="quiet" aria-live="polite">
       {isPublic ? "Public, everyone in frogly sees its name." : "Private, only its members see it."}
     </span>
-    <Button busy={switching.busy} onclick={toggle}>make it {isPublic ? "private" : "public"}</Button>
+    <Button busy={action.busy} onclick={toggle}>make it {isPublic ? "private" : "public"}</Button>
   </p>
-  <Problem text={switching.problem} />
+  <Problem text={action.problem} />
 </Section>
 
 <style>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import { Busy, Resource } from "../../lib/action.svelte";
+  import { Action, Busy, Resource } from "../../lib/action.svelte";
   import * as api from "../../lib/api";
   import { getLogin } from "../../lib/login";
   import { p } from "../../router";
@@ -21,8 +21,11 @@
   const gone = () => settings.gone();
   // the requests belong to the project, so when they're not found, it's gone
   const requests = new Resource(login, () => api.requests(login.accessToken, projectId), gone);
-  // who sees the project and who can join it are saved one at a time
+  // who sees the project and who can join it are saved one at a time, and
+  // saving either clears what went wrong with the other
   const saving = new Busy();
+  const savingVisibility = new Action(login, gone, saving);
+  const savingJoining = new Action(login, gone, saving);
 
   // both at once, so the requests don't push the page down later
   onMount(() => Promise.all([settings.load(), requests.load()]));
@@ -46,9 +49,9 @@
 >
   {#snippet children(project)}
     <Page title={`Settings for ${project.name}`} heading={`Settings for ${project.name}`}>
-      <Visibility {projectId} {project} busy={saving} {changed} {gone} />
+      <Visibility {projectId} {project} action={savingVisibility} other={savingJoining} {changed} />
       {#if project.visibility === "public"}
-        <Joining {projectId} {project} busy={saving} {changed} {gone} />
+        <Joining {projectId} {project} action={savingJoining} other={savingVisibility} {changed} />
         <Requests {projectId} {requests} {gone} />
       {/if}
       <AddPeople {projectId} {gone} />
