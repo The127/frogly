@@ -157,9 +157,9 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 // gives them back. Adding a member again changes nothing. Someone who
 // isn't a member gets ErrNotFound, like Get.
 //
-// Two members adding the same person at once, or a member adding someone
-// while another answers their request, is a race. One of them gets
-// repositories.ErrConcurrentModification, and trying again works.
+// If two members add the same person at once, or a member adds someone
+// while another answers that person's request, one of them gets
+// repositories.ErrConcurrentModification. Trying again works.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
 	_, err := Get(ctx, unit, user, projectID)
 	if err != nil {
@@ -196,8 +196,9 @@ func AddMember(ctx context.Context, unit db.Context, user *repositories.User, pr
 // the membership, so a member closing the project at the same moment
 // can't be outrun.
 //
-// When a member says no to the user's request while they join, Join gives
-// repositories.ErrConcurrentModification, and trying again works.
+// If a member says no to the user's waiting request while they join, Join
+// gives repositories.ErrConcurrentModification. Trying again works. A yes
+// at the same moment lets the join through.
 func Join(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (*repositories.Project, error) {
 	member, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if !errors.Is(err, repositories.ErrNotFound) {
@@ -226,9 +227,9 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 		return nil, fmt.Errorf("adding user %s to project %s: %w", user.ID(), projectID, err)
 	}
 
-	// a race is either the same person joining from elsewhere, and then
-	// they're a member, or their request answered in between, and then
-	// they aren't and may try again
+	// a race is the same person getting in from elsewhere, and then
+	// they're a member, or a member saying no to their request in between,
+	// and then they aren't and may try again
 	joined, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 	if errors.Is(err, repositories.ErrNotFound) {
 		return nil, fmt.Errorf("joining project %s: %w", projectID, repositories.ErrConcurrentModification)
@@ -355,7 +356,9 @@ func dropRequest(ctx context.Context, unit db.Context, projectID uuid.UUID, user
 // AcceptRequest lets a member say yes to a request, which makes the asker
 // a member and removes the request in the same save. It gives the asker
 // back. Someone who isn't a member gets ErrNotFound, and a request that
-// doesn't wait ErrNoRequest.
+// doesn't wait ErrNoRequest. If the request is answered or the asker gets
+// in another way at the same moment, AcceptRequest gives
+// repositories.ErrConcurrentModification.
 func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.User, error) {
 	_, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {
@@ -382,7 +385,9 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 
 // DeclineRequest lets a member say no to a request, which removes it, so
 // the asker may ask again. Someone who isn't a member gets ErrNotFound,
-// and a request that doesn't wait ErrNoRequest.
+// and a request that doesn't wait ErrNoRequest. If the request is answered
+// or the asker gets in at the same moment, DeclineRequest gives
+// repositories.ErrConcurrentModification.
 func DeclineRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) error {
 	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {

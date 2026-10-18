@@ -913,12 +913,10 @@ func TestAddingSomeoneWhoAskedRemovesTheirRequest(t *testing.T) {
 func TestJoiningAfterAskingRemovesTheRequest(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	karo, ana, fair := askedProject(t, database)
-	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
-	require.NoError(t, err)
+	karo, ana, fair := openedAskedProject(t, database)
 
 	// act
-	_, err = projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+	_, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
 
 	// assert
 	require.NoError(t, err)
@@ -945,7 +943,7 @@ func TestARefusedJoinKeepsTheRequest(t *testing.T) {
 }
 
 // answeringUnit answers the user's request through another unit of work
-// right before its own save, like a member answering while the asker
+// right before each of its saves, like a member answering while the asker
 // joins.
 type answeringUnit struct {
 	db.Context
@@ -963,35 +961,30 @@ func (unit answeringUnit) SaveChanges(ctx context.Context) error {
 	return unit.Context.SaveChanges(ctx)
 }
 
-// joiningWhileAnswered opens the project Ana asked to join and gives a
-// unit for her join that sees answer happen right before it saves.
-func joiningWhileAnswered(t *testing.T, database db.Database, answer func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error) (ana *repositories.User, fair *repositories.Project, unit db.Context) {
+// openedAskedProject is askedProject, opened to join since Ana asked.
+func openedAskedProject(t *testing.T, database db.Database) (karo, ana *repositories.User, fair *repositories.Project) {
 	t.Helper()
 
-	karo, ana, fair := askedProject(t, database)
+	karo, ana, fair = askedProject(t, database)
 	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
 	require.NoError(t, err)
 
-	unit = answeringUnit{
-		Context:  database.NewContext(),
-		database: database,
-		answer: func(ctx context.Context, unit db.Context) error {
-			return answer(ctx, unit, karo, ana, fair)
-		},
-	}
+	return karo, ana, fair
+}
 
-	return ana, fair, unit
+func decliningUnit(database db.Database, karo, ana *repositories.User, fair *repositories.Project) answeringUnit {
+	return answeringUnit{Context: database.NewContext(), database: database, answer: func(ctx context.Context, unit db.Context) error {
+		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
+	}}
 }
 
 func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
-		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
-	})
+	karo, ana, fair := openedAskedProject(t, database)
 
 	// act
-	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
+	_, err := projects.Join(t.Context(), decliningUnit(database, karo, ana, fair), ana, fair.ID())
 
 	// assert
 	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
@@ -1004,11 +997,9 @@ func TestAJoinWhileAMemberSaysNoToTheRequestIsAConflict(t *testing.T) {
 func TestAJoinAfterAConflictWithANoGetsIn(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
-		return projects.DeclineRequest(ctx, unit, karo, fair.ID(), ana.ID())
-	})
-	_, err := projects.Join(t.Context(), unit, ana, fair.ID())
-	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+	karo, ana, fair := openedAskedProject(t, database)
+	_, err := projects.Join(t.Context(), decliningUnit(database, karo, ana, fair), ana, fair.ID())
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification, "the conflict to try again after")
 
 	// act
 	joined, err := projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
@@ -1021,11 +1012,12 @@ func TestAJoinAfterAConflictWithANoGetsIn(t *testing.T) {
 func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
-	ana, fair, unit := joiningWhileAnswered(t, database, func(ctx context.Context, unit db.Context, karo, ana *repositories.User, fair *repositories.Project) error {
+	karo, ana, fair := openedAskedProject(t, database)
+	unit := answeringUnit{Context: database.NewContext(), database: database, answer: func(ctx context.Context, unit db.Context) error {
 		_, err := projects.AcceptRequest(ctx, unit, karo, fair.ID(), ana.ID())
 
 		return err
-	})
+	}}
 
 	// act
 	joined, err := projects.Join(t.Context(), unit, ana, fair.ID())
@@ -1033,4 +1025,8 @@ func TestAJoinWhileAMemberSaysYesToTheRequestGetsIn(t *testing.T) {
 	// assert
 	require.NoError(t, err)
 	assert.Equal(t, fair.ID(), joined.ID())
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	assert.Len(t, listed, 1)
 }
