@@ -27,16 +27,6 @@ func meTooIdea(ctx context.Context, token string, projectID string, ideaID strin
 }
 
 // two members, since the planter alone can't show that me too counts
-func sharedProject(ctx context.Context) project {
-	loggedInOnce(ctx, otherAccessToken)
-	shared := createProject(ctx, accessToken, "Garden", "private")
-	found := search(ctx, accessToken, shared.ID, "frogly-tests-2")
-	Expect(found).To(HaveLen(1))
-	Expect(addMember(ctx, accessToken, shared.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusOK))
-
-	return shared
-}
-
 var _ = Describe("saying me too to an idea", func() {
 	It("counts a new idea as one person's", func(ctx SpecContext) {
 		garden := createProject(ctx, accessToken, "Garden", "private")
