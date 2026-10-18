@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import type { Person, Project, SessionEnded } from "./api";
+  import type { Joining, Person, Project, SessionEnded } from "./api";
   import { getLogin } from "./login";
   import { p } from "./router";
   import { addPerson, findPeople, loadSettings, switchJoining, switchVisibility } from "./settings";
@@ -14,7 +14,6 @@
     kind: "loading",
   });
   const isPublic = $derived(settings.kind === "loaded" && settings.project.visibility === "public");
-  const isOpen = $derived(settings.kind === "loaded" && settings.project.joining === "open");
   let switching = $state(false);
   let problem = $state("");
   let joiningProblem = $state("");
@@ -82,8 +81,26 @@
     }
   }
 
-  async function toggleJoining() {
-    if (switching || settings.kind !== "loaded") {
+  // the browser checks a radio on click, before the change is saved, so a
+  // change that didn't happen has to check the saved one again
+  function showSaved(radio: HTMLInputElement, saved: Joining) {
+    const group = radio.closest("fieldset");
+    const savedRadio = group?.querySelector<HTMLInputElement>(`input[value="${saved}"]`);
+    if (savedRadio) {
+      savedRadio.checked = true;
+    }
+  }
+
+  async function chooseJoining(event: Event) {
+    if (settings.kind !== "loaded") {
+      return;
+    }
+
+    const radio = event.currentTarget as HTMLInputElement;
+    const saved = settings.project.joining;
+    const chosen = radio.value as Joining;
+    if (switching || chosen === saved) {
+      showSaved(radio, saved);
       return;
     }
 
@@ -91,7 +108,7 @@
     problem = "";
     joiningProblem = "";
 
-    const outcome = await switchJoining(login.accessToken, projectId, isOpen ? "closed" : "open");
+    const outcome = await switchJoining(login.accessToken, projectId, chosen);
     switching = false;
 
     switch (outcome.kind) {
@@ -100,11 +117,13 @@
         break;
       case "notChanged":
         joiningProblem = "frogly couldn't change who can join the project. Try again in a moment.";
+        showSaved(radio, saved);
         break;
       default:
         handledElsewhere(outcome);
     }
   }
+
 
   async function search(event: SubmitEvent) {
     event.preventDefault();
@@ -196,19 +215,25 @@
   </section>
 
   {#if isPublic}
-    <section aria-labelledby="joining-label">
-      <p class="label" id="joining-label">who can join</p>
-      <p class="quiet visibility">
-        <!-- polite, so a screen reader says the new state once the change is saved -->
-        <span aria-live="polite">
-          {isOpen ? "Anyone who uses frogly can join right away." : "Only people a member adds."}
-        </span>
-        <button class="btn" onclick={toggleJoining} aria-disabled={switching}>
-          {isOpen ? "close it" : "let anyone join"}
-        </button>
-      </p>
+    <section>
+      <fieldset class="choice" aria-describedby="joining-problem">
+        <legend class="label">who can join</legend>
+        {#each [{ value: "open", text: "anyone, right away" }, { value: "request", text: "people who ask, once a member says yes" }, { value: "closed", text: "only people a member adds" }] as option (option.value)}
+          <label>
+            <input
+              type="radio"
+              name="joining"
+              value={option.value}
+              checked={settings.project.joining === option.value}
+              onchange={chooseJoining}
+              aria-disabled={switching}
+            />
+            {option.text}
+          </label>
+        {/each}
+      </fieldset>
       <!-- always there, so screen readers announce the text when it changes -->
-      <p class="problem" role="alert">{joiningProblem}</p>
+      <p class="problem" id="joining-problem" role="alert">{joiningProblem}</p>
     </section>
   {/if}
 
