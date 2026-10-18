@@ -47,12 +47,12 @@
 <!-- the choice's legend is the heading, so the focus goes to the group -->
 <Section>
   <div tabindex="-1" bind:this={top} class="group">
-  <Choice legend="who can join" name="joining" choices={joiningChoices} bind:group={chosen} describedby="joining-problem" />
-  {#if chosen !== project.joining}
-    <div class="save">
-      <Button pond busy={saving.busy} onclick={save}>save who can join</Button>
-    </div>
-  {/if}
+    <Choice legend="who can join" name="joining" choices={joiningChoices} bind:group={chosen} describedby="joining-problem" />
+    {#if chosen !== project.joining}
+      <div class="save">
+        <Button pond busy={saving.busy} onclick={save}>save who can join</Button>
+      </div>
+    {/if}
   </div>
   <Problem id="joining-problem" text={saving.problem} />
   <Notice text={saving.notice} />

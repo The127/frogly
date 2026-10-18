@@ -22,6 +22,10 @@
   // down later
   const settings: Resource<api.ProjectWithMembers> = new Resource(login, async () => {
     const [project] = await Promise.all([api.project(login.accessToken, projectId), requests.load()]);
+    // the requests found the project gone, maybe since frogly sent it
+    if (requests.state.kind === "notFound") {
+      return { ok: false as const, failure: { kind: "notFound" as const } };
+    }
 
     return project;
   });
