@@ -248,7 +248,7 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
-	if errors.Is(err, repositories.ErrConcurrentModification) && !isMember(ctx, unit, user, projectID) {
+	if errors.Is(err, repositories.ErrConcurrentModification) && hasLeft(ctx, unit, user, projectID) {
 		// the same person left from elsewhere in between, like in another
 		// tab, which is what they asked for
 		return nil
@@ -261,10 +261,12 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 	return nil
 }
 
-func isMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) bool {
+// hasLeft says whether user is out of the project. A read that fails
+// says nothing, so it doesn't count as left.
+func hasLeft(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) bool {
 	_, err := Get(ctx, unit, user, projectID)
 
-	return err == nil
+	return errors.Is(err, ErrNotFound)
 }
 
 // ChangeJoining lets a member open a public project to join or close it.
