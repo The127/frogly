@@ -243,8 +243,10 @@ func (opening emptyProjectOpening) Execute(ctx context.Context, tx *sql.Tx) erro
 	query, args := lock.BuildWithFlavor(sqlbuilder.PostgreSQL)
 
 	_, err := tx.ExecContext(ctx, query, args...)
+
+	err = written(err, "locking project "+opening.projectID.String()+" to open it")
 	if err != nil {
-		return fmt.Errorf("locking project %s to open it: %w", opening.projectID, err)
+		return err
 	}
 
 	members := sqlbuilder.Select("1").From("memberships m")
