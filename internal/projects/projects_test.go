@@ -754,3 +754,26 @@ func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
 		require.ErrorIs(t, err, projects.ErrNotFound)
 	}
 }
+
+// conflictingUnit refuses its save as a race without writing anything,
+// like a save Postgres stopped to break a deadlock.
+type conflictingUnit struct {
+	db.Context
+}
+
+func (conflictingUnit) SaveChanges(context.Context) error {
+	return repositories.ErrConcurrentModification
+}
+
+func TestAJoinWhoseSaveWasStoppedIsARace(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningOpen)
+
+	// act
+	_, err := projects.Join(t.Context(), conflictingUnit{database.NewContext()}, ana, fair.ID())
+
+	// assert
+	require.ErrorIs(t, err, repositories.ErrConcurrentModification)
+}
