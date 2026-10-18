@@ -8,7 +8,7 @@ export { Router } from "sv-router";
 // Imported up front, a page that loads first would run createRouter before
 // the pages exist.
 export const { p, navigate, route } = createRouter({
-  "/": () => import("./Home.svelte"),
+  "/": () => import("./pages/Home.svelte"),
   "/projects/new": () => import("./NewProject.svelte"),
   "/projects/:id": () => import("./GardenPage.svelte"),
   "/projects/:id/settings": () => import("./SettingsPage.svelte"),

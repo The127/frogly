@@ -142,6 +142,16 @@ a {
   color: inherit;
 }
 
+/* a link in a list, which reads like the list's text */
+a.plain {
+  text-decoration: none;
+}
+
+a.plain:hover,
+a.plain:focus-visible {
+  color: var(--pond);
+}
+
 .projects a {
   text-decoration: none;
 }
