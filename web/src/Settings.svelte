@@ -17,6 +17,20 @@
   let switching = $state(false);
   let problem = $state("");
   let joiningProblem = $state("");
+  // picking a choice and saving it are two steps, since arrow keys walk
+  // through every choice on the way, and saving each would let people in
+  // for a moment
+  let chosenJoining = $state<Joining | undefined>();
+  $effect(() => {
+    if (settings.kind === "loaded") {
+      chosenJoining = settings.project.joining;
+    }
+  });
+  const joiningChoices: { value: Joining; text: string }[] = [
+    { value: "open", text: "anyone, right away" },
+    { value: "request", text: "people who ask, once a member says yes" },
+    { value: "closed", text: "only people a member adds" },
+  ];
 
   let searchText = $state("");
   let people = $state<Person[] | undefined>();
@@ -81,26 +95,8 @@
     }
   }
 
-  // the browser checks a radio on click, before the change is saved, so a
-  // change that didn't happen has to check the saved one again
-  function showSaved(radio: HTMLInputElement, saved: Joining) {
-    const group = radio.closest("fieldset");
-    const savedRadio = group?.querySelector<HTMLInputElement>(`input[value="${saved}"]`);
-    if (savedRadio) {
-      savedRadio.checked = true;
-    }
-  }
-
-  async function chooseJoining(event: Event) {
-    if (settings.kind !== "loaded") {
-      return;
-    }
-
-    const radio = event.currentTarget as HTMLInputElement;
-    const saved = settings.project.joining;
-    const chosen = radio.value as Joining;
-    if (switching || chosen === saved) {
-      showSaved(radio, saved);
+  async function saveJoining() {
+    if (switching || settings.kind !== "loaded" || chosenJoining === undefined) {
       return;
     }
 
@@ -108,7 +104,7 @@
     problem = "";
     joiningProblem = "";
 
-    const outcome = await switchJoining(login.accessToken, projectId, chosen);
+    const outcome = await switchJoining(login.accessToken, projectId, chosenJoining);
     switching = false;
 
     switch (outcome.kind) {
@@ -117,13 +113,11 @@
         break;
       case "notChanged":
         joiningProblem = "frogly couldn't change who can join the project. Try again in a moment.";
-        showSaved(radio, saved);
         break;
       default:
         handledElsewhere(outcome);
     }
   }
-
 
   async function search(event: SubmitEvent) {
     event.preventDefault();
@@ -218,20 +212,15 @@
     <section>
       <fieldset class="choice" aria-describedby="joining-problem">
         <legend class="label">who can join</legend>
-        {#each [{ value: "open", text: "anyone, right away" }, { value: "request", text: "people who ask, once a member says yes" }, { value: "closed", text: "only people a member adds" }] as option (option.value)}
-          <label>
-            <input
-              type="radio"
-              name="joining"
-              value={option.value}
-              checked={settings.project.joining === option.value}
-              onchange={chooseJoining}
-              aria-disabled={switching}
-            />
-            {option.text}
-          </label>
+        {#each joiningChoices as choice (choice.value)}
+          <label><input type="radio" name="joining" value={choice.value} bind:group={chosenJoining} /> {choice.text}</label>
         {/each}
       </fieldset>
+      {#if chosenJoining !== settings.project.joining}
+        <div class="acts">
+          <button class="btn pond" onclick={saveJoining} aria-disabled={switching}>save who can join</button>
+        </div>
+      {/if}
       <!-- always there, so screen readers announce the text when it changes -->
       <p class="problem" id="joining-problem" role="alert">{joiningProblem}</p>
     </section>
