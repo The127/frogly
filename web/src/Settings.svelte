@@ -53,8 +53,10 @@
   let leaveProblem = $state("");
   let leaveButton = $state<HTMLButtonElement>();
   let stayButton = $state<HTMLButtonElement>();
-  // counted again when someone asks to leave
+  // loaded again when someone asks to leave, apart from the project the
+  // page shows, so an unsaved pick of who can join stays
   let members = $state(0);
+  let leavingJoining = $state<Joining>("closed");
   // a private project is always closed
   const comingBack: Record<Joining, string> = {
     open: "You can join it again whenever you like.",
@@ -75,6 +77,7 @@
     } else if (loaded.kind === "loaded") {
       show(loaded.project);
       members = loaded.members;
+      leavingJoining = loaded.project.joining;
       showRequests(waiting);
     } else {
       settings = loaded;
@@ -266,8 +269,8 @@
       return;
     }
 
-    // others may have joined or left since the page loaded, and the note
-    // tells the last member that the project opens
+    // others may have joined, left or changed who can join since the page
+    // loaded, and the note says what leaving does now
     leaving = true;
     const loaded = await loadSettings(login.accessToken, projectId);
     leaving = false;
@@ -275,10 +278,16 @@
     switch (loaded.kind) {
       case "loaded":
         members = loaded.members;
+        leavingJoining = loaded.project.joining;
         break;
-      // the count from before still makes a fair note
+      // what the page knew from before still makes a fair note
       case "failed":
         break;
+      // not a member any more, like after leaving in another tab, is what
+      // leaving was for
+      case "notFound":
+        void navigate("/");
+        return;
       default:
         handledElsewhere(loaded);
         return;
@@ -449,7 +458,7 @@
       <p class="quiet" id="coming-back">
         {members === 1
           ? "You're its last member. It turns public and open, so anyone in frogly can find it and join."
-          : comingBack[settings.project.joining]}
+          : comingBack[leavingJoining]}
       </p>
     {/if}
     <div class="acts">
