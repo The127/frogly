@@ -19,6 +19,13 @@
     failed: string;
     children: Snippet<[T]>;
   } = $props();
+
+  // Page names the tab once there's something to show
+  $effect(() => {
+    if (resource.state.kind === "loading") {
+      document.title = `${title} · frogly`;
+    }
+  });
 </script>
 
 {#if resource.state.kind === "loading"}

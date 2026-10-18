@@ -38,6 +38,11 @@
     color: var(--pond);
   }
 
+  button:focus-visible {
+    outline: 2px solid var(--pond);
+    outline-offset: 2px;
+  }
+
   button[aria-disabled="true"] {
     cursor: progress;
     opacity: 0.6;
