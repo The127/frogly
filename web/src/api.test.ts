@@ -19,6 +19,7 @@ import {
   fetchPublicProjects,
   fetchRequests,
   joinProject,
+  leaveProject,
   plantIdea,
   sayMeToo,
   searchPeople,
@@ -498,6 +499,44 @@ describe("joinProject", () => {
 
     // assert
     await expect(joined).rejects.toThrow("503");
+  });
+});
+
+describe("leaveProject", () => {
+  it("leaves", async () => {
+    // arrange
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+
+    // act
+    await leaveProject("an-access-token", "p-1");
+
+    // assert
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-1/leave", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when you aren't a member", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const left = leaveProject("an-access-token", "p-1");
+
+    // assert
+    await expect(left).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const left = leaveProject("an-access-token", "p-1");
+
+    // assert
+    await expect(left).rejects.toThrow("503");
   });
 });
 

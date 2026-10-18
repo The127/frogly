@@ -696,3 +696,61 @@ func TestTwoPeopleJoiningAtOnceBothGetIn(t *testing.T) {
 		assert.Len(t, listed, 1, who.Name())
 	}
 }
+
+func TestAMemberLeavesAProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, garden.ID(), ana.ID())
+	require.NoError(t, err)
+
+	// act
+	err = projects.Leave(t.Context(), database.NewContext(), ana, garden.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), ana, garden.ID())
+	require.ErrorIs(t, err, projects.ErrNotFound)
+
+	_, err = projects.Get(t.Context(), database.NewContext(), karo, garden.ID())
+	require.NoError(t, err, "the other member stays")
+}
+
+func TestTheLastMemberLeavesAProject(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningClosed)
+
+	// act
+	err := projects.Leave(t.Context(), database.NewContext(), karo, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+
+	listed, err := projects.ListFor(t.Context(), database.NewContext(), karo)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+
+	public, err := projects.ListPublicFor(t.Context(), database.NewContext(), ana)
+	require.NoError(t, err)
+	require.Len(t, public, 1, "the project stays")
+	assert.Equal(t, fair.ID(), public[0].Project.ID())
+}
+
+func TestSomeoneOutsideAProjectCantLeaveIt(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	garden := createdProject(t, database, karo, repositories.VisibilityPrivate, "")
+
+	for _, projectID := range []uuid.UUID{garden.ID(), uuid.Must(uuid.NewV7())} {
+		// act
+		err := projects.Leave(t.Context(), database.NewContext(), ana, projectID)
+
+		// assert
+		require.ErrorIs(t, err, projects.ErrNotFound)
+	}
+}

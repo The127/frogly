@@ -61,4 +61,7 @@ func (membership *Membership) UserID() uuid.UUID {
 // MembershipRepository saves memberships.
 type MembershipRepository interface {
 	Insert(membership *Membership)
+	// Delete takes the user out of the project. A user who isn't a member
+	// is no error.
+	Delete(projectID uuid.UUID, userID uuid.UUID)
 }

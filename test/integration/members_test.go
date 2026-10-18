@@ -39,6 +39,18 @@ func loggedInOnce(ctx context.Context, token string) {
 	Expect(call(ctx, http.MethodGet, "/api/me", token, nil)).To(HaveHTTPStatus(http.StatusOK))
 }
 
+// sharedProject is a private project of frogly-tests that frogly-tests-2
+// was added to.
+func sharedProject(ctx context.Context) project {
+	loggedInOnce(ctx, otherAccessToken)
+	shared := createProject(ctx, accessToken, "Garden", "private")
+	found := search(ctx, accessToken, shared.ID, "frogly-tests-2")
+	Expect(found).To(HaveLen(1))
+	Expect(addMember(ctx, accessToken, shared.ID, found[0].ID)).To(HaveHTTPStatus(http.StatusOK))
+
+	return shared
+}
+
 var _ = Describe("adding someone to your project", func() {
 	It("finds them by name and lets them plan in the project", func(ctx SpecContext) {
 		loggedInOnce(ctx, otherAccessToken)

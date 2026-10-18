@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/google/uuid"
 	"github.com/huandu/go-sqlbuilder"
 
 	"github.com/the127/frogly/internal/change"
@@ -23,6 +24,11 @@ func NewMembershipRepository(tracker *change.Tracker) *MembershipRepository {
 // Insert records the membership to be written.
 func (repository *MembershipRepository) Insert(membership *repositories.Membership) {
 	repository.tracker.Add(change.NewEntry(change.Added, membership))
+}
+
+// Delete records the user's membership of the project to be removed.
+func (repository *MembershipRepository) Delete(projectID uuid.UUID, userID uuid.UUID) {
+	repository.tracker.Add(change.NewEntry(change.Deleted, membershipDeletion{projectID: projectID, userID: userID}))
 }
 
 // ExecuteInsert writes the membership as version 1. A joining membership
@@ -68,4 +74,23 @@ func (repository *MembershipRepository) ExecuteInsert(ctx context.Context, tx *s
 	_, err := tx.ExecContext(ctx, query, args...)
 
 	return written(err, what)
+}
+
+// membershipDeletion removes one user's membership of one project, if
+// there is one.
+type membershipDeletion struct {
+	projectID uuid.UUID
+	userID    uuid.UUID
+}
+
+// Execute removes the membership.
+func (deletion membershipDeletion) Execute(ctx context.Context, tx *sql.Tx) error {
+	statement := sqlbuilder.DeleteFrom("memberships")
+	statement.Where(statement.Equal("project_id", deletion.projectID), statement.Equal("user_id", deletion.userID))
+
+	query, args := statement.BuildWithFlavor(sqlbuilder.PostgreSQL)
+
+	_, err := tx.ExecContext(ctx, query, args...)
+
+	return written(err, "deleting the membership of user "+deletion.userID.String()+" in project "+deletion.projectID.String())
 }

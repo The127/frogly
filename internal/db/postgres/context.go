@@ -116,6 +116,10 @@ func (unit *Context) SaveChanges(ctx context.Context) error {
 var errUnsupportedChange = errors.New("unsupported change")
 
 func (unit *Context) apply(ctx context.Context, tx *sql.Tx, entry *change.Entry) error {
+	if statement, ok := entry.Item().(repos.Statement); ok {
+		return statement.Execute(ctx, tx)
+	}
+
 	switch entry.Type() {
 	case change.Added:
 		return unit.insert(ctx, tx, entry.Item())
@@ -164,8 +168,6 @@ func (unit *Context) delete(ctx context.Context, tx *sql.Tx, item any) error {
 	switch item := item.(type) {
 	case *repositories.JoinRequest:
 		return unit.requests.ExecuteDelete(ctx, tx, item)
-	case repositories.ProjectRequests:
-		return unit.requests.ExecuteDeleteForProject(ctx, tx, item)
 	default:
 		return fmt.Errorf("%w: deleting %T", errUnsupportedChange, item)
 	}

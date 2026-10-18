@@ -1,6 +1,8 @@
 package postgres
 
 import (
+	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,4 +41,28 @@ func TestAChangeNoRepositoryMakesIsRefused(t *testing.T) {
 			require.ErrorIs(t, err, errUnsupportedChange)
 		})
 	}
+}
+
+// ranStatement notes that the unit of work let it write itself.
+type ranStatement struct {
+	ran *bool
+}
+
+func (statement ranStatement) Execute(context.Context, *sql.Tx) error {
+	*statement.ran = true
+
+	return nil
+}
+
+func TestAStatementWritesItself(t *testing.T) {
+	// arrange
+	unit := &Context{}
+	ran := false
+
+	// act
+	err := unit.apply(t.Context(), nil, change.NewEntry(change.Deleted, ranStatement{ran: &ran}))
+
+	// assert
+	require.NoError(t, err)
+	require.True(t, ran)
 }

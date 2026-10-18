@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
 
   import type { Joining, Person, Project, SessionEnded, WaitingRequest } from "./api";
   import { getLogin } from "./login";
-  import { p } from "./router";
-  import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
+  import { navigate, p } from "./router";
+  import { addPerson, answerRequest, findPeople, leave, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 
   let { projectId }: { projectId: string } = $props();
 
@@ -45,6 +45,20 @@
   let requestsProblem = $state("");
   let answered = $state("");
   let requestsHeading = $state<HTMLElement>();
+
+  // leaving takes two clicks, since you can't get back into a private or
+  // closed project on your own
+  let confirmingLeave = $state(false);
+  let leaving = $state(false);
+  let leaveProblem = $state("");
+  let leaveButton = $state<HTMLButtonElement>();
+  let stayButton = $state<HTMLButtonElement>();
+  // a private project is always closed
+  const comingBack: Record<Joining, string> = {
+    open: "You can join it again whenever you like.",
+    request: "You can come back once a member says yes when you ask, or adds you.",
+    closed: "You can only come back if a member adds you.",
+  };
 
   onMount(async () => {
     // both at once, so the requests don't push the page down later
@@ -243,6 +257,49 @@
         handledElsewhere(outcome);
     }
   }
+
+  async function askToLeave() {
+    confirmingLeave = true;
+    await tick();
+    stayButton?.focus();
+  }
+
+  async function stay() {
+    if (leaving) {
+      return;
+    }
+
+    leaveProblem = "";
+    confirmingLeave = false;
+    await tick();
+    leaveButton?.focus();
+  }
+
+  async function leaveForGood() {
+    if (leaving) {
+      return;
+    }
+
+    leaving = true;
+    leaveProblem = "";
+
+    const outcome = await leave(login.accessToken, projectId);
+
+    switch (outcome.kind) {
+      // still leaving until the home page shows, so a second click can't
+      // send another leave
+      case "left":
+        void navigate("/");
+        break;
+      case "notLeft":
+        leaving = false;
+        leaveProblem = "frogly couldn't take you out of this project. Try again in a moment.";
+        break;
+      default:
+        leaving = false;
+        handledElsewhere(outcome);
+    }
+  }
 </script>
 
 <p class="quiet">
@@ -359,5 +416,22 @@
     <!-- always there, so screen readers announce the text when it changes -->
     <p class="problem" role="alert">{addProblem}</p>
     <p class="quiet" aria-live="polite">{added}</p>
+  </section>
+
+  <section aria-labelledby="leave-label">
+    <p class="label" id="leave-label">leave</p>
+    {#if confirmingLeave}
+      <p class="quiet" id="coming-back">{comingBack[settings.project.joining]}</p>
+    {/if}
+    <div class="acts">
+      {#if confirmingLeave}
+        <button class="btn" onclick={leaveForGood} aria-disabled={leaving} aria-describedby="coming-back">yes, leave {settings.project.name}</button>
+        <button class="btn pond" bind:this={stayButton} onclick={stay} aria-disabled={leaving} aria-describedby="coming-back">stay</button>
+      {:else}
+        <button class="btn" bind:this={leaveButton} onclick={askToLeave}>leave this project</button>
+      {/if}
+    </div>
+    <!-- always there, so screen readers announce the text when it changes -->
+    <p class="problem" role="alert">{leaveProblem}</p>
   </section>
 {/if}

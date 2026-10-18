@@ -13,6 +13,7 @@ import {
   failure,
   fetchProject,
   fetchRequests,
+  leaveProject,
   searchPeople,
 } from "./api";
 
@@ -109,5 +110,27 @@ export async function answerRequest(
     const failed = failure(error);
 
     return failed.kind === "failed" ? { kind: "notAnswered" } : failed;
+  }
+}
+
+export type Left = { kind: "left" } | { kind: "notLeft" } | SessionEnded;
+
+export async function leave(accessToken: AccessToken, projectId: string): Promise<Left> {
+  try {
+    await leaveProject(await accessToken(), projectId);
+
+    return { kind: "left" };
+  } catch (error) {
+    const failed = failure(error);
+    switch (failed.kind) {
+      case "failed":
+        return { kind: "notLeft" };
+      // not a member any more, like after leaving in another tab, is what
+      // leaving was for
+      case "notFound":
+        return { kind: "left" };
+      default:
+        return failed;
+    }
   }
 }
