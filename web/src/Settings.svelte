@@ -40,6 +40,12 @@
     people === undefined ? "" : `${people.length} ${people.length === 1 ? "person" : "people"} found`,
   );
 
+  let requests = $state<WaitingRequest[]>([]);
+  let answering = $state(false);
+  let requestsProblem = $state("");
+  let answered = $state("");
+  let requestsHeading = $state<HTMLElement>();
+
   onMount(async () => {
     // both at once, so the requests don't push the page down later
     const [loaded, waiting] = await Promise.all([
@@ -57,12 +63,6 @@
       settings = loaded;
     }
   });
-
-  let requests = $state<WaitingRequest[]>([]);
-  let answering = $state(false);
-  let requestsProblem = $state("");
-  let answered = $state("");
-  let requestsHeading = $state<HTMLElement>();
 
   async function refreshRequests() {
     showRequests(await loadRequests(login.accessToken, projectId));

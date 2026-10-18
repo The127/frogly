@@ -1,18 +1,18 @@
 import {
   type Joining,
-  type WaitingRequest,
-  acceptRequest,
-  declineRequest,
-  fetchRequests,
   type Person,
   type Project,
   type SessionEnded,
   type Visibility,
+  type WaitingRequest,
+  acceptRequest,
   addMember,
   changeJoining,
   changeVisibility,
+  declineRequest,
   failure,
   fetchProject,
+  fetchRequests,
   searchPeople,
 } from "./api";
 
