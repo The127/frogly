@@ -193,6 +193,25 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 	return unit.Projects().ByIDForMember(ctx, projectID, user.ID())
 }
 
+// Leave takes user out of a project they're a member of. The project and
+// what they planted in it stay for the others. The last member may leave
+// too. Someone who isn't a member gets ErrNotFound, like Get.
+func Leave(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) error {
+	_, err := Get(ctx, unit, user, projectID)
+	if err != nil {
+		return err
+	}
+
+	unit.Memberships().Delete(projectID, user.ID())
+
+	err = unit.SaveChanges(ctx)
+	if err != nil {
+		return fmt.Errorf("taking user %s out of project %s: %w", user.ID(), projectID, err)
+	}
+
+	return nil
+}
+
 // ChangeJoining lets a member open a public project to join or close it.
 // It gives ErrNotFound to someone who isn't a member, like Get.
 func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, joining repositories.Joining) (*repositories.Project, error) {
