@@ -266,6 +266,11 @@
   }
 
   async function stay() {
+    if (leaving) {
+      return;
+    }
+
+    leaveProblem = "";
     confirmingLeave = false;
     await tick();
     leaveButton?.focus();
@@ -414,10 +419,10 @@
   <section aria-labelledby="leave-label">
     <p class="label" id="leave-label">leave</p>
     {#if confirmingLeave}
-      <p class="quiet">{comingBack[settings.project.joining]}</p>
+      <p class="quiet" id="coming-back">{comingBack[settings.project.joining]}</p>
       <div class="acts">
-        <button class="btn" onclick={leaveForGood} aria-disabled={leaving}>yes, leave {settings.project.name}</button>
-        <button class="btn pond" bind:this={stayButton} onclick={stay}>stay</button>
+        <button class="btn" onclick={leaveForGood} aria-disabled={leaving} aria-describedby="coming-back">yes, leave {settings.project.name}</button>
+        <button class="btn pond" bind:this={stayButton} onclick={stay} aria-disabled={leaving} aria-describedby="coming-back">stay</button>
       </div>
     {:else}
       <div class="acts">
