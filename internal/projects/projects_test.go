@@ -877,7 +877,7 @@ func TestSomeoneElsesRequestDoesntCountAsYours(t *testing.T) {
 	assert.False(t, listed[0].Asked)
 }
 
-func TestAYesForSomeoneWhoIsAMemberByNowRemovesTheRequest(t *testing.T) {
+func TestAYesForSomeoneWhoIsAMemberByNowFindsNoRequest(t *testing.T) {
 	// arrange
 	database := sqlitetest.Open(t)
 	karo, ana, fair := askedProject(t, database)
@@ -885,11 +885,40 @@ func TestAYesForSomeoneWhoIsAMemberByNowRemovesTheRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	// act
-	accepted, err := projects.AcceptRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+	_, err = projects.AcceptRequest(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
+
+	// assert
+	require.ErrorIs(t, err, projects.ErrNoRequest)
+}
+
+func TestAddingSomeoneWhoAskedRemovesTheirRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+
+	// act
+	_, err := projects.AddMember(t.Context(), database.NewContext(), karo, fair.ID(), ana.ID())
 
 	// assert
 	require.NoError(t, err)
-	assert.Equal(t, ana.ID(), accepted.ID())
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
+}
+
+func TestJoiningAfterAskingRemovesTheRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana, fair := askedProject(t, database)
+	_, err := projects.ChangeJoining(t.Context(), database.NewContext(), karo, fair.ID(), repositories.JoiningOpen)
+	require.NoError(t, err)
+
+	// act
+	_, err = projects.Join(t.Context(), database.NewContext(), ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
 
 	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
 	require.NoError(t, err)

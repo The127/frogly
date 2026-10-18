@@ -199,6 +199,11 @@ func Join(ctx context.Context, unit db.Context, user *repositories.User, project
 		return member, err
 	}
 
+	err = dropRequest(ctx, unit, projectID, user.ID())
+	if err != nil {
+		return nil, err
+	}
+
 	membership, err := repositories.NewJoiningMembership(projectID, user.ID())
 	if err != nil {
 		return nil, err
@@ -293,9 +298,14 @@ func Requests(ctx context.Context, unit db.Context, user *repositories.User, pro
 }
 
 // addMembership queues a membership for userID, unless they already are a
-// member.
+// member, and removes their request.
 func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
-	_, err := unit.Projects().ByIDForMember(ctx, projectID, userID)
+	err := dropRequest(ctx, unit, projectID, userID)
+	if err != nil {
+		return err
+	}
+
+	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
 	if err == nil {
 		return nil
 	}
@@ -314,12 +324,29 @@ func addMembership(ctx context.Context, unit db.Context, projectID uuid.UUID, us
 	return nil
 }
 
+// dropRequest queues the removal of userID's request, if one waits. A
+// member has nothing to wait for, however they got in.
+func dropRequest(ctx context.Context, unit db.Context, projectID uuid.UUID, userID uuid.UUID) error {
+	request, err := unit.JoinRequests().ByProjectAndUser(ctx, projectID, userID)
+	if errors.Is(err, repositories.ErrNotFound) {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	unit.JoinRequests().Delete(request)
+
+	return nil
+}
+
 // AcceptRequest lets a member say yes to a request, which makes the asker
 // a member and removes the request in the same save. It gives the asker
 // back. Someone who isn't a member gets ErrNotFound, and a request that
 // doesn't wait ErrNoRequest.
 func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.User, error) {
-	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
+	_, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {
 		return nil, err
 	}
@@ -329,14 +356,10 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 		return nil, err
 	}
 
-	// the asker may have got in another way since, like a member adding
-	// them, and then the yes only clears the request
 	err = addMembership(ctx, unit, projectID, askerID)
 	if err != nil {
 		return nil, err
 	}
-
-	unit.JoinRequests().Delete(request)
 
 	err = unit.SaveChanges(ctx)
 	if err != nil {
