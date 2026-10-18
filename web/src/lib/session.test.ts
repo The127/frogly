@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { type Me, NotAllowed } from "./api";
-import { type Login, type StoredUser, resume } from "./session";
+import type { Me } from "./api";
+import type { Result } from "./client";
+import { type UserManager, type StoredUser, resume } from "./session";
 
-function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null): Login {
+function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null): UserManager {
   return {
     signinRedirectCallback: vi.fn(async () => undefined),
     getUser: vi.fn(async () => stored),
@@ -15,8 +16,8 @@ function fakeLogin(stored: StoredUser | null, renewed: StoredUser | null = null)
 const fresh: StoredUser = { access_token: "fresh-token", expired: false, refresh_token: "refresh" };
 const stale: StoredUser = { access_token: "stale-token", expired: true, refresh_token: "refresh" };
 
-function frogly(names: Record<string, string>): (token: string) => Promise<Me | null> {
-  return async (token) => (token in names ? { name: names[token] } : null);
+function frogly(names: Record<string, string>): (token: string) => Promise<Result<Me>> {
+  return async (token) => (token in names ? { ok: true, value: { name: names[token] } } : { ok: false, failure: { kind: "loggedOut" } });
 }
 
 describe("resume", () => {
@@ -94,9 +95,7 @@ describe("resume", () => {
   it("keeps a login that may not use frogly, so the person can log out", async () => {
     // arrange
     const login = fakeLogin(fresh);
-    const fetchMe = async () => {
-      throw new NotAllowed();
-    };
+    const fetchMe = async (): Promise<Result<Me>> => ({ ok: false, failure: { kind: "notAllowed" } });
 
     // act
     const session = await resume(login, "/", fetchMe);
@@ -104,6 +103,19 @@ describe("resume", () => {
     // assert
     expect(login.removeUser).not.toHaveBeenCalled();
     expect(session).toEqual({ kind: "notAllowed" });
+  });
+
+  it("fails when frogly can't say who is logged in", async () => {
+    // arrange
+    const login = fakeLogin(fresh);
+    const fetchMe = async (): Promise<Result<Me>> => ({ ok: false, failure: { kind: "failed" } });
+
+    // act
+    const session = resume(login, "/", fetchMe);
+
+    // assert
+    await expect(session).rejects.toThrow("frogly can't say who is logged in");
+    expect(login.removeUser).not.toHaveBeenCalled();
   });
 
   it("offers the login again when Keyline's answer can't be used", async () => {

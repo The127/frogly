@@ -2,11 +2,15 @@
   import { UserManager } from "oidc-client-ts";
   import { onMount } from "svelte";
 
-  import { LoggedOut, fetchConfig, fetchMe } from "./api";
-  import { callbackPath, loginSettings } from "./auth";
-  import { setLogin } from "./login";
-  import { Router } from "./router";
-  import { type Session, resume } from "./session";
+  import * as api from "./lib/api";
+  import { callbackPath, loginSettings } from "./lib/auth";
+  import { LoggedOut } from "./lib/client";
+  import { setLogin } from "./lib/login";
+  import { type Session, resume } from "./lib/session";
+  import { Router, p } from "./router";
+  import Button from "./ui/Button.svelte";
+  import Loading from "./ui/Loading.svelte";
+  import Page from "./ui/Page.svelte";
 
   let session = $state<Session | { kind: "loading" } | { kind: "failed" }>({ kind: "loading" });
   let login: UserManager | undefined;
@@ -38,8 +42,13 @@
 
   onMount(async () => {
     try {
-      login = new UserManager(loginSettings(await fetchConfig(), window.location.origin));
-      session = await resume(login, window.location.pathname, fetchMe);
+      const config = await api.config();
+      if (!config.ok) {
+        throw new Error("frogly can't say where to log in");
+      }
+
+      login = new UserManager(loginSettings(config.value, window.location.origin));
+      session = await resume(login, window.location.pathname, (token) => api.me(async () => token));
 
       // automaticSilentRenew failed, maybe because the refresh token expired
       login.events.addSilentRenewError(() => {
@@ -61,30 +70,76 @@
   });
 </script>
 
-<header class="top">
-  <span class="mark"><span>蛙</span>frogly</span>
+<header>
+  <a class="mark" href={p("/")}><span aria-hidden="true">蛙</span>frogly</a>
   {#if session.kind === "loggedIn"}
-    <button class="btn" onclick={() => login?.signoutRedirect()}>log out</button>
+    <span class="who">{session.name}</span>
+    <Button onclick={() => login?.signoutRedirect()}>log out</Button>
   {/if}
 </header>
 
-<main class="narrow">
+<main>
   {#if session.kind === "loading"}
-    <p class="quiet">…</p>
+    <Loading />
   {:else if session.kind === "failed"}
-    <h1>frogly can't be reached right now.</h1>
-    <p class="quiet">Try again in a moment.</p>
+    <Page heading="frogly can't be reached right now.">
+      <p class="quiet">Try again in a moment.</p>
+    </Page>
   {:else if session.kind === "loggedIn"}
     <Router />
   {:else if session.kind === "notAllowed"}
-    <h1>This account can't use frogly.</h1>
-    <p class="quiet">Ask whoever runs frogly to let you in, or log in with another account.</p>
-    <button class="btn" onclick={() => login?.signoutRedirect()}>log out</button>
+    <Page heading="This account can't use frogly.">
+      <p class="quiet">Ask whoever runs frogly to let you in, or log in with another account.</p>
+      <Button onclick={() => login?.signoutRedirect()}>log out</Button>
+    </Page>
   {:else}
-    <h1>A quiet place for your team's work.</h1>
-    {#if session.loginFailed}
-      <p class="quiet">The login didn't work. Try again.</p>
-    {/if}
-    <button class="btn pond" onclick={() => login?.signinRedirect()}>log in</button>
+    <Page heading="A quiet place for your team's work.">
+      {#if session.loginFailed}
+        <p class="quiet">The login didn't work. Try again.</p>
+      {/if}
+      <Button pond onclick={() => login?.signinRedirect()}>log in</Button>
+    </Page>
   {/if}
 </main>
+
+<style>
+  header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 22px 0;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+
+  .mark {
+    font-family: var(--serif);
+    font-size: 19px;
+    color: var(--ink);
+    text-decoration: none;
+    letter-spacing: 0.01em;
+    margin-right: auto;
+  }
+
+  .mark span {
+    color: var(--pond);
+    margin-right: 6px;
+  }
+
+  main {
+    max-width: 620px;
+    margin: 10vh auto 0;
+  }
+
+  @media (max-width: 640px) {
+    .who {
+      display: none;
+    }
+
+    main {
+      margin-top: 4vh;
+    }
+  }
+</style>
