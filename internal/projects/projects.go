@@ -241,10 +241,11 @@ func Leave(ctx context.Context, unit db.Context, user *repositories.User, projec
 		project.Open()
 	}
 
-	unit.Memberships().Delete(projectID, user.ID())
 	// saved even when nothing about it changed, so its version goes up and
-	// two last members leaving at once can't both count the other
+	// two last members leaving at once can't both count the other. It goes
+	// first, like everywhere else, so saves lock in the same order.
 	unit.Projects().Update(project)
+	unit.Memberships().Delete(projectID, user.ID())
 	dropRequestsUnlessTaken(unit, project)
 
 	err = unit.SaveChanges(ctx)
@@ -298,14 +299,9 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 func addMembership(ctx context.Context, unit db.Context, project *repositories.Project, userID uuid.UUID) error {
 	projectID := project.ID()
 
-	err := dropRequest(ctx, unit, projectID, userID)
-	if err != nil {
-		return err
-	}
-
-	_, err = unit.Projects().ByIDForMember(ctx, projectID, userID)
+	_, err := unit.Projects().ByIDForMember(ctx, projectID, userID)
 	if err == nil {
-		return nil
+		return dropRequest(ctx, unit, projectID, userID)
 	}
 
 	if !errors.Is(err, repositories.ErrNotFound) {
@@ -317,10 +313,18 @@ func addMembership(ctx context.Context, unit db.Context, project *repositories.P
 		return err
 	}
 
-	unit.Memberships().Insert(membership)
 	// a new member changes the project, so a last member leaving at the
-	// same moment can't open it with someone still in it
+	// same moment can't open it with someone still in it. It goes first,
+	// so every save that changes a project and its rows locks them in the
+	// same order, and two of them can't wait on each other in Postgres.
 	unit.Projects().Update(project)
+
+	err = dropRequest(ctx, unit, projectID, userID)
+	if err != nil {
+		return err
+	}
+
+	unit.Memberships().Insert(membership)
 
 	return nil
 }
