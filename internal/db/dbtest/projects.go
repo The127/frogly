@@ -260,7 +260,7 @@ func (s *projectsSuite) TestAPublicProjectWithSeveralMembersIsListedOnce() {
 // TestAProjectKeepsHowPeopleJoin checks that a public project loads open
 // or closed, as it was saved, also in the list of public projects.
 func (s *projectsSuite) TestAProjectKeepsHowPeopleJoin() {
-	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest, repositories.JoiningClosed} {
 		s.Run(string(joining), func() {
 			// arrange
 			karo, ana := s.savedUser("Karo"), s.savedUser("Ana")
@@ -379,25 +379,31 @@ func (s *projectsSuite) TestJoiningTwiceIsARace() {
 }
 
 // TestAPrivateProjectThatIsOpenIsRefused checks that the database refuses
-// what the model never builds, a private project anyone could join.
+// what the model never builds, a private project anyone could join or
+// ask.
 func (s *projectsSuite) TestAPrivateProjectThatIsOpenIsRefused() {
-	// arrange
 	karo := s.savedUser("Karo")
-	project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
-	s.Require().NoError(err)
 
-	open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, repositories.JoiningOpen)
-	membership, err := repositories.NewMembership(open.ID(), karo.ID())
-	s.Require().NoError(err)
+	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningRequest} {
+		s.Run(string(joining), func() {
+			// arrange
+			project, err := repositories.NewProject("Secret", repositories.VisibilityPrivate, "")
+			s.Require().NoError(err)
 
-	unit := s.database.NewContext()
-	unit.Projects().Insert(open)
-	unit.Memberships().Insert(membership)
+			open := repositories.NewProjectFromDB(project.Base, "Secret", repositories.VisibilityPrivate, joining)
+			membership, err := repositories.NewMembership(open.ID(), karo.ID())
+			s.Require().NoError(err)
 
-	// act
-	err = unit.SaveChanges(s.T().Context())
+			unit := s.database.NewContext()
+			unit.Projects().Insert(open)
+			unit.Memberships().Insert(membership)
 
-	// assert
-	s.Require().Error(err)
-	s.NotErrorIs(err, repositories.ErrConcurrentModification)
+			// act
+			err = unit.SaveChanges(s.T().Context())
+
+			// assert
+			s.Require().Error(err)
+			s.NotErrorIs(err, repositories.ErrConcurrentModification)
+		})
+	}
 }

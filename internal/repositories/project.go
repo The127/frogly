@@ -34,6 +34,9 @@ type Joining string
 const (
 	// JoiningOpen lets anyone who may use frogly join right away.
 	JoiningOpen Joining = "open"
+	// JoiningRequest lets anyone who may use frogly ask, and a member says
+	// yes or no.
+	JoiningRequest Joining = "request"
 	// JoiningClosed lets only a member add someone.
 	JoiningClosed Joining = "closed"
 )
@@ -42,11 +45,11 @@ const (
 // see it to join.
 func checkJoining(visibility Visibility, joining Joining) error {
 	switch {
-	case joining != JoiningOpen && joining != JoiningClosed:
-		return Invalid("a project is open to join or closed")
+	case joining != JoiningOpen && joining != JoiningRequest && joining != JoiningClosed:
+		return Invalid("a project is open to join, takes requests or is closed")
 
-	case joining == JoiningOpen && visibility != VisibilityPublic:
-		return Invalid("only a public project can be open to join")
+	case joining != JoiningClosed && visibility != VisibilityPublic:
+		return Invalid("only a public project can be open to join or take requests")
 	}
 
 	return nil

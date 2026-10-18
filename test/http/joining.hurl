@@ -26,7 +26,7 @@ Content-Type: application/json
 HTTP 400
 [Asserts]
 header "Content-Type" == "application/problem+json"
-jsonpath "$.detail" == "a project is open to join or closed"
+jsonpath "$.detail" == "a project is open to join, takes requests or is closed"
 
 # a project that doesn't exist is not found
 PUT {{frogly}}/api/projects/01a14180-d957-7cc5-af29-7f1fe18d89bb/joining

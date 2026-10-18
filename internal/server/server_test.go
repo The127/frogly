@@ -545,8 +545,8 @@ func TestAProjectFroglyCantUseIsABadRequest(t *testing.T) {
 		{name: "no name", body: `{"name": "   ", "visibility": "private"}`, wantDetail: "a project needs a name"},
 		{name: "too long a name", body: `{"name": "` + strings.Repeat("蛙", 101) + `", "visibility": "private"}`, wantDetail: "a project's name has at most 100 characters"},
 		{name: "no visibility", body: `{"name": "Garden"}`, wantDetail: "a project is public or private"},
-		{name: "a public project without how to join", body: `{"name": "Garden", "visibility": "public"}`, wantDetail: "a project is open to join or closed"},
-		{name: "an open private project", body: `{"name": "Garden", "visibility": "private", "joining": "open"}`, wantDetail: "only a public project can be open to join"},
+		{name: "a public project without how to join", body: `{"name": "Garden", "visibility": "public"}`, wantDetail: "a project is open to join, takes requests or is closed"},
+		{name: "an open private project", body: `{"name": "Garden", "visibility": "private", "joining": "open"}`, wantDetail: "only a public project can be open to join or take requests"},
 		{name: "an unknown visibility", body: `{"name": "Garden", "visibility": "secret"}`, wantDetail: "a project is public or private"},
 		{name: "not JSON", body: `Garden`, wantDetail: "the body isn't the JSON this request takes"},
 		{name: "an unknown field", body: `{"name": "Garden", "visibility": "private", "colour": "green"}`, wantDetail: "the body isn't the JSON this request takes"},
@@ -1064,5 +1064,5 @@ func TestAJoiningFroglyCantUseIsABadRequest(t *testing.T) {
 
 	// assert
 	assert.Equal(t, http.StatusBadRequest, response.Code)
-	assert.Contains(t, response.Body.String(), "only a public project can be open to join")
+	assert.Contains(t, response.Body.String(), "only a public project can be open to join or take requests")
 }
