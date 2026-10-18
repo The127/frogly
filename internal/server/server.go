@@ -348,8 +348,8 @@ func writeProblemDetail(w http.ResponseWriter, status int, detail string) {
 }
 
 func write(w http.ResponseWriter, contentType string, status int, body any) {
-	// a 204 has no body, so it has no type either
-	if status == http.StatusNoContent {
+	// without a body there is no type either
+	if body == nil {
 		w.WriteHeader(status)
 
 		return
