@@ -3,7 +3,7 @@
 
   import type { PublicProject, SessionEnded } from "./api";
   import { getLogin } from "./login";
-  import { joinPublicProject, loadPublicProjects } from "./projects";
+  import { askPublicProject, joinPublicProject, loadPublicProjects } from "./projects";
   import { navigate } from "./router";
 
   const { accessToken, onLoggedOut, onNotAllowed } = getLogin();
@@ -41,6 +41,34 @@
   }
 
   onMount(load);
+
+  async function ask(project: PublicProject) {
+    if (busy) {
+      return;
+    }
+
+    busy = true;
+    joinProblem = "";
+
+    const outcome = await askPublicProject(accessToken, project.id);
+    busy = false;
+
+    switch (outcome.kind) {
+      case "asked":
+        projects = projects?.map((listed) => (listed.id === project.id ? { ...listed, asked: outcome.waiting } : listed));
+        break;
+      case "notAsked":
+        joinProblem = `frogly couldn't ask to join ${project.name}. Try again in a moment.`;
+        break;
+      case "notFound":
+        joinProblem = `${project.name} doesn't take requests any more.`;
+        // only the list knows how the project can be joined now, if at all
+        await load();
+        break;
+      default:
+        handledElsewhere(outcome);
+    }
+  }
 
   async function join(project: PublicProject) {
     if (busy) {
@@ -92,6 +120,12 @@
           {#if project.joining === "open"}
             <button class="btn" onclick={() => join(project)} aria-disabled={busy}>
               join <span class="hidden">{project.name}</span>
+            </button>
+          {:else if project.joining === "request" && project.asked}
+            <span class="meta">you asked, a member will answer</span>
+          {:else if project.joining === "request"}
+            <button class="btn" onclick={() => ask(project)} aria-disabled={busy}>
+              ask to join <span class="hidden">{project.name}</span>
             </button>
           {:else}
             <span class="meta">a member adds people</span>

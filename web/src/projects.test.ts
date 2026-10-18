@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LoggedOut, NotAllowed, NotFound, type Project, createProject, fetchProjects, fetchPublicProjects, joinProject } from "./api";
-import { addProject, joinPublicProject, loadProjects, loadPublicProjects, nameFrom } from "./projects";
+import {
+  LoggedOut,
+  NotAllowed,
+  NotFound,
+  type Project,
+  askToJoin,
+  createProject,
+  fetchProjects,
+  fetchPublicProjects,
+  joinProject,
+} from "./api";
+import { addProject, askPublicProject, joinPublicProject, loadProjects, loadPublicProjects, nameFrom } from "./projects";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -9,6 +19,7 @@ vi.mock("./api", async (actual) => ({
   fetchProjects: vi.fn(),
   fetchPublicProjects: vi.fn(),
   joinProject: vi.fn(),
+  askToJoin: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -136,13 +147,13 @@ describe("loadProjects", () => {
 describe("loadPublicProjects", () => {
   it("gives the public projects of others", async () => {
     // arrange
-    vi.mocked(fetchPublicProjects).mockResolvedValue([{ id: "p-2", name: "Summer fair", joining: "open" }]);
+    vi.mocked(fetchPublicProjects).mockResolvedValue([{ id: "p-2", name: "Summer fair", joining: "open", asked: false }]);
 
     // act
     const outcome = await loadPublicProjects(token);
 
     // assert
-    expect(outcome).toEqual({ kind: "listed", projects: [{ id: "p-2", name: "Summer fair", joining: "open" }] });
+    expect(outcome).toEqual({ kind: "listed", projects: [{ id: "p-2", name: "Summer fair", joining: "open", asked: false }] });
   });
 
   it.each([
@@ -204,6 +215,36 @@ describe("joinPublicProject", () => {
 
     // act
     const outcome = await joinPublicProject(token, "p-2");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("askPublicProject", () => {
+  it("says whether a request waits now", async () => {
+    // arrange
+    vi.mocked(askToJoin).mockResolvedValue(true);
+
+    // act
+    const outcome = await askPublicProject(token, "p-2");
+
+    // assert
+    expect(outcome).toEqual({ kind: "asked", waiting: true });
+    expect(askToJoin).toHaveBeenCalledWith("an-access-token", "p-2");
+  });
+
+  it.each([
+    { name: "asking failed", error: new Error("frogly answered 500"), kind: "notAsked" },
+    { name: "it doesn't take requests any more", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(askToJoin).mockRejectedValue(error);
+
+    // act
+    const outcome = await askPublicProject(token, "p-2");
 
     // assert
     expect(outcome).toEqual({ kind });

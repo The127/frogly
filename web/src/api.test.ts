@@ -5,6 +5,7 @@ import {
   NotAllowed,
   NotFound,
   addMember,
+  askToJoin,
   changeJoining,
   changeVisibility,
   createProject,
@@ -330,6 +331,45 @@ describe("changeJoining", () => {
   });
 });
 
+describe("askToJoin", () => {
+  it("asks and says whether a request waits", async () => {
+    // arrange
+    respondWith(200, { asked: true });
+
+    // act
+    const asked = await askToJoin("an-access-token", "p-2");
+
+    // assert
+    expect(asked).toBe(true);
+    expect(fetch).toHaveBeenCalledWith("/api/projects/p-2/requests", {
+      method: "POST",
+      headers: { Authorization: "Bearer an-access-token" },
+    });
+  });
+
+  it("fails as not found when the project doesn't take requests", async () => {
+    // arrange
+    respondWith(404, { status: 404 });
+
+    // act
+    const asked = askToJoin("an-access-token", "p-2");
+
+    // assert
+    await expect(asked).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("fails when frogly can't answer", async () => {
+    // arrange
+    respondWith(503, { status: 503 });
+
+    // act
+    const asked = askToJoin("an-access-token", "p-2");
+
+    // assert
+    await expect(asked).rejects.toThrow("503");
+  });
+});
+
 describe("joinProject", () => {
   it("joins and gives the project", async () => {
     // arrange
@@ -373,13 +413,13 @@ describe("joinProject", () => {
 describe("fetchPublicProjects", () => {
   it("gives the public projects of others", async () => {
     // arrange
-    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open" }]);
+    respondWith(200, [{ id: "p-2", name: "Summer fair", joining: "open", asked: false }]);
 
     // act
     const projects = await fetchPublicProjects("an-access-token");
 
     // assert
-    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open" }]);
+    expect(projects).toEqual([{ id: "p-2", name: "Summer fair", joining: "open", asked: false }]);
     expect(fetch).toHaveBeenCalledWith("/api/projects/public", {
       headers: { Authorization: "Bearer an-access-token" },
     });

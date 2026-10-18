@@ -23,6 +23,8 @@ export interface PublicProject {
   id: string;
   name: string;
   joining: Joining;
+  // whether you asked to join and wait for an answer
+  asked: boolean;
 }
 
 // Person is someone who has logged in to frogly.
@@ -244,6 +246,20 @@ async function putSetting(accessToken: string, projectId: string, setting: strin
   }
 
   return (await response.json()) as Project;
+}
+
+// says whether a request of yours waits now, which isn't so for a member
+export async function askToJoin(accessToken: string, projectId: string): Promise<boolean> {
+  const response = await authorized(`/api/projects/${encodeURIComponent(projectId)}/requests`, accessToken, { method: "POST" });
+  if (response.status === 404) {
+    throw new NotFound();
+  }
+
+  if (!response.ok) {
+    throw new Error(`frogly answered ${response.status} when asked to ask to join a project`);
+  }
+
+  return ((await response.json()) as { asked: boolean }).asked;
 }
 
 export async function joinProject(accessToken: string, projectId: string): Promise<Project> {
