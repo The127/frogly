@@ -13,9 +13,10 @@ import {
   declineRequest,
   fetchProject,
   fetchRequests,
+  leaveProject,
   searchPeople,
 } from "./api";
-import { addPerson, answerRequest, findPeople, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
+import { addPerson, answerRequest, findPeople, leave, loadRequests, loadSettings, switchJoining, switchVisibility } from "./settings";
 
 vi.mock("./api", async (actual) => ({
   ...(await actual<typeof import("./api")>()),
@@ -27,6 +28,7 @@ vi.mock("./api", async (actual) => ({
   fetchRequests: vi.fn(),
   acceptRequest: vi.fn(),
   declineRequest: vi.fn(),
+  leaveProject: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -277,6 +279,36 @@ describe("answerRequest", () => {
 
     // act
     const outcome = await answerRequest(token, "p-1", "u-2", "yes");
+
+    // assert
+    expect(outcome).toEqual({ kind });
+  });
+});
+
+describe("leave", () => {
+  it("leaves the project", async () => {
+    // arrange
+    vi.mocked(leaveProject).mockResolvedValue();
+
+    // act
+    const outcome = await leave(token, "p-1");
+
+    // assert
+    expect(outcome).toEqual({ kind: "left" });
+    expect(leaveProject).toHaveBeenCalledWith("an-access-token", "p-1");
+  });
+
+  it.each([
+    { name: "leaving failed", error: new Error("frogly answered 500"), kind: "notLeft" },
+    { name: "the project is gone", error: new NotFound(), kind: "notFound" },
+    { name: "the login ended", error: new LoggedOut(), kind: "loggedOut" },
+    { name: "the login lost frogly's role", error: new NotAllowed(), kind: "notAllowed" },
+  ])("says so when $name", async ({ error, kind }) => {
+    // arrange
+    vi.mocked(leaveProject).mockRejectedValue(error);
+
+    // act
+    const outcome = await leave(token, "p-1");
 
     // assert
     expect(outcome).toEqual({ kind });

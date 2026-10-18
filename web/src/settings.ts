@@ -13,6 +13,7 @@ import {
   failure,
   fetchProject,
   fetchRequests,
+  leaveProject,
   searchPeople,
 } from "./api";
 
@@ -109,5 +110,20 @@ export async function answerRequest(
     const failed = failure(error);
 
     return failed.kind === "failed" ? { kind: "notAnswered" } : failed;
+  }
+}
+
+export type Left = { kind: "left" } | { kind: "notLeft" } | { kind: "notFound" } | SessionEnded;
+
+// notFound means you aren't a member any more, or the project is gone
+export async function leave(accessToken: AccessToken, projectId: string): Promise<Left> {
+  try {
+    await leaveProject(await accessToken(), projectId);
+
+    return { kind: "left" };
+  } catch (error) {
+    const failed = failure(error);
+
+    return failed.kind === "failed" ? { kind: "notLeft" } : failed;
   }
 }
