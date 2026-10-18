@@ -39,15 +39,15 @@ const project: Project = { id: "p-1", name: "Garden", visibility: "private", joi
 const token = async () => "an-access-token";
 
 describe("loadSettings", () => {
-  it("gives the project", async () => {
+  it("gives the project and how many members it has", async () => {
     // arrange
-    vi.mocked(fetchProject).mockResolvedValue(project);
+    vi.mocked(fetchProject).mockResolvedValue({ ...project, members: 2 });
 
     // act
     const outcome = await loadSettings(token, "p-1");
 
     // assert
-    expect(outcome).toEqual({ kind: "loaded", project });
+    expect(outcome).toEqual({ kind: "loaded", project, members: 2 });
     expect(fetchProject).toHaveBeenCalledWith("an-access-token", "p-1");
   });
 
