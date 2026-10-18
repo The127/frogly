@@ -263,7 +263,8 @@ func ChangeJoining(ctx context.Context, unit db.Context, user *repositories.User
 
 // AskToJoin lets user ask to join a public project that takes requests,
 // and says whether a request of theirs waits now. Asking again changes
-// nothing, and a member asking has nothing to wait for. A project that
+// nothing, and a member asking has nothing to wait for, also one who got
+// in a moment before. A project that
 // doesn't exist or doesn't take requests gives ErrNotFound, decided by
 // the database as it saves the request.
 func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (bool, error) {
@@ -287,7 +288,7 @@ func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, pr
 
 	switch {
 	case errors.Is(err, repositories.ErrNotFound):
-		return false, fmt.Errorf("project %s to ask: %w", projectID, ErrNotFound)
+		return askedAsMember(ctx, unit, user, projectID)
 
 	// a request of theirs exists already, which the unique pair refuses
 	// like a race, and they asked either way
@@ -296,6 +297,18 @@ func AskToJoin(ctx context.Context, unit db.Context, user *repositories.User, pr
 	}
 
 	return true, nil
+}
+
+// askedAsMember answers a request the database refused. The user may have
+// got in a moment before, and then has nothing to wait for. Otherwise
+// the project doesn't take requests.
+func askedAsMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID) (bool, error) {
+	_, err := unit.Projects().ByIDForMember(ctx, projectID, user.ID())
+	if errors.Is(err, repositories.ErrNotFound) {
+		return false, fmt.Errorf("project %s to ask: %w", projectID, ErrNotFound)
+	}
+
+	return false, err
 }
 
 // Requests lists the project's waiting requests for one of its members,

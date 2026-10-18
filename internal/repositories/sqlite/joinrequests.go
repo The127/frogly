@@ -155,13 +155,17 @@ func (repository *JoinRequestRepository) Delete(request *repositories.JoinReques
 }
 
 // ExecuteInsert writes the request as version 1, only while its project
-// takes requests, checked in the same statement. It gives
-// repositories.ErrNotFound otherwise.
+// takes requests and the user isn't a member, checked in the same
+// statement. It gives repositories.ErrNotFound otherwise.
 func (repository *JoinRequestRepository) ExecuteInsert(ctx context.Context, tx *sql.Tx, request *repositories.JoinRequest) error {
 	insert := sqlbuilder.InsertInto("join_requests").Cols("id", "version", "project_id", "user_id", "asked_at")
 
-	// the row comes from the project only while it takes requests, so an
-	// open, closed, private or missing project writes nothing
+	membership := sqlbuilder.Select("1").From("memberships")
+	membership.Where("memberships.project_id = projects.id", membership.Equal("memberships.user_id", request.UserID().String()))
+
+	// the row comes from the project only while it takes requests from
+	// the user, so an open, closed, private or missing project writes
+	// nothing, and neither does a member
 	project := insert.Select()
 	project.Select(project.Var(request.ID().String()), "1", project.Var(request.ProjectID().String()), project.Var(request.UserID().String()), project.Var(request.AskedAt().UnixMicro()))
 	project.From("projects")
@@ -171,6 +175,7 @@ func (repository *JoinRequestRepository) ExecuteInsert(ctx context.Context, tx *
 		// them in can't change what the statement does
 		"visibility = 'public'",
 		"joining = 'request'",
+		project.NotExists(membership),
 	)
 
 	query, args := insert.BuildWithFlavor(sqlbuilder.SQLite)

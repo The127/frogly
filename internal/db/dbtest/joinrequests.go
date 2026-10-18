@@ -90,6 +90,24 @@ func (s *joinRequestsSuite) TestOnlyAProjectThatTakesRequestsCanBeAsked() {
 	}
 }
 
+// TestAMemberCantAsk checks that a member's request is refused as not
+// found and saves nothing, so a request can't slip in for someone who
+// got in a moment before.
+func (s *joinRequestsSuite) TestAMemberCantAsk() {
+	// arrange
+	karo := s.savedUser("Karo")
+	fair := s.takingRequests("Summer fair", karo)
+
+	// act
+	_, err := s.asking(fair, karo)
+
+	// assert
+	s.Require().ErrorIs(err, repositories.ErrNotFound)
+
+	_, err = s.database.NewContext().JoinRequests().ByProjectAndUser(s.T().Context(), fair.ID(), karo.ID())
+	s.Require().ErrorIs(err, repositories.ErrNotFound)
+}
+
 // TestAUserAsksAProjectOnlyOnce checks that a second request of the same
 // user is refused like a race.
 func (s *joinRequestsSuite) TestAUserAsksAProjectOnlyOnce() {

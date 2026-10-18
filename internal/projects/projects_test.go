@@ -751,6 +751,25 @@ func TestAskingAgainOrAsAMemberMakesNoNewRequest(t *testing.T) {
 	assert.Len(t, waiting, 1)
 }
 
+func TestAskingAsSomeoneGetsInMakesNoRequest(t *testing.T) {
+	// arrange
+	database := sqlitetest.Open(t)
+	karo, ana := savedUser(t, database, "Karo"), savedUser(t, database, "Ana")
+	fair := createdProject(t, database, karo, repositories.VisibilityPublic, repositories.JoiningRequest)
+	unit := racedUnit{Context: database.NewContext(), database: database, projectID: fair.ID(), userID: ana.ID()}
+
+	// act
+	asked, err := projects.AskToJoin(t.Context(), unit, ana, fair.ID())
+
+	// assert
+	require.NoError(t, err)
+	assert.False(t, asked, "a member has nothing to wait for")
+
+	waiting, err := projects.Requests(t.Context(), database.NewContext(), karo, fair.ID())
+	require.NoError(t, err)
+	assert.Empty(t, waiting)
+}
+
 func TestAProjectThatDoesntTakeRequestsCantBeAsked(t *testing.T) {
 	for _, joining := range []repositories.Joining{repositories.JoiningOpen, repositories.JoiningClosed} {
 		t.Run(string(joining), func(t *testing.T) {
