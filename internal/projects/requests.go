@@ -105,9 +105,9 @@ func dropRequestsUnlessTaken(unit db.Context, project *repositories.Project) {
 // AcceptRequest lets a member say yes to a request, which makes the asker
 // a member and removes the request in the same save. It gives the asker
 // back. Someone who isn't a member gets ErrNotFound, and a request that
-// doesn't wait ErrNoRequest. If the request is answered or the asker gets
-// in another way at the same moment, AcceptRequest gives
-// repositories.ErrConcurrentModification.
+// doesn't wait ErrNoRequest. If the request is answered, the asker gets in
+// another way or the project stops taking requests at the same moment,
+// AcceptRequest gives repositories.ErrConcurrentModification.
 func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) (*repositories.User, error) {
 	_, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {
@@ -134,9 +134,9 @@ func AcceptRequest(ctx context.Context, unit db.Context, user *repositories.User
 
 // DeclineRequest lets a member say no to a request, which removes it, so
 // the asker may ask again. Someone who isn't a member gets ErrNotFound,
-// and a request that doesn't wait ErrNoRequest. If the request is answered
-// or the asker gets in at the same moment, DeclineRequest gives
-// repositories.ErrConcurrentModification.
+// and a request that doesn't wait ErrNoRequest. If the request is
+// answered, the asker gets in or the project stops taking requests at the
+// same moment, DeclineRequest gives repositories.ErrConcurrentModification.
 func DeclineRequest(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, askerID uuid.UUID) error {
 	request, err := waitingRequest(ctx, unit, user, projectID, askerID)
 	if err != nil {

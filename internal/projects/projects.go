@@ -128,7 +128,7 @@ func FindPeople(ctx context.Context, unit db.Context, user *repositories.User, p
 // isn't a member gets ErrNotFound, like Get.
 //
 // If two members add the same person at once, or a member adds someone
-// while another answers that person's request, one of them gets
+// while their request is answered or dropped, one of them gets
 // repositories.ErrConcurrentModification. Trying again works.
 func AddMember(ctx context.Context, unit db.Context, user *repositories.User, projectID uuid.UUID, userID uuid.UUID) (*repositories.User, error) {
 	_, err := Get(ctx, unit, user, projectID)
