@@ -9,6 +9,8 @@ permissions:
 
 jobs:
   sign-off:
+    # a bot can't sign off, and its commits aren't written by a person
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
