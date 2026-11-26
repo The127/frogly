@@ -18,7 +18,8 @@ jobs:
   # the ruleset of main requires this check. It runs the same `just ci` as
   # the git hooks, with the tools in the versions mise.toml names
   ci:
-    runs-on: ubuntu-latest
+    # hurl 8.0.1 needs libxml2.so.2, which Ubuntu 26.04 no longer ships
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5

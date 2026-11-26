@@ -2,6 +2,8 @@ module github.com/the127/frogly
 
 go 1.27.2
 
+toolchain go1.27.4
+
 require (
 	github.com/The127/Keyline/client v0.0.0-20261005092824-0a18d2fb9a46
 	github.com/The127/ioc v0.0.0-20260824091124-f97ec189819b
